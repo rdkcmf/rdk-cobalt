@@ -14,6 +14,15 @@ SbDrmSystem SbDrmCreateSystem(
     SbDrmSessionKeyStatusesChangedFunc key_statuses_changed_callback,
     SbDrmServerCertificateUpdatedFunc server_certificate_updated_callback,
     SbDrmSessionClosedFunc session_closed_callback) {
+  if (!update_request_callback || !session_updated_callback) {
+    return kSbDrmSystemInvalid;
+  }
+  if (!key_statuses_changed_callback) {
+    return kSbDrmSystemInvalid;
+  }
+  if (!server_certificate_updated_callback || !session_closed_callback) {
+    return kSbDrmSystemInvalid;
+  }
 #if defined(HAS_OCDM)
   using third_party::starboard::wpe::shared::drm::DrmSystemOcdm;
   std::string empty;
