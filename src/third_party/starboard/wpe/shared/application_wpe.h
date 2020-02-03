@@ -53,6 +53,9 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   Event* PollNextSystemEvent() override;
   Event* WaitForSystemEventWithTimeout(SbTime time) override;
   void WakeSystemEventWait() override;
+
+  // wakeup event
+  int wakeup_fd_;
 };
 
 }  // namespace shared
