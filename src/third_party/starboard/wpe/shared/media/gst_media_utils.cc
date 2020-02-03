@@ -129,6 +129,10 @@ bool GstRegistryHasElementForCodec(C codec) {
 }  // namespace
 
 bool GstRegistryHasElementForMediaType(SbMediaVideoCodec codec) {
+#if !SB_HAS(MEDIA_WEBM_VP9_SUPPORT)
+  if (kSbMediaVideoCodecVp9 == codec)
+    return false;
+#endif
   return GstRegistryHasElementForCodec(codec);
 }
 

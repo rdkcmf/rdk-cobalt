@@ -53,6 +53,8 @@ class WpePlatformConfig(platform_configuration.PlatformConfiguration):
         'cobalt_enable_jit': 1,
         'include_path_platform_deploy_gypi':
             'third_party/starboard/wpe/rpi/platform_deploy.gypi',
+        'architecture_gypi':
+            'third_party/starboard/wpe/rpi/architecture_buildroot.gypi',
     })
 
 
@@ -122,5 +124,60 @@ class WpePlatformConfig(platform_configuration.PlatformConfiguration):
       ],
   }
 
+
+class WpePlatformConfigForYocto(platform_configuration.PlatformConfiguration):
+  """Starboard Linux platform configuration."""
+
+  def __init__(self, platform):
+    super(WpePlatformConfigForYocto, self).__init__(platform)
+    self.AppendApplicationConfigurationPath(os.path.dirname(__file__))
+    self.sysroot = os.path.realpath(os.environ.get('PKG_CONFIG_SYSROOT_DIR', '/'))
+
+  def GetBuildFormat(self):
+    """Returns the desired build format."""
+    # The comma means that ninja and qtcreator_ninja will be chained and use the
+    # same input information so that .gyp files will only have to be parsed
+    # once.
+    return 'ninja,qtcreator_ninja'
+
+  def GetVariables(self, configuration):
+    variables = super(WpePlatformConfigForYocto, self).GetVariables(configuration)
+    variables.update({
+        'clang': 0,
+        'sysroot': self.sysroot,
+    })
+    variables.update({
+        'javascript_engine': 'v8',
+        'cobalt_enable_jit': 1,
+        'architecture_gypi':
+             'third_party/starboard/wpe/rpi/architecture_yocto.gypi',
+    })
+    return variables
+
+  def GetEnvironmentVariables(self):
+    env_variables = {}
+    env_variables.update({
+        'CC': os.environ['CC'],
+        'CXX': os.environ['CXX'],
+        'LD': os.environ['CXX'],
+        'CC_host': 'gcc -m32',
+        'CXX_host': 'g++ -m32',
+    })
+    return env_variables
+
+  def GetLauncherPath(self):
+    """Gets the path to the launcher module for this platform."""
+    return os.path.dirname(__file__)
+
+  def GetGeneratorVariables(self, config_name):
+    del config_name
+    generator_variables = {
+        'qtcreator_session_name_prefix': 'cobalt',
+    }
+    return generator_variables
+
 def CreatePlatformConfig():
-  return WpePlatformConfig('wpe-rpi')
+  if 'BUILDROOT_HOME' in os.environ:
+    return WpePlatformConfig('wpe-rpi')
+  else:
+    return WpePlatformConfigForYocto('wpe-rpi')
