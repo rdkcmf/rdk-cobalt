@@ -14,7 +14,7 @@
 {
   'includes': [
     '../../shared/libraries.gypi',
-    'architecture.gypi',
+    '<(DEPTH)/<(architecture_gypi)',
   ],
   'variables': {
     'target_arch': 'arm',
