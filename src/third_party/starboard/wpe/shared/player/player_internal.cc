@@ -875,6 +875,16 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   }
 
   pipeline_ = gst_element_factory_make("playbin", "media_pipeline");
+
+  if (video_codec != kSbMediaVideoCodecNone) {
+    GstElement* videoSink = gst_element_factory_make("westerossink", nullptr);
+    if (videoSink) {
+      g_object_set(pipeline_, "video-sink", videoSink, nullptr);
+      g_object_set(G_OBJECT(videoSink), "zorder", 0.0f, nullptr);
+      g_object_unref(videoSink);
+    }
+  }
+
   unsigned flagAudio = getGstPlayFlag("audio");
   unsigned flagVideo = getGstPlayFlag("video");
   unsigned flagNativeVideo = getGstPlayFlag("native-video");
@@ -903,6 +913,7 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   GstElement* playsink = (gst_bin_get_by_name(GST_BIN(pipeline_), "playsink"));
   if (playsink) {
     g_object_set(G_OBJECT(playsink), "send-event-mode", 0, nullptr);
+    g_object_unref(playsink);
   } else {
     GST_WARNING("No playsink ?!?!?");
   }
@@ -1665,6 +1676,7 @@ void PlayerImpl::GetInfo(SbPlayerInfo2* out_player_info) {
 
   GstElement* vid_sink = nullptr;
   g_object_get(pipeline_, "video-sink", &vid_sink, nullptr);
+
   if (vid_sink && g_object_class_find_property(G_OBJECT_GET_CLASS(vid_sink),
                                                "frames-dropped")) {
     GST_TRACE("Getting dropped frames count from the sink");
@@ -1684,6 +1696,35 @@ void PlayerImpl::GetInfo(SbPlayerInfo2* out_player_info) {
         static_cast<int>(frames_corrupted);
   } else {
     out_player_info->corrupted_video_frames = 0;
+  }
+
+  if (vid_sink &&
+      (out_player_info->dropped_video_frames == 0 ||
+       out_player_info->corrupted_video_frames == 0)) {
+    GstPad* pad = gst_element_get_static_pad(vid_sink, "sink");
+    if (pad) {
+      GstStructure *structure =
+        gst_structure_new("get_video_playback_quality",
+                          "total", G_TYPE_UINT, 0,
+                          "dropped", G_TYPE_UINT, 0,
+                          "corrupted", G_TYPE_UINT, 0,
+                          nullptr);
+      GstQuery *query = gst_query_new_custom(GST_QUERY_CUSTOM, structure);
+      if (gst_pad_query(pad, query)) {
+        guint dropped = 0;
+        guint corrupted = 0;
+        structure = (GstStructure *)gst_query_get_structure(query);
+        if (!gst_structure_get_uint(structure, "dropped", &dropped))
+           dropped = 0;
+        if (!gst_structure_get_uint(structure, "corrupted", &corrupted))
+          corrupted = 0;
+        out_player_info->dropped_video_frames = dropped;
+        out_player_info->corrupted_video_frames = corrupted;
+      }
+      gst_query_unref(query);
+      gst_object_unref(GST_OBJECT(pad));
+      gst_object_unref(GST_OBJECT(vid_sink));
+    }
   }
 
   GST_LOG("Frames dropped: %d, Frames corrupted: %d",
