@@ -364,7 +364,7 @@ std::string DisplayName() {
 }
 
 KeyboardHandler::KeyboardHandler()
-    : key_repeat_interval_(kKeyRepeatTime), key_repeat_delay_(kKeyHoldTime) {}
+    : key_repeat_interval_(kKeyHoldTime), key_repeat_delay_(kKeyHoldTime) {}
 
 void KeyboardHandler::Modifiers(uint32_t mods_depressed,
                                 uint32_t mods_latched,
@@ -391,8 +391,8 @@ void KeyboardHandler::Repeat(int32_t rate, int32_t delay) {
   if (rate == 0) {
     DeleteRepeatKey();
   } else {
-    key_repeat_interval_ = std::min(kKeyRepeatTime, static_cast<SbTime>(rate));
-    key_repeat_delay_ = std::min(key_repeat_delay_, kKeyHoldTime);
+    key_repeat_interval_ = std::min(kKeyRepeatTime, static_cast<SbTime>(kSbTimeSecond / rate));
+    key_repeat_delay_ = std::min(static_cast<SbTime>(delay * kSbTimeMillisecond), kKeyHoldTime);
   }
 }
 
@@ -428,7 +428,7 @@ void KeyboardHandler::CreateKey(int key, state action, bool is_repeat) {
   data->key_location = KeyCodeToSbKeyLocation(key);
   data->key_modifiers = key_modifiers_;
   Application::Get()->InjectInputEvent(data);
-  ;
+
   DeleteRepeatKey();
 
   if (is_repeat && action == pressed) {
