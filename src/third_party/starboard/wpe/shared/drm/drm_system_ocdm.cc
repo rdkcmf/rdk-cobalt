@@ -594,4 +594,127 @@ bool DrmSystemOcdm::Decrypt(const std::string& id,
 }  // namespace wpe
 }  // namespace starboard
 }  // namespace third_party
-#endif
+
+#else  // defined(HAS_OCDM)
+
+#include "third_party/starboard/wpe/shared/drm/drm_system_ocdm.h"
+
+namespace third_party {
+namespace starboard {
+namespace wpe {
+namespace shared {
+namespace drm {
+
+namespace session {
+struct Session {};
+}
+using session::Session;
+
+DrmSystemOcdm::DrmSystemOcdm(
+    const char* key_system,
+    void* context,
+    SbDrmSessionUpdateRequestFunc session_update_request_callback,
+    SbDrmSessionUpdatedFunc session_updated_callback,
+    SbDrmSessionKeyStatusesChangedFunc key_statuses_changed_callback,
+    SbDrmServerCertificateUpdatedFunc server_certificate_updated_callback,
+    SbDrmSessionClosedFunc session_closed_callback)
+    : key_system_(key_system),
+      context_(context),
+      session_update_request_callback_(session_update_request_callback),
+      session_updated_callback_(session_updated_callback),
+      key_statuses_changed_callback_(key_statuses_changed_callback),
+      server_certificate_updated_callback_(server_certificate_updated_callback),
+      session_closed_callback_(session_closed_callback) {
+}
+
+DrmSystemOcdm::~DrmSystemOcdm() {
+}
+
+// static
+bool DrmSystemOcdm::IsKeySystemSupported(const char* key_system,
+                                         const char* mime_type) {
+  return false;
+}
+
+void DrmSystemOcdm::GenerateSessionUpdateRequest(
+    int ticket,
+    const char* type,
+    const void* initialization_data,
+    int initialization_data_size) {
+}
+
+void DrmSystemOcdm::UpdateSession(int ticket,
+                                  const void* key,
+                                  int key_size,
+                                  const void* session_id,
+                                  int session_id_size) {
+}
+
+void DrmSystemOcdm::CloseSession(const void* session_id, int session_id_size) {
+}
+
+void DrmSystemOcdm::UpdateServerCertificate(int ticket,
+                                            const void* certificate,
+                                            int certificate_size) {
+}
+
+SbDrmSystemPrivate::DecryptStatus DrmSystemOcdm::Decrypt(InputBuffer* buffer) {
+  return kFailure;
+}
+
+Session* DrmSystemOcdm::GetSessionById(const std::string& id) const {
+  return nullptr;
+}
+
+void DrmSystemOcdm::AddObserver(DrmSystemOcdm::Observer* obs) {
+}
+
+void DrmSystemOcdm::RemoveObserver(DrmSystemOcdm::Observer* obs) {
+}
+
+void DrmSystemOcdm::OnKeyUpdated(const std::string& session_id,
+                                 SbDrmKeyId&& key_id,
+                                 SbDrmKeyStatus status) {
+}
+
+void DrmSystemOcdm::OnAllKeysUpdated() {
+}
+
+std::set<std::string> DrmSystemOcdm::GetReadyKeysUnlocked() const {
+  return {};
+}
+
+std::set<std::string> DrmSystemOcdm::GetReadyKeys() const {
+  ::starboard::ScopedLock lock(mutex_);
+  return GetReadyKeysUnlocked();
+}
+
+DrmSystemOcdm::KeysWithStatus DrmSystemOcdm::GetSessionKeys(
+    const std::string& session_id) const {
+  return DrmSystemOcdm::KeysWithStatus{};
+}
+
+void DrmSystemOcdm::AnnounceKeys() {
+}
+
+std::string DrmSystemOcdm::SessionIdByKeyId(const uint8_t* key,
+                                            uint8_t key_len) {
+  return std::string{};
+}
+
+bool DrmSystemOcdm::Decrypt(const std::string& id,
+                            _GstBuffer* buffer,
+                            _GstBuffer* sub_sample,
+                            uint32_t sub_sample_count,
+                            _GstBuffer* iv,
+                            _GstBuffer* key) {
+  return false;
+}
+
+}  // namespace drm
+}  // namespace shared
+}  // namespace wpe
+}  // namespace starboard
+}  // namespace third_party
+
+#endif  // defined(HAS_OCDM)

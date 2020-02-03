@@ -29,6 +29,7 @@
       '-lgstaudio-1.0',
       '-lgstvideo-1.0',
       '-lgstapp-1.0',
+      '-lgstbase-1.0',
       '-lgobject-2.0',
       '-lpthread',
 
@@ -36,12 +37,12 @@
     'common_linker_flags': [
       '-Wl,--wrap=eglGetDisplay',
     ],
-  },
-  'conditions': [
+    'conditions': [
       ['<(has_ocdm)==1', {
         'common_libs': [
           '-locdm',
         ],
       }],
     ],
+  },
 }

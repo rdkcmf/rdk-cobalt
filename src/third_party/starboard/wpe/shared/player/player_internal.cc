@@ -19,7 +19,10 @@
 #include "starboard/time.h"
 #include "third_party/starboard/wpe/shared/drm/drm_system_ocdm.h"
 #include "third_party/starboard/wpe/shared/media/gst_media_utils.h"
+
+#if defined(SB_NEEDS_VIDEO_OVERLAY_SURFACE)
 #include "third_party/starboard/wpe/shared/window/window_internal.h"
+#endif
 
 namespace third_party {
 namespace starboard {
@@ -105,9 +108,6 @@ GType gst_cobalt_src_get_type(void);
 
 G_END_DECLS
 
-#define GST_COBALT_SRC_GET_PRIVATE(obj) \
-  (G_TYPE_INSTANCE_GET_PRIVATE((obj), GST_COBALT_TYPE_SRC, GstCobaltSrcPrivate))
-
 struct _GstCobaltSrcPrivate {
   gchar* uri;
   guint pad_number;
@@ -129,11 +129,12 @@ static void gst_cobalt_src_uri_handler_init(gpointer gIface,
 G_DEFINE_TYPE_WITH_CODE(GstCobaltSrc,
                         gst_cobalt_src,
                         GST_TYPE_BIN,
+                        G_ADD_PRIVATE(GstCobaltSrc)
                         G_IMPLEMENT_INTERFACE(GST_TYPE_URI_HANDLER,
                                               gst_cobalt_src_uri_handler_init));
 
 static void gst_cobalt_src_init(GstCobaltSrc* src) {
-  GstCobaltSrcPrivate* priv = GST_COBALT_SRC_GET_PRIVATE(src);
+  GstCobaltSrcPrivate* priv = (GstCobaltSrcPrivate*)gst_cobalt_src_get_instance_private(src);
   src->priv = priv;
   src->priv->pad_number = 0;
   src->priv->async_start = FALSE;
@@ -437,8 +438,6 @@ static void gst_cobalt_src_class_init(GstCobaltSrcClass* klass) {
           (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   bklass->handle_message = GST_DEBUG_FUNCPTR(gst_cobalt_src_handle_message);
   eklass->change_state = GST_DEBUG_FUNCPTR(gst_cobalt_src_change_state);
-
-  g_type_class_add_private(klass, sizeof(GstCobaltSrcPrivate));
 }
 
 }  // namespace
@@ -815,7 +814,9 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   int total_video_frames_{0};
   int frame_width_{0};
   int frame_height_{0};
+#if defined(SB_NEEDS_VIDEO_OVERLAY_SURFACE)
   WPEFramework::Compositor::IDisplay::ISurface* video_overlay_{nullptr};
+#endif
   GstElement* gst_video_overlay_{nullptr};
   State state_{State::kNull};
   SamplesPendingKey pending_;
@@ -937,7 +938,9 @@ PlayerImpl::~PlayerImpl() {
   g_object_unref(pipeline_);
   if (drm_system_)
     drm_system_->RemoveObserver(this);
+#if defined(SB_NEEDS_VIDEO_OVERLAY_SURFACE)
   window_->DestroyVideoOverlay(video_overlay_);
+#endif
   GST_DEBUG("BYE BYE player");
 }
 
@@ -1107,6 +1110,7 @@ GstBusSyncReply PlayerImpl::CreateVideoOverlay(GstBus* bus,
   if (!gst_is_video_overlay_prepare_window_handle_message(message))
     return GST_BUS_PASS;
 
+#if defined(SB_NEEDS_VIDEO_OVERLAY_SURFACE)
   PlayerImpl* self = reinterpret_cast<PlayerImpl*>(user_data);
   GstVideoOverlay* overlay = GST_VIDEO_OVERLAY(GST_MESSAGE_SRC(message));
   SbWindowPrivate* window_private = self->window_;
@@ -1121,6 +1125,7 @@ GstBusSyncReply PlayerImpl::CreateVideoOverlay(GstBus* bus,
                     self->pending_bounds_.w, self->pending_bounds_.h);
     self->pending_bounds_ = PendingBounds{};
   }
+#endif
   return GST_BUS_DROP;
 }
 

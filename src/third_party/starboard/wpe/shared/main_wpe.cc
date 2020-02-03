@@ -20,7 +20,7 @@
 
 #include "third_party/starboard/wpe/shared/application_wpe.h"
 
-int main(int argc, char** argv) {
+extern "C" SB_EXPORT_PLATFORM int main(int argc, char** argv) {
   tzset();
 
   GError* error = NULL;
