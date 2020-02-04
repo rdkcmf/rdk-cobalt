@@ -147,6 +147,7 @@ class WpePlatformConfigForYocto(platform_configuration.PlatformConfiguration):
         'sysroot': self.sysroot,
     })
     variables.update({
+        'cobalt_font_package': 'limited',
         'javascript_engine': 'v8',
         'cobalt_enable_jit': 1,
         'architecture_gypi':
