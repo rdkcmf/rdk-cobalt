@@ -101,6 +101,11 @@ Application::WaitForSystemEventWithTimeout(SbTime time) {
     read(wakeup_fd_, &u, sizeof(uint64_t));
   }
 
+  if (ret > 0 && fds[0].revents & (POLLERR | POLLHUP | POLLRDHUP)) {
+    SB_LOG(INFO) << "Wayland connection closed (revents = " <<  fds[0].revents << "), requesting stop";
+    SbSystemRequestStop(-1);
+  }
+
   return NULL;
 }
 
