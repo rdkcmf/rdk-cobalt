@@ -25,6 +25,7 @@
 #include <gst/audio/streamvolume.h>
 #include <gst/base/gstbytewriter.h>
 #include <gst/gst.h>
+#include <gst/video/video.h>
 #include <gst/video/videooverlay.h>
 
 #include <map>
@@ -457,6 +458,150 @@ static void gst_cobalt_src_class_init(GstCobaltSrcClass* klass) {
   eklass->change_state = GST_DEBUG_FUNCPTR(gst_cobalt_src_change_state);
 }
 
+static GstVideoColorRange RangeIdToGstVideoColorRange(SbMediaRangeId value) {
+  switch (value) {
+    case kSbMediaRangeIdLimited:
+      return GST_VIDEO_COLOR_RANGE_16_235;
+    case kSbMediaRangeIdFull:
+      return GST_VIDEO_COLOR_RANGE_0_255;
+    default:
+    case kSbMediaRangeIdUnspecified:
+      return GST_VIDEO_COLOR_RANGE_UNKNOWN;
+  }
+}
+
+static GstVideoColorMatrix MatrixIdToGstVideoColorMatrix(SbMediaMatrixId value) {
+  switch (value) {
+    case kSbMediaMatrixIdRgb:
+      return GST_VIDEO_COLOR_MATRIX_RGB;
+    case kSbMediaMatrixIdBt709:
+      return GST_VIDEO_COLOR_MATRIX_BT709;
+    case kSbMediaMatrixIdFcc:
+      return GST_VIDEO_COLOR_MATRIX_FCC;
+    case kSbMediaMatrixIdBt470Bg:
+    case kSbMediaMatrixIdSmpte170M:
+      return GST_VIDEO_COLOR_MATRIX_BT601;
+    case kSbMediaMatrixIdSmpte240M:
+      return GST_VIDEO_COLOR_MATRIX_SMPTE240M;
+    case kSbMediaMatrixIdBt2020NonconstantLuminance:
+      return GST_VIDEO_COLOR_MATRIX_BT2020;
+    case kSbMediaMatrixIdUnspecified:
+    default:
+      return GST_VIDEO_COLOR_MATRIX_UNKNOWN;
+  }
+}
+
+static GstVideoTransferFunction TransferIdToGstVideoTransferFunction(SbMediaTransferId value) {
+  switch (value) {
+    case kSbMediaTransferIdBt709:
+    case kSbMediaTransferIdSmpte170M:
+      return GST_VIDEO_TRANSFER_BT709;
+    case kSbMediaTransferIdGamma22:
+      return GST_VIDEO_TRANSFER_GAMMA22;
+    case kSbMediaTransferIdGamma28:
+      return GST_VIDEO_TRANSFER_GAMMA28;
+    case kSbMediaTransferIdSmpte240M:
+      return GST_VIDEO_TRANSFER_SMPTE240M;
+    case kSbMediaTransferIdLinear:
+      return GST_VIDEO_TRANSFER_GAMMA10;
+    case kSbMediaTransferIdLog:
+      return GST_VIDEO_TRANSFER_LOG100;
+    case kSbMediaTransferIdLogSqrt:
+      return GST_VIDEO_TRANSFER_LOG316;
+    case kSbMediaTransferIdIec6196621:
+      return GST_VIDEO_TRANSFER_SRGB;
+    case kSbMediaTransferId10BitBt2020:
+      return GST_VIDEO_TRANSFER_BT2020_10;
+    case kSbMediaTransferId12BitBt2020:
+      return GST_VIDEO_TRANSFER_BT2020_12;
+    case kSbMediaTransferIdSmpteSt2084:
+      return GST_VIDEO_TRANSFER_SMPTE_ST_2084;
+    case kSbMediaTransferIdAribStdB67:
+      return GST_VIDEO_TRANSFER_ARIB_STD_B67;
+    case kSbMediaTransferIdUnspecified:
+    default:
+      return GST_VIDEO_TRANSFER_UNKNOWN;
+  }
+}
+
+static GstVideoColorPrimaries PrimaryIdToGstVideoColorPrimaries(SbMediaPrimaryId value) {
+  switch (value) {
+    case kSbMediaPrimaryIdBt709:
+      return GST_VIDEO_COLOR_PRIMARIES_BT709;
+    case kSbMediaPrimaryIdBt470M:
+      return GST_VIDEO_COLOR_PRIMARIES_BT470M;
+    case kSbMediaPrimaryIdBt470Bg:
+      return GST_VIDEO_COLOR_PRIMARIES_BT470BG;
+    case kSbMediaPrimaryIdSmpte170M:
+      return GST_VIDEO_COLOR_PRIMARIES_SMPTE170M;
+    case kSbMediaPrimaryIdSmpte240M:
+      return GST_VIDEO_COLOR_PRIMARIES_SMPTE240M;
+    case kSbMediaPrimaryIdFilm:
+      return GST_VIDEO_COLOR_PRIMARIES_FILM;
+    case kSbMediaPrimaryIdBt2020:
+      return GST_VIDEO_COLOR_PRIMARIES_BT2020;
+    case kSbMediaPrimaryIdUnspecified:
+    default:
+      return GST_VIDEO_COLOR_PRIMARIES_UNKNOWN;
+  }
+}
+
+static void AddColorMetadataToGstCaps(GstCaps* caps, const SbMediaColorMetadata& color_metadata) {
+  GstVideoColorimetry colorimetry;
+  colorimetry.range = RangeIdToGstVideoColorRange(color_metadata.range);
+  colorimetry.matrix = MatrixIdToGstVideoColorMatrix(color_metadata.matrix);
+  colorimetry.transfer = TransferIdToGstVideoTransferFunction(color_metadata.transfer);
+  colorimetry.primaries = PrimaryIdToGstVideoColorPrimaries(color_metadata.primaries);
+
+  if (colorimetry.range != GST_VIDEO_COLOR_RANGE_UNKNOWN ||
+      colorimetry.matrix != GST_VIDEO_COLOR_MATRIX_UNKNOWN ||
+      colorimetry.transfer != GST_VIDEO_TRANSFER_UNKNOWN ||
+      colorimetry.primaries != GST_VIDEO_COLOR_PRIMARIES_UNKNOWN) {
+    gchar *tmp =
+      gst_video_colorimetry_to_string (&colorimetry);
+    gst_caps_set_simple (caps, "colorimetry", G_TYPE_STRING, tmp, NULL);
+    GST_DEBUG ("Setting \"colorimetry\" to %s", tmp);
+    g_free (tmp);
+  }
+
+  GstVideoMasteringDisplayMetadata mastering_display_metadata;
+  gst_video_mastering_display_metadata_init (&mastering_display_metadata);
+  mastering_display_metadata.Rx = color_metadata.mastering_metadata.primary_r_chromaticity_x;
+  mastering_display_metadata.Ry = color_metadata.mastering_metadata.primary_r_chromaticity_y;
+  mastering_display_metadata.Gx = color_metadata.mastering_metadata.primary_g_chromaticity_x;
+  mastering_display_metadata.Gy = color_metadata.mastering_metadata.primary_g_chromaticity_y;
+  mastering_display_metadata.Bx = color_metadata.mastering_metadata.primary_b_chromaticity_x;
+  mastering_display_metadata.By = color_metadata.mastering_metadata.primary_b_chromaticity_y;
+  mastering_display_metadata.Wx = color_metadata.mastering_metadata.white_point_chromaticity_x;
+  mastering_display_metadata.Wy = color_metadata.mastering_metadata.white_point_chromaticity_y;
+  mastering_display_metadata.max_luma = color_metadata.mastering_metadata.luminance_max;
+  mastering_display_metadata.min_luma = color_metadata.mastering_metadata.luminance_min;
+
+  if (gst_video_mastering_display_metadata_has_primaries(&mastering_display_metadata) &&
+      gst_video_mastering_display_metadata_has_luminance(&mastering_display_metadata) ) {
+    gchar *tmp =
+      gst_video_mastering_display_metadata_to_caps_string
+      (&mastering_display_metadata);
+    gst_caps_set_simple (caps, "mastering-display-metadata", G_TYPE_STRING, tmp, NULL);
+    GST_DEBUG ("Setting \"mastering-display-metadata\" to %s", tmp);
+    g_free (tmp);
+  }
+
+  if (color_metadata.max_cll && color_metadata.max_fall) {
+    GstVideoContentLightLevel content_light_level;
+    content_light_level.maxCLL = color_metadata.max_cll;
+    content_light_level.maxFALL = color_metadata.max_fall;
+    gchar *tmp = gst_video_content_light_level_to_caps_string(&content_light_level);
+    gst_caps_set_simple (caps, "content-light-level", G_TYPE_STRING, tmp, NULL);
+    GST_DEBUG ("setting \"content-light-level\" to %s", tmp);
+    g_free (tmp);
+  }
+}
+
+static int CompareColorMetadata(const SbMediaColorMetadata& lhs, const SbMediaColorMetadata& rhs) {
+  return SbMemoryCompare(&lhs, &rhs, sizeof(SbMediaColorMetadata));
+}
+
 }  // namespace
 
 // ********************************* Player ******************************** //
@@ -840,6 +985,7 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   mutable gint64 cached_position_ns_{0};
   mutable SbTime position_update_time_us_{0};
   PendingBounds pending_bounds_;
+  SbMediaColorMetadata color_metadata_{};
 };
 
 PlayerImpl::PlayerImpl(SbPlayer player,
@@ -1205,10 +1351,9 @@ gboolean PlayerImpl::FinishSourceSetup(gpointer user_data) {
         source, self->audio_appsrc_, !caps.empty() ? caps[0].c_str() : nullptr,
         &callbacks, self);
   }
-  caps = CodecToGstCaps(self->video_codec_);
   if (self->video_codec_ != kSbMediaVideoCodecNone) {
     gst_cobalt_src_setup_and_add_app_src(
-        source, self->video_appsrc_, !caps.empty() ? caps[0].c_str() : nullptr,
+        source, self->video_appsrc_, nullptr,
         &callbacks, self);
   }
   gst_cobalt_src_all_app_srcs_added(self->source_);
@@ -1400,8 +1545,21 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
   std::string session_id;
 
   if (sample_infos[0].type == kSbMediaTypeVideo) {
-    frame_width_ = sample_infos[0].video_sample_info.frame_width;
-    frame_height_ = sample_infos[0].video_sample_info.frame_height;
+    const auto& info = sample_infos[0].video_sample_info;
+    if (frame_width_ != info.frame_width ||
+        frame_height_ != info.frame_height ||
+        CompareColorMetadata(color_metadata_, info.color_metadata) != 0) {
+      frame_width_ = info.frame_width;
+      frame_height_ = info.frame_height;
+      color_metadata_ = info.color_metadata;
+      auto caps = CodecToGstCaps(video_codec_);
+      if (!caps.empty()) {
+        GstCaps* gst_caps = gst_caps_from_string(caps[0].c_str());
+        AddColorMetadataToGstCaps(gst_caps, color_metadata_);
+        gst_app_src_set_caps(GST_APP_SRC(video_appsrc_), gst_caps);
+        gst_caps_unref(gst_caps);
+      }
+    }
   }
 
   RecordTimestamp(sample_type,
