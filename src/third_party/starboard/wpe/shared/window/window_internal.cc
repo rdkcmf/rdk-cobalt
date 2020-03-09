@@ -321,6 +321,21 @@ SbKey KeyCodeToSbKey(uint16_t code) {
 
     case KEY_INFO_BUTTON:
       return kSbKeyF1;
+
+    case KEY_REWIND:
+      return kSbKeyMediaRewind;
+    case KEY_FASTFORWARD:
+      return kSbKeyMediaFastForward;
+
+    case KEY_RED:
+      return kSbKeyRed;
+    case KEY_GREEN:
+      return kSbKeyGreen;
+    case KEY_YELLOW:
+      return kSbKeyYellow;
+    case KEY_BLUE:
+      return kSbKeyBlue;
+
   }
   SB_DLOG(WARNING) << "Unknown code: 0x" << std::hex << code;
   return kSbKeyUnknown;
@@ -397,8 +412,17 @@ void KeyboardHandler::Repeat(int32_t rate, int32_t delay) {
 }
 
 void KeyboardHandler::Direct(const uint32_t key, const state action) {
+  if (key == KEY_LEFTCTRL || key == KEY_RIGHTCTRL) {
+    if (action)
+        key_modifiers_ |= kSbKeyModifiersCtrl;
+    else
+        key_modifiers_ &= ~kSbKeyModifiersCtrl;
+    return;
+  }
+
   bool repeatable =
-      (key == KEY_LEFT || key == KEY_RIGHT || key == KEY_UP || key == KEY_DOWN);
+      (key == KEY_LEFT || key == KEY_RIGHT || key == KEY_UP || key == KEY_DOWN) ||
+      ((key == KEY_F || key == KEY_W) && (key_modifiers_ == kSbKeyModifiersCtrl));
   SB_DLOG(INFO) << "[Key] Key :" << key << ", state:" << action
                 << " repeatable " << repeatable << " key_repeat_key_ "
                 << key_repeat_key_ << " key_repeat_state_ "
@@ -414,6 +438,21 @@ void KeyboardHandler::Direct(const uint32_t key, const state action) {
 }
 
 void KeyboardHandler::CreateKey(int key, state action, bool is_repeat) {
+  unsigned int modifiers = key_modifiers_;
+  if (modifiers == kSbKeyModifiersCtrl) {  // only Ctrl is set
+    switch(key) {
+      case KEY_L: key = KEY_BACKSPACE; modifiers = 0; break;
+      case KEY_F: key = KEY_FASTFORWARD; modifiers = 0; break;
+      case KEY_W: key = KEY_REWIND; modifiers = 0; break;
+      case KEY_P: key = KEY_PLAYPAUSE; modifiers = 0; break;
+      case KEY_0: key = KEY_RED; modifiers = 0; break;
+      case KEY_1: key = KEY_GREEN; modifiers = 0; break;
+      case KEY_2: key = KEY_YELLOW; modifiers = 0; break;
+      case KEY_3: key = KEY_BLUE; modifiers = 0; break;
+      default: break;
+    }
+  }
+
   SbInputData* data = new SbInputData();
   SbMemorySet(data, 0, sizeof(*data));
 #if SB_API_VERSION >= 10
@@ -426,7 +465,7 @@ void KeyboardHandler::CreateKey(int key, state action, bool is_repeat) {
   data->device_id = 1;  // kKeyboardDeviceId;
   data->key = KeyCodeToSbKey(key);
   data->key_location = KeyCodeToSbKeyLocation(key);
-  data->key_modifiers = key_modifiers_;
+  data->key_modifiers = modifiers;
   Application::Get()->InjectInputEvent(data);
 
   DeleteRepeatKey();
