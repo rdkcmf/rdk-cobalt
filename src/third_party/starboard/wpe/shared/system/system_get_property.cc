@@ -50,10 +50,13 @@ bool TryReadModelNameFromPropertiesFile(char* out_value, int value_length) {
 
   while (getline(&buffer, &size, properties) != -1) {
     if (SbStringCompare(kPrefixStr, buffer, kPrefixStrLength) == 0) {
-      const char* remainder = buffer + kPrefixStrLength;
-      size_t remainder_length = SbStringGetLength(remainder);  // includes the newline character
+      char* remainder = buffer + kPrefixStrLength;
+      size_t remainder_length = SbStringGetLength(remainder);
       if (remainder_length > 1 && remainder_length < value_length) {
-        SbStringCopy(out_value, remainder, remainder_length - 1);
+        // trim the newline character
+        for(int i = remainder_length - 1; i >= 0 && !std::isalnum(remainder[i]); --i)
+          remainder[i] = '\0';
+        SbStringCopy(out_value, remainder, remainder_length);
         result = true;
         break;
       }
