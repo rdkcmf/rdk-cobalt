@@ -23,8 +23,9 @@ extern "C" EGLDisplay __wrap_eglGetDisplay(EGLNativeDisplayType native_display);
 
 extern "C" EGLDisplay __wrap_eglGetDisplay(
     EGLNativeDisplayType native_display) {
+  NativeDisplayType display_type;
   EssCtx *ctx = third_party::starboard::wpe::shared::window::GetEssCtx();
-  if (EssContextGetUseWayland(ctx))
-    return __real_eglGetDisplay(reinterpret_cast<EGLNativeDisplayType>(EssContextGetWaylandDisplay(ctx)));
+  if (EssContextGetEGLDisplayType(ctx, &display_type))
+    return __real_eglGetDisplay(reinterpret_cast<EGLNativeDisplayType>(display_type));
   return __real_eglGetDisplay(native_display);
 }

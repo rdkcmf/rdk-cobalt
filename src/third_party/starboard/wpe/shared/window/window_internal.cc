@@ -17,6 +17,7 @@
 #include <linux/input.h>
 
 #include <algorithm>
+#include <memory>
 
 #include "starboard/common/log.h"
 #include "starboard/input.h"
@@ -381,6 +382,7 @@ class EssInput
 {
 public:
   void SetSbWindow(SbWindow window) { window_ = window; }
+  SbWindow GetSbWindow() const { return window_; }
   void OnKeyPressed(unsigned int key);
   void OnKeyReleased(unsigned int key);
 
@@ -419,7 +421,7 @@ void EssInput::CreateKey(unsigned int key, SbInputEventType type, bool repeatabl
   SbInputData* data = new SbInputData();
   SbMemorySet(data, 0, sizeof(*data));
   data->timestamp = SbTimeGetMonotonicNow();
-  data->window = window_;
+  data->window = GetSbWindow();
   data->type = type;
   data->device_type = kSbInputDeviceTypeRemote;
   data->device_id = 1;  // kKeyboardDeviceId;
@@ -501,37 +503,88 @@ void EssInput::OnKeyReleased(unsigned int key) {
   OnKeyboardHandleKey(key, kSbInputEventTypeUnpress);
 }
 
-SB_ONCE_INITIALIZE_FUNCTION(EssInput, GetEssInput);
-
-static EssTerminateListener terminateListener = {
-  [](void*) { Application::Get()->Stop(0); }  //terminated
-};
-
-static EssKeyListener keyListener = {
-  [](void*,unsigned int key) { GetEssInput()->OnKeyPressed(key); },  // keyPressed
-  [](void*,unsigned int key) { GetEssInput()->OnKeyReleased(key); }  // keyReleased
-};
-
 class EssCtxWrapper {
 public:
   EssCtxWrapper();
   ~EssCtxWrapper();
+
   EssCtx *GetCtx() const { return ctx_; }
+  EssInput *GetEssInput() const { return input_handler_.get(); }
+  void SetSbWindow(SbWindow window) { input_handler_->SetSbWindow(window); }
+
 private:
+  void OnTerminated();
+  void OnKeyPressed(unsigned int key);
+  void OnKeyReleased(unsigned int key);
+  void OnDisplaySize(int width, int height);
+
+  static EssTerminateListener terminateListener;
+  static EssKeyListener keyListener;
+  static EssSettingsListener settingsListener;
+
   EssCtx *ctx_ { nullptr };
+  std::unique_ptr<EssInput> input_handler_ { nullptr };
+  int display_width_ {0};
+  int display_height_ {0};
 };
 
-EssCtxWrapper::EssCtxWrapper() {
+EssTerminateListener EssCtxWrapper::terminateListener = {
+  //terminated
+  [](void* data) { reinterpret_cast<EssCtxWrapper*>(data)->OnTerminated(); }
+};
+
+EssKeyListener EssCtxWrapper::keyListener = {
+  // keyPressed
+  [](void* data, unsigned int key) { reinterpret_cast<EssCtxWrapper*>(data)->OnKeyPressed(key); },
+  // keyReleased
+  [](void* data, unsigned int key) { reinterpret_cast<EssCtxWrapper*>(data)->OnKeyReleased(key); }
+};
+
+EssSettingsListener EssCtxWrapper::settingsListener = {
+  // displaySize
+  [](void *data, int width, int height ) { reinterpret_cast<EssCtxWrapper*>(data)->OnDisplaySize(width, height); },
+  // displaySafeArea
+  nullptr
+};
+
+void EssCtxWrapper::OnTerminated() {
+  Application::Get()->Stop(0);
+}
+
+void EssCtxWrapper::OnKeyPressed(unsigned int key) {
+  GetEssInput()->OnKeyPressed(key);
+}
+
+void EssCtxWrapper::OnKeyReleased(unsigned int key) {
+  GetEssInput()->OnKeyReleased(key);
+}
+
+void EssCtxWrapper::OnDisplaySize(int width, int height) {
+  if (display_width_ == width && display_height_ == height)
+    return;
+
+  display_width_ = width;
+  display_height_ = height;
+
+  // Fixme: We need to trigger restart of renderer module first and then resize.
+  // For now just call resize directly.
+  EssContextResizeWindow(ctx_, display_width_, display_height_);
+}
+
+EssCtxWrapper::EssCtxWrapper() : input_handler_(new EssInput) {
   bool error = false;
   ctx_ = EssContextCreate();
 
   if ( !EssContextInit(ctx_) ) {
     error = true;
   }
-  else if ( !EssContextSetTerminateListener(ctx_, 0, &window::terminateListener) ) {
+  else if ( !EssContextSetTerminateListener(ctx_, this, &terminateListener) ) {
     error = true;
   }
-  else if ( !EssContextSetKeyListener(ctx_, 0, &window::keyListener) ) {
+  else if ( !EssContextSetKeyListener(ctx_, this, &keyListener) ) {
+    error = true;
+  }
+  else if ( !EssContextSetSettingsListener(ctx_, this, &settingsListener) ) {
     error = true;
   }
   else if ( !EssContextSetKeyRepeatInitialDelay(ctx_, INT_MAX) )  {
@@ -540,13 +593,14 @@ EssCtxWrapper::EssCtxWrapper() {
   else if ( !EssContextSetKeyRepeatPeriod(ctx_, INT_MAX) ) {
     error = true;
   }
-  else if ( !EssContextSetInitialWindowSize(ctx_, window::kDefaultWidth, window::kDefaultHeight) ) {
+  else if ( !EssContextGetDisplaySize(ctx_, &display_width_, &display_height_) ) {
+    error= true;
+  }
+  else if ( !EssContextSetInitialWindowSize(ctx_, display_width_, display_height_) ) {
     error = true;
   }
-
-  if ( !error && !EssContextGetUseWayland(ctx_) ) {
-    if ( !EssContextStart(ctx_) )
-      error = true;
+  else if ( !EssContextStart(ctx_) ) {
+    error = true;
   }
 
   if ( error ) {
@@ -595,13 +649,18 @@ SbWindowPrivate::SbWindowPrivate(const SbWindowOptions* options) {
   EssCtx *ctx = window::GetEssCtx();
   if ( !EssContextCreateNativeWindow(ctx, width_, height_, &nativeWindow_) ) {
     const char *detail= EssContextGetLastErrorDetail( ctx );
-    fprintf(stderr, "Failed to crate native window. Essos error: (%s)\n", detail);
+    fprintf(stderr, "Failed to create native window. Essos error: (%s)\n", detail);
   }
 
-  window::GetEssInput()->SetSbWindow(this);
+  window::GetEssCtxWrapper()->SetSbWindow(this);
 }
 
 SbWindowPrivate::~SbWindowPrivate() {
+  window::GetEssCtxWrapper()->SetSbWindow(nullptr);
+#if 0
+  // TODO: enable after Essos upgrade
+  EssContextDestroyNativeWindow(window::GetEssCtx(), nativeWindow_);
+#endif
 }
 
 void* SbWindowPrivate::Native() const {
