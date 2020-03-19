@@ -16,11 +16,15 @@
 
 #include "third_party/starboard/wpe/shared/window/window_internal.h"
 
+#include <essos.h>
+
 extern "C" EGLDisplay __real_eglGetDisplay(EGLNativeDisplayType native_display);
 extern "C" EGLDisplay __wrap_eglGetDisplay(EGLNativeDisplayType native_display);
 
 extern "C" EGLDisplay __wrap_eglGetDisplay(
     EGLNativeDisplayType native_display) {
-  return __real_eglGetDisplay(reinterpret_cast<EGLNativeDisplayType>(
-      third_party::starboard::wpe::shared::window::GetDisplay()->Native()));
+  EssCtx *ctx = third_party::starboard::wpe::shared::window::GetEssCtx();
+  if (EssContextGetUseWayland(ctx))
+    return __real_eglGetDisplay(reinterpret_cast<EGLNativeDisplayType>(EssContextGetWaylandDisplay(ctx)));
+  return __real_eglGetDisplay(native_display);
 }

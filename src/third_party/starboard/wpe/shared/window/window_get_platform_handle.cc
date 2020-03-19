@@ -21,5 +21,5 @@ void* SbWindowGetPlatformHandle(SbWindow window) {
     return NULL;
   }
   return reinterpret_cast<void*>(
-      static_cast<SbWindowPrivate*>(window)->window_->Native());
+      static_cast<SbWindowPrivate*>(window)->Native());
 }

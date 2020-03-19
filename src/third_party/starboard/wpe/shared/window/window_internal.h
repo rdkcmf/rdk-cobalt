@@ -20,7 +20,7 @@
 #include "starboard/time.h"
 #include "starboard/window.h"
 
-#include "WPEFramework/compositor/Client.h"
+#include <essos.h>
 
 namespace third_party {
 namespace starboard {
@@ -28,46 +28,7 @@ namespace wpe {
 namespace shared {
 namespace window {
 
-WPEFramework::Compositor::IDisplay* GetDisplay();
-std::string DisplayName();
-
-// FIXME PST: Move to separate files.
-class KeyboardHandler : public WPEFramework::Compositor::IDisplay::IKeyboard {
- public:
-  KeyboardHandler();
-  ~KeyboardHandler() override {}
-
-  void AddRef() const {}
-  uint32_t Release() const override { return 0; }
-  void KeyMap(const char information[], const uint16_t size) override {}
-  void Key(const uint32_t key,
-           const state action,
-           const uint32_t time) override {
-    Direct(key, action);
-  }
-  void Direct(const uint32_t key, const state action) override;
-  void Modifiers(uint32_t mods_depressed,
-                 uint32_t mods_latched,
-                 uint32_t mods_locked,
-                 uint32_t group) override;
-  void Repeat(int32_t rate, int32_t delay) override;
-  void SetWindow(SbWindow window);
-
- private:
-  void CreateKey(int key, state action, bool is_repeat);
-  void CreateRepeatKey();
-  void DeleteRepeatKey();
-
-  int key_repeat_key_{0};
-  state key_repeat_state_{released};
-  SbEventId key_repeat_event_id_{0};
-  SbTime key_repeat_interval_{0};
-  SbTime key_repeat_delay_{0};
-  unsigned int key_modifiers_{0};
-  SbWindow window_{};
-
-  DISALLOW_COPY_AND_ASSIGN(KeyboardHandler);
-};
+EssCtx *GetEssCtx();
 
 }  // namespace window
 }  // namespace shared
@@ -79,12 +40,14 @@ struct SbWindowPrivate {
   SbWindowPrivate(const SbWindowOptions* options);
   ~SbWindowPrivate();
 
-  WPEFramework::Compositor::IDisplay::ISurface* CreateVideoOverlay();
-  void DestroyVideoOverlay(WPEFramework::Compositor::IDisplay::ISurface*);
+  int Width() const;
+  int Height() const;
+  void* Native() const;
 
-  WPEFramework::Compositor::IDisplay::ISurface* window_{nullptr};
-  WPEFramework::Compositor::IDisplay::ISurface* video_overlay_{nullptr};
-  third_party::starboard::wpe::shared::window::KeyboardHandler kb_handler_;
+private:
+  NativeWindowType nativeWindow_ { 0 };
+  int width_ { 0 };
+  int height_ { 0 };
 };
 
 #endif  // THIRD_PARTY_STARBOARD_WPE_SHARED_WINDOW_INTERNAL_H_

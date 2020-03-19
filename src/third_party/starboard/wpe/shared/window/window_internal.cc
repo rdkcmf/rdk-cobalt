@@ -21,10 +21,8 @@
 #include "starboard/common/log.h"
 #include "starboard/input.h"
 #include "starboard/key.h"
+#include "starboard/once.h"
 #include "third_party/starboard/wpe/shared/application_wpe.h"
-
-using namespace WPEFramework;
-using namespace WPEFramework::Compositor;
 
 namespace third_party {
 namespace starboard {
@@ -359,85 +357,50 @@ SbKeyLocation KeyCodeToSbKeyLocation(uint16_t code) {
   return kSbKeyLocationUnspecified;
 }
 
+SbKeyModifiers KeyCodeToSbKeyModifiers(uint16_t code) {
+  switch (code) {
+    case KEY_LEFTCTRL:
+    case KEY_RIGHTCTRL:
+      return kSbKeyModifiersCtrl;
+    case KEY_LEFTSHIFT:
+    case KEY_RIGHTSHIFT:
+      return kSbKeyModifiersShift;
+    case KEY_LEFTALT:
+    case KEY_RIGHTALT:
+      return kSbKeyModifiersAlt;
+    case KEY_LEFTMETA:
+    case KEY_RIGHTMETA:
+      return kSbKeyModifiersMeta;
+  }
+  return kSbKeyModifiersNone;
+}
+
 }  // namespace
 
-IDisplay* GetDisplay() {
-  static WPEFramework::Compositor::IDisplay* g_display = nullptr;
-  if (!g_display)
-    g_display = IDisplay::Instance(DisplayName());
+class EssInput
+{
+public:
+  void SetSbWindow(SbWindow window) { window_ = window; }
+  void OnKeyPressed(unsigned int key);
+  void OnKeyReleased(unsigned int key);
 
-  return g_display;
-}
+private:
+  void CreateKey(unsigned int key, SbInputEventType type, bool repeatable);
+  void CreateRepeatKey();
+  void DeleteRepeatKey();
+  void OnKeyboardHandleKey(unsigned int key, SbInputEventType type);
+  bool UpdateModifiers(unsigned int key, SbInputEventType type);
 
-std::string DisplayName() {
-  static std::string name = Compositor::IDisplay::SuggestedName();
+  unsigned int key_modifiers_ { 0 };
+  SbWindow window_ { kSbWindowInvalid };
 
-  if (name.empty()) {
-    name = "CobaltBrowser" + std::to_string(SbTimeToPosix(SbTimeGetNow()));
-  }
-  return (name);
-}
+  unsigned key_repeat_key_ { 0 };
+  int key_repeat_state_ { 0 };
+  SbEventId key_repeat_event_id_ { kSbEventIdInvalid };
+  SbTime key_repeat_interval_ { kKeyHoldTime };
+};
 
-KeyboardHandler::KeyboardHandler()
-    : key_repeat_interval_(kKeyHoldTime), key_repeat_delay_(kKeyHoldTime) {}
-
-void KeyboardHandler::Modifiers(uint32_t mods_depressed,
-                                uint32_t mods_latched,
-                                uint32_t mods_locked,
-                                uint32_t group) {
-  // Convert to SbKeyModifiers.
-  unsigned int modifiers = kSbKeyModifiersNone;
-
-  if (mods_depressed & 1)
-    modifiers |= kSbKeyModifiersShift;
-  if (mods_depressed & 4)
-    modifiers |= kSbKeyModifiersCtrl;
-  if (mods_depressed & 8)
-    modifiers |= kSbKeyModifiersAlt;
-
-  SB_DLOG(INFO) << "[Key] Modifiers depressed " << mods_depressed
-                << ", latched " << mods_latched << ", locked " << mods_locked
-                << ", group " << group << ", key modifiers " << modifiers;
-
-  key_modifiers_ = modifiers;
-}
-
-void KeyboardHandler::Repeat(int32_t rate, int32_t delay) {
-  if (rate == 0) {
-    DeleteRepeatKey();
-  } else {
-    key_repeat_interval_ = std::min(kKeyRepeatTime, static_cast<SbTime>(kSbTimeSecond / rate));
-    key_repeat_delay_ = std::min(static_cast<SbTime>(delay * kSbTimeMillisecond), kKeyHoldTime);
-  }
-}
-
-void KeyboardHandler::Direct(const uint32_t key, const state action) {
-  if (key == KEY_LEFTCTRL || key == KEY_RIGHTCTRL) {
-    if (action)
-        key_modifiers_ |= kSbKeyModifiersCtrl;
-    else
-        key_modifiers_ &= ~kSbKeyModifiersCtrl;
-    return;
-  }
-
-  bool repeatable =
-      (key == KEY_LEFT || key == KEY_RIGHT || key == KEY_UP || key == KEY_DOWN) ||
-      ((key == KEY_F || key == KEY_W) && (key_modifiers_ == kSbKeyModifiersCtrl));
-  SB_DLOG(INFO) << "[Key] Key :" << key << ", state:" << action
-                << " repeatable " << repeatable << " key_repeat_key_ "
-                << key_repeat_key_ << " key_repeat_state_ "
-                << key_repeat_state_;
-  if (action && repeatable && key == key_repeat_key_ && key_repeat_state_)
-    return;
-
-  if (repeatable) {
-    CreateKey(key, action, true);
-  } else {
-    CreateKey(key, action, false);
-  }
-}
-
-void KeyboardHandler::CreateKey(int key, state action, bool is_repeat) {
+void EssInput::CreateKey(unsigned int key, SbInputEventType type, bool repeatable) {
   unsigned int modifiers = key_modifiers_;
   if (modifiers == kSbKeyModifiersCtrl) {  // only Ctrl is set
     switch(key) {
@@ -455,56 +418,151 @@ void KeyboardHandler::CreateKey(int key, state action, bool is_repeat) {
 
   SbInputData* data = new SbInputData();
   SbMemorySet(data, 0, sizeof(*data));
-#if SB_API_VERSION >= 10
   data->timestamp = SbTimeGetMonotonicNow();
-#endif  // SB_API_VERSION >= 10
   data->window = window_;
-  data->type =
-      (action == released ? kSbInputEventTypeUnpress : kSbInputEventTypePress);
+  data->type = type;
   data->device_type = kSbInputDeviceTypeRemote;
   data->device_id = 1;  // kKeyboardDeviceId;
   data->key = KeyCodeToSbKey(key);
   data->key_location = KeyCodeToSbKeyLocation(key);
   data->key_modifiers = modifiers;
+
   Application::Get()->InjectInputEvent(data);
 
   DeleteRepeatKey();
 
-  if (is_repeat && action == pressed) {
+  if (repeatable && type == kSbInputEventTypePress) {
     key_repeat_key_ = key;
-    key_repeat_state_ = action;
+    key_repeat_state_ = 1;
     key_repeat_event_id_ = SbEventSchedule(
-        [](void* data) {
-          KeyboardHandler* dev_input = reinterpret_cast<KeyboardHandler*>(data);
-          dev_input->CreateRepeatKey();
-        },
-        this, key_repeat_interval_);
+      [](void* data) {
+        EssInput* ess_input = reinterpret_cast<EssInput*>(data);
+        ess_input->CreateRepeatKey();
+      },
+      this, key_repeat_interval_);
   } else {
-    key_repeat_interval_ = std::min(key_repeat_delay_, kKeyHoldTime);
+    key_repeat_interval_ = kKeyHoldTime;
   }
 }
 
-void KeyboardHandler::CreateRepeatKey() {
+void EssInput::CreateRepeatKey() {
   if (!key_repeat_state_) {
     return;
   }
-
-  key_repeat_interval_ = std::min(kKeyRepeatTime, key_repeat_interval_);
-
-  CreateKey(key_repeat_key_, key_repeat_state_, true);
+  if (key_repeat_interval_) {
+    key_repeat_interval_ = kKeyRepeatTime;
+  }
+  CreateKey(key_repeat_key_, kSbInputEventTypePress, true);
 }
 
-void KeyboardHandler::DeleteRepeatKey() {
-  key_repeat_state_ = released;
+void EssInput::DeleteRepeatKey() {
+  key_repeat_state_ = 0;
   if (key_repeat_event_id_ != kSbEventIdInvalid) {
     SbEventCancel(key_repeat_event_id_);
     key_repeat_event_id_ = kSbEventIdInvalid;
   }
 }
 
-void KeyboardHandler::SetWindow(SbWindow window) {
-  window_ = window;
-  static_cast<SbWindowPrivate*>(window_)->window_->Keyboard(this);
+void EssInput::OnKeyboardHandleKey(unsigned int key, SbInputEventType type) {
+  if (UpdateModifiers(key, type))
+    return;
+
+  bool repeatable =
+    (key == KEY_LEFT || key == KEY_RIGHT || key == KEY_UP || key == KEY_DOWN) ||
+    ((key == KEY_F || key == KEY_W) && (key_modifiers_ == kSbKeyModifiersCtrl));
+
+  if (type == kSbInputEventTypePress && repeatable && key == key_repeat_key_ && key_repeat_state_)
+    return;
+
+  if (repeatable) {
+    CreateKey(key, type, true);
+  } else {
+    CreateKey(key, type, false);
+  }
+}
+
+bool EssInput::UpdateModifiers(unsigned int key, SbInputEventType type) {
+  SbKeyModifiers modifiers = KeyCodeToSbKeyModifiers(key);
+  if (modifiers != kSbKeyModifiersNone) {
+    if (type == kSbInputEventTypePress)
+      key_modifiers_ |= modifiers;
+    else
+      key_modifiers_ &= ~modifiers;
+    return true;
+  }
+  return false;
+}
+
+void EssInput::OnKeyPressed(unsigned int key) {
+  OnKeyboardHandleKey(key, kSbInputEventTypePress);
+}
+
+void EssInput::OnKeyReleased(unsigned int key) {
+  OnKeyboardHandleKey(key, kSbInputEventTypeUnpress);
+}
+
+SB_ONCE_INITIALIZE_FUNCTION(EssInput, GetEssInput);
+
+static EssTerminateListener terminateListener = {
+  [](void*) { Application::Get()->Stop(0); }  //terminated
+};
+
+static EssKeyListener keyListener = {
+  [](void*,unsigned int key) { GetEssInput()->OnKeyPressed(key); },  // keyPressed
+  [](void*,unsigned int key) { GetEssInput()->OnKeyReleased(key); }  // keyReleased
+};
+
+class EssCtxWrapper {
+public:
+  EssCtxWrapper();
+  ~EssCtxWrapper();
+  EssCtx *GetCtx() const { return ctx_; }
+private:
+  EssCtx *ctx_ { nullptr };
+};
+
+EssCtxWrapper::EssCtxWrapper() {
+  bool error = false;
+  ctx_ = EssContextCreate();
+
+  if ( !EssContextInit(ctx_) ) {
+    error = true;
+  }
+  else if ( !EssContextSetTerminateListener(ctx_, 0, &window::terminateListener) ) {
+    error = true;
+  }
+  else if ( !EssContextSetKeyListener(ctx_, 0, &window::keyListener) ) {
+    error = true;
+  }
+  else if ( !EssContextSetKeyRepeatInitialDelay(ctx_, INT_MAX) )  {
+    error = true;
+  }
+  else if ( !EssContextSetKeyRepeatPeriod(ctx_, INT_MAX) ) {
+    error = true;
+  }
+  else if ( !EssContextSetInitialWindowSize(ctx_, window::kDefaultWidth, window::kDefaultHeight) ) {
+    error = true;
+  }
+
+  if ( !error && !EssContextGetUseWayland(ctx_) ) {
+    if ( !EssContextStart(ctx_) )
+      error = true;
+  }
+
+  if ( error ) {
+    const char *detail= EssContextGetLastErrorDetail(ctx_);
+    fprintf(stderr, "Essos error: (%s)\n", detail);
+  }
+}
+
+EssCtxWrapper::~EssCtxWrapper() {
+  EssContextDestroy(ctx_);
+}
+
+SB_ONCE_INITIALIZE_FUNCTION(EssCtxWrapper, GetEssCtxWrapper);
+
+EssCtx *GetEssCtx() {
+  return GetEssCtxWrapper()->GetCtx();
 }
 
 }  // namespace window
@@ -513,51 +571,47 @@ void KeyboardHandler::SetWindow(SbWindow window) {
 }  // namespace starboard
 }  // namespace third_party
 
+using namespace third_party::starboard::wpe::shared;
+
 SbWindowPrivate::SbWindowPrivate(const SbWindowOptions* options) {
-  auto window_width =
-      options && options->size.width > 0
-          ? options->size.width
-          : third_party::starboard::wpe::shared::window::kDefaultWidth;
-  auto window_height =
-      options && options->size.height > 0
-          ? options->size.height
-          : third_party::starboard::wpe::shared::window::kDefaultHeight;
-  auto* env_width  = std::getenv("COBALT_RESOLUTION_WIDTH");
-  if (env_width) {
-    window_width = atoi(env_width);
+  width_ = options && options->size.width > 0
+    ? options->size.width
+    : window::kDefaultWidth;
+
+  height_ = options && options->size.height > 0
+    ? options->size.height
+    : window::kDefaultHeight;
+
+  auto* env_width = std::getenv("COBALT_RESOLUTION_WIDTH");
+  if ( env_width ) {
+    width_ = atoi(env_width);
   }
 
-  auto* env_height  = std::getenv("COBALT_RESOLUTION_HEIGHT");
-  if (env_height) {
-    window_height = atoi(env_height);
+  auto* env_height = std::getenv("COBALT_RESOLUTION_HEIGHT");
+  if ( env_height ) {
+    height_ = atoi(env_height);
   }
 
-#if defined(SB_NEEDS_VIDEO_OVERLAY_SURFACE)
-  // The sufraces are stacked in order they are
-  // created with by default so make sure video is under gfx by creating
-  // it first.
-  video_overlay_ =
-      third_party::starboard::wpe::shared::window::GetDisplay()->Create(
-          third_party::starboard::wpe::shared::window::DisplayName() + "-"
-              + std::string("video"), window_width, window_height);
-#endif
+  EssCtx *ctx = window::GetEssCtx();
+  if ( !EssContextCreateNativeWindow(ctx, width_, height_, &nativeWindow_) ) {
+    const char *detail= EssContextGetLastErrorDetail( ctx );
+    fprintf(stderr, "Failed to crate native window. Essos error: (%s)\n", detail);
+  }
 
-  window_ = third_party::starboard::wpe::shared::window::GetDisplay()->Create(
-      third_party::starboard::wpe::shared::window::DisplayName() + "-"
-          + std::string("graphics"), window_width, window_height);
-  kb_handler_.SetWindow(this);
+  window::GetEssInput()->SetSbWindow(this);
 }
 
 SbWindowPrivate::~SbWindowPrivate() {
-  if (window_) {
-    window_->Release();
-  }
 }
 
-WPEFramework::Compositor::IDisplay::ISurface*
-SbWindowPrivate::CreateVideoOverlay() {
-  return video_overlay_;
+void* SbWindowPrivate::Native() const {
+  return nativeWindow_;
 }
 
-void SbWindowPrivate::DestroyVideoOverlay(
-    WPEFramework::Compositor::IDisplay::ISurface* surface) {}
+int SbWindowPrivate::Width() const {
+  return width_;
+}
+
+int SbWindowPrivate::Height() const {
+  return height_;
+}

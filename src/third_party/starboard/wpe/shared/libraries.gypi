@@ -23,7 +23,7 @@
       '-lWPEFrameworkCryptalgo',
       '-lWPEFrameworkPlugins',
       '-lWPEFrameworkProtocols',
-      '-lcompositorclient',
+      '-lessos',
       '-lglib-2.0',
       '-lgstreamer-1.0',
       '-lgstaudio-1.0',
@@ -32,7 +32,6 @@
       '-lgstbase-1.0',
       '-lgobject-2.0',
       '-lpthread',
-
     ],
     'common_linker_flags': [
       '-Wl,--wrap=eglGetDisplay',

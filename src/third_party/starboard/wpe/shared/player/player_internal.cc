@@ -26,7 +26,6 @@
 #include <gst/base/gstbytewriter.h>
 #include <gst/gst.h>
 #include <gst/video/video.h>
-#include <gst/video/videooverlay.h>
 
 #include <map>
 #include <string>
@@ -37,10 +36,6 @@
 #include "starboard/time.h"
 #include "third_party/starboard/wpe/shared/drm/drm_system_ocdm.h"
 #include "third_party/starboard/wpe/shared/media/gst_media_utils.h"
-
-#if defined(SB_NEEDS_VIDEO_OVERLAY_SURFACE)
-#include "third_party/starboard/wpe/shared/window/window_internal.h"
-#endif
 
 namespace third_party {
 namespace starboard {
@@ -919,9 +914,6 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   static void SetupSource(GstElement* pipeline,
                           GstElement* source,
                           PlayerImpl* self);
-  static GstBusSyncReply CreateVideoOverlay(GstBus* bus,
-                                            GstMessage* message,
-                                            gpointer user_data);
   bool ChangePipelineState(GstState state) const;
   void DispatchOnWorkerThread(Task* task) const;
   gint64 GetPosition() const;
@@ -976,10 +968,6 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   int total_video_frames_{0};
   int frame_width_{0};
   int frame_height_{0};
-#if defined(SB_NEEDS_VIDEO_OVERLAY_SURFACE)
-  WPEFramework::Compositor::IDisplay::ISurface* video_overlay_{nullptr};
-#endif
-  GstElement* gst_video_overlay_{nullptr};
   State state_{State::kNull};
   SamplesPendingKey pending_;
   mutable gint64 cached_position_ns_{0};
@@ -1064,7 +1052,6 @@ PlayerImpl::PlayerImpl(SbPlayer player,
 
   GstBus* bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline_));
   bus_watch_id_ = gst_bus_add_watch(bus, &PlayerImpl::BusMessageCallback, this);
-  gst_bus_set_sync_handler(bus, &PlayerImpl::CreateVideoOverlay, this, nullptr);
   gst_object_unref(bus);
 
   video_appsrc_ = gst_element_factory_make("appsrc", "vidsrc");
@@ -1112,9 +1099,6 @@ PlayerImpl::~PlayerImpl() {
   g_object_unref(pipeline_);
   if (drm_system_)
     drm_system_->RemoveObserver(this);
-#if defined(SB_NEEDS_VIDEO_OVERLAY_SURFACE)
-  window_->DestroyVideoOverlay(video_overlay_);
-#endif
   GST_DEBUG("BYE BYE player");
 }
 
@@ -1275,32 +1259,6 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
   }
 
   return TRUE;
-}
-
-// static
-GstBusSyncReply PlayerImpl::CreateVideoOverlay(GstBus* bus,
-                                               GstMessage* message,
-                                               gpointer user_data) {
-  if (!gst_is_video_overlay_prepare_window_handle_message(message))
-    return GST_BUS_PASS;
-
-#if defined(SB_NEEDS_VIDEO_OVERLAY_SURFACE)
-  PlayerImpl* self = reinterpret_cast<PlayerImpl*>(user_data);
-  GstVideoOverlay* overlay = GST_VIDEO_OVERLAY(GST_MESSAGE_SRC(message));
-  SbWindowPrivate* window_private = self->window_;
-  self->video_overlay_ = window_private->CreateVideoOverlay();
-  gst_video_overlay_set_window_handle(overlay,
-                                      (guintptr)self->video_overlay_->Native());
-
-  self->gst_video_overlay_ = GST_ELEMENT(overlay);
-  GST_INFO("Has video overlay");
-  if (!self->pending_bounds_.IsEmpty()) {
-    self->SetBounds(0, self->pending_bounds_.x, self->pending_bounds_.y,
-                    self->pending_bounds_.w, self->pending_bounds_.h);
-    self->pending_bounds_ = PendingBounds{};
-  }
-#endif
-  return GST_BUS_DROP;
 }
 
 // static
@@ -1910,21 +1868,15 @@ void PlayerImpl::GetInfo(SbPlayerInfo2* out_player_info) {
 
 void PlayerImpl::SetBounds(int zindex, int x, int y, int w, int h) {
   GST_TRACE("Set Bounds: %d %d %d %d %d", zindex, x, y, w, h);
-  if (gst_video_overlay_) {
-    gst_video_overlay_set_render_rectangle(
-        GST_VIDEO_OVERLAY(gst_video_overlay_), x, y, w, h);
-    gst_video_overlay_expose(GST_VIDEO_OVERLAY(gst_video_overlay_));
+  GstElement* vid_sink = nullptr;
+  g_object_get(pipeline_, "video-sink", &vid_sink, nullptr);
+  if (vid_sink && g_object_class_find_property(G_OBJECT_GET_CLASS(vid_sink),
+                                               "rectangle")) {
+    gchar* rect = g_strdup_printf("%d,%d,%d,%d", x, y, w, h);
+    g_object_set(vid_sink, "rectangle", rect, nullptr);
+    free(rect);
   } else {
-    GstElement* vid_sink = nullptr;
-    g_object_get(pipeline_, "video-sink", &vid_sink, nullptr);
-    if (vid_sink && g_object_class_find_property(G_OBJECT_GET_CLASS(vid_sink),
-                                                 "rectangle")) {
-      gchar* rect = g_strdup_printf("%d,%d,%d,%d", x, y, w, h);
-      g_object_set(vid_sink, "rectangle", rect, nullptr);
-      free(rect);
-    } else {
-      pending_bounds_ = PendingBounds{x, y, w, h};
-    }
+    pending_bounds_ = PendingBounds{x, y, w, h};
   }
 }
 
