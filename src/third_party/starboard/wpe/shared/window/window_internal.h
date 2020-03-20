@@ -43,11 +43,6 @@ struct SbWindowPrivate {
   int Width() const;
   int Height() const;
   void* Native() const;
-
-private:
-  NativeWindowType nativeWindow_ { 0 };
-  int width_ { 0 };
-  int height_ { 0 };
 };
 
 #endif  // THIRD_PARTY_STARBOARD_WPE_SHARED_WINDOW_INTERNAL_H_

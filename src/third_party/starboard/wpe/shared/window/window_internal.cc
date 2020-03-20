@@ -511,6 +511,10 @@ public:
   EssCtx *GetCtx() const { return ctx_; }
   EssInput *GetEssInput() const { return input_handler_.get(); }
   void SetSbWindow(SbWindow window) { input_handler_->SetSbWindow(window); }
+  int Width() const { return display_width_; }
+  int Height() const { return display_height_; }
+  void* NativeWindow() const { return native_window_; }
+  void ResizeNativeWindow(int width, int height);
 
 private:
   void OnTerminated();
@@ -524,6 +528,7 @@ private:
 
   EssCtx *ctx_ { nullptr };
   std::unique_ptr<EssInput> input_handler_ { nullptr };
+  NativeWindowType native_window_ { 0 };
   int display_width_ {0};
   int display_height_ {0};
 };
@@ -560,14 +565,16 @@ void EssCtxWrapper::OnKeyReleased(unsigned int key) {
 }
 
 void EssCtxWrapper::OnDisplaySize(int width, int height) {
+  ResizeNativeWindow(width, height);
+}
+
+void EssCtxWrapper::ResizeNativeWindow(int width, int height) {
   if (display_width_ == width && display_height_ == height)
     return;
 
   display_width_ = width;
   display_height_ = height;
 
-  // Fixme: We need to trigger restart of renderer module first and then resize.
-  // For now just call resize directly.
   EssContextResizeWindow(ctx_, display_width_, display_height_);
 }
 
@@ -599,6 +606,9 @@ EssCtxWrapper::EssCtxWrapper() : input_handler_(new EssInput) {
   else if ( !EssContextSetInitialWindowSize(ctx_, display_width_, display_height_) ) {
     error = true;
   }
+  else if ( !EssContextCreateNativeWindow(ctx_, display_width_, display_height_, &native_window_) ) {
+    error = true;
+  }
   else if ( !EssContextStart(ctx_) ) {
     error = true;
   }
@@ -628,49 +638,40 @@ EssCtx *GetEssCtx() {
 using namespace third_party::starboard::wpe::shared;
 
 SbWindowPrivate::SbWindowPrivate(const SbWindowOptions* options) {
-  width_ = options && options->size.width > 0
+  auto width = options && options->size.width > 0
     ? options->size.width
     : window::kDefaultWidth;
 
-  height_ = options && options->size.height > 0
+  auto height = options && options->size.height > 0
     ? options->size.height
     : window::kDefaultHeight;
 
   auto* env_width = std::getenv("COBALT_RESOLUTION_WIDTH");
   if ( env_width ) {
-    width_ = atoi(env_width);
+    width = atoi(env_width);
   }
 
   auto* env_height = std::getenv("COBALT_RESOLUTION_HEIGHT");
   if ( env_height ) {
-    height_ = atoi(env_height);
+    height = atoi(env_height);
   }
 
-  EssCtx *ctx = window::GetEssCtx();
-  if ( !EssContextCreateNativeWindow(ctx, width_, height_, &nativeWindow_) ) {
-    const char *detail= EssContextGetLastErrorDetail( ctx );
-    fprintf(stderr, "Failed to create native window. Essos error: (%s)\n", detail);
-  }
-
+  window::GetEssCtxWrapper()->ResizeNativeWindow(width, height);
   window::GetEssCtxWrapper()->SetSbWindow(this);
 }
 
 SbWindowPrivate::~SbWindowPrivate() {
   window::GetEssCtxWrapper()->SetSbWindow(nullptr);
-#if 0
-  // TODO: enable after Essos upgrade
-  EssContextDestroyNativeWindow(window::GetEssCtx(), nativeWindow_);
-#endif
 }
 
 void* SbWindowPrivate::Native() const {
-  return nativeWindow_;
+  return window::GetEssCtxWrapper()->NativeWindow();
 }
 
 int SbWindowPrivate::Width() const {
-  return width_;
+  return window::GetEssCtxWrapper()->Width();
 }
 
 int SbWindowPrivate::Height() const {
-  return height_;
+  return window::GetEssCtxWrapper()->Height();
 }
