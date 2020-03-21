@@ -22,12 +22,16 @@
 #include "starboard/shared/starboard/queue_application.h"
 #include "starboard/types.h"
 
+#include "third_party/starboard/wpe/shared/ess_input.h"
+
+#include <memory>
+#include <essos.h>
+
 namespace third_party {
 namespace starboard {
 namespace wpe {
 namespace shared {
 
-// Stub application engine using the generic queue and a stub implementation.
 class Application : public ::starboard::shared::starboard::QueueApplication {
  public:
   Application();
@@ -38,9 +42,14 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
         ::starboard::shared::starboard::Application::Get());
   }
 
-  SbWindow CreateWindow(const SbWindowOptions* options);
-  bool DestroyWindow(SbWindow window);
+  SbWindow CreateSbWindow(const SbWindowOptions* options);
+  bool DestroySbWindow(SbWindow window);
   void InjectInputEvent(SbInputData* data);
+
+  EssCtx *GetEssCtx() const { return ctx_; }
+  NativeWindowType GetNativeWindow() const { return native_window_; }
+  int GetWindowWidth() const { return window_width_; }
+  int GetWindowHeight() const { return window_height_; }
 
  protected:
   // --- Application overrides ---
@@ -53,6 +62,24 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   Event* PollNextSystemEvent() override;
   Event* WaitForSystemEventWithTimeout(SbTime time) override;
   void WakeSystemEventWait() override;
+
+  // --- Essos ---
+  void OnTerminated();
+  void OnKeyPressed(unsigned int key);
+  void OnKeyReleased(unsigned int key);
+  void OnDisplaySize(int width, int height);
+
+ private:
+  static EssTerminateListener terminateListener;
+  static EssKeyListener keyListener;
+  static EssSettingsListener settingsListener;
+
+  EssCtx *ctx_ { nullptr };
+  std::unique_ptr<EssInput> input_handler_ { nullptr };
+  SbWindow window_ { kSbWindowInvalid };
+  NativeWindowType native_window_ { 0 };
+  int window_width_ { 0 };
+  int window_height_ { 0 };
 };
 
 }  // namespace shared

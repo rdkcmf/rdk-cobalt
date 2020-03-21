@@ -25,9 +25,69 @@ namespace starboard {
 namespace wpe {
 namespace shared {
 
-Application::Application() {}
+EssTerminateListener Application::terminateListener = {
+  //terminated
+  [](void* data) { reinterpret_cast<Application*>(data)->OnTerminated(); }
+};
 
-Application::~Application() {}
+EssKeyListener Application::keyListener = {
+  // keyPressed
+  [](void* data, unsigned int key) { reinterpret_cast<Application*>(data)->OnKeyPressed(key); },
+  // keyReleased
+  [](void* data, unsigned int key) { reinterpret_cast<Application*>(data)->OnKeyReleased(key); }
+};
+
+EssSettingsListener Application::settingsListener = {
+  // displaySize
+  [](void *data, int width, int height ) { reinterpret_cast<Application*>(data)->OnDisplaySize(width, height); },
+  // displaySafeArea
+  nullptr
+};
+
+Application::Application() : input_handler_(new EssInput) {
+  bool error = false;
+  ctx_ = EssContextCreate();
+
+  if ( !EssContextInit(ctx_) ) {
+    error = true;
+  }
+  else if ( !EssContextSetTerminateListener(ctx_, this, &terminateListener) ) {
+    error = true;
+  }
+  else if ( !EssContextSetKeyListener(ctx_, this, &keyListener) ) {
+    error = true;
+  }
+  else if ( !EssContextSetSettingsListener(ctx_, this, &settingsListener) ) {
+    error = true;
+  }
+  else if ( !EssContextSetKeyRepeatInitialDelay(ctx_, INT_MAX) )  {
+    error = true;
+  }
+  else if ( !EssContextSetKeyRepeatPeriod(ctx_, INT_MAX) ) {
+    error = true;
+  }
+  else if ( !EssContextGetDisplaySize(ctx_, &window_width_, &window_height_) ) {
+    error= true;
+  }
+  else if ( !EssContextSetInitialWindowSize(ctx_, window_width_, window_height_) ) {
+    error = true;
+  }
+  else if ( !EssContextCreateNativeWindow(ctx_, window_width_, window_height_, &native_window_) ) {
+    error = true;
+  }
+  else if ( !EssContextStart(ctx_) ) {
+    error = true;
+  }
+
+  if ( error ) {
+    const char *detail = EssContextGetLastErrorDetail(ctx_);
+    SB_DLOG(ERROR) << "Essos error: '" <<  detail << '\'';
+  }
+}
+
+Application::~Application() {
+  EssContextDestroy(ctx_);
+}
 
 void Application::Initialize() {
   SbAudioSinkPrivate::Initialize();
@@ -43,8 +103,7 @@ bool Application::MayHaveSystemEvents() {
 
 ::starboard::shared::starboard::Application::Event*
 Application::PollNextSystemEvent() {
-  EssCtx *ctx = window::GetEssCtx();
-  EssContextRunEventLoopOnce( ctx );
+  EssContextRunEventLoopOnce( ctx_ );
   return NULL;
 }
 
@@ -56,17 +115,22 @@ Application::WaitForSystemEventWithTimeout(SbTime time) {
 void Application::WakeSystemEventWait() {
 }
 
-SbWindow Application::CreateWindow(const SbWindowOptions* options) {
-  SbWindow window = new SbWindowPrivate(options);
-  return window;
+SbWindow Application::CreateSbWindow(const SbWindowOptions* options) {
+  SB_DCHECK(window_ == nullptr);
+  window_  = new SbWindowPrivate(options);
+  return window_;
 }
 
-bool Application::DestroyWindow(SbWindow window) {
+bool Application::DestroySbWindow(SbWindow window) {
+  if (!SbWindowIsValid(window))
+    return false;
+  window_ = nullptr;
   delete window;
   return true;
 }
 
 void Application::InjectInputEvent(SbInputData* data) {
+  data->window = window_;
   Inject(new Event(kSbEventTypeInput, data,
                    &Application::DeleteDestructor<SbInputData>));
 }
@@ -77,6 +141,28 @@ void Application::Inject(Event* e) {
   }
 
   QueueApplication::Inject(e);
+}
+
+void Application::OnTerminated() {
+  Stop(0);
+}
+
+void Application::OnKeyPressed(unsigned int key) {
+  input_handler_->OnKeyPressed(key);
+}
+
+void Application::OnKeyReleased(unsigned int key) {
+  input_handler_->OnKeyReleased(key);
+}
+
+void Application::OnDisplaySize(int width, int height) {
+  if (window_width_ == width && window_height_ == height)
+    return;
+
+  window_width_ = width;
+  window_height_ = height;
+
+  EssContextResizeWindow(ctx_, window_width_, window_height_);
 }
 
 }  // namespace shared

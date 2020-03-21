@@ -20,22 +20,6 @@
 #include "starboard/time.h"
 #include "starboard/window.h"
 
-#include <essos.h>
-
-namespace third_party {
-namespace starboard {
-namespace wpe {
-namespace shared {
-namespace window {
-
-EssCtx *GetEssCtx();
-
-}  // namespace window
-}  // namespace shared
-}  // namespace wpe
-}  // namespace starboard
-}  // namespace third_party
-
 struct SbWindowPrivate {
   SbWindowPrivate(const SbWindowOptions* options);
   ~SbWindowPrivate();

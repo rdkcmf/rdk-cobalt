@@ -14,7 +14,7 @@
 
 #include "starboard/common/log.h"
 
-#include "third_party/starboard/wpe/shared/window/window_internal.h"
+#include "third_party/starboard/wpe/shared/application_wpe.h"
 
 #include <essos.h>
 
@@ -24,7 +24,7 @@ extern "C" EGLDisplay __wrap_eglGetDisplay(EGLNativeDisplayType native_display);
 extern "C" EGLDisplay __wrap_eglGetDisplay(
     EGLNativeDisplayType native_display) {
   NativeDisplayType display_type;
-  EssCtx *ctx = third_party::starboard::wpe::shared::window::GetEssCtx();
+  EssCtx *ctx = third_party::starboard::wpe::shared::Application::Get()->GetEssCtx();
   if (EssContextGetEGLDisplayType(ctx, &display_type))
     return __real_eglGetDisplay(reinterpret_cast<EGLNativeDisplayType>(display_type));
   return __real_eglGetDisplay(native_display);

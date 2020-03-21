@@ -16,6 +16,6 @@
 #include "third_party/starboard/wpe/shared/application_wpe.h"
 
 SbWindow SbWindowCreate(const SbWindowOptions* options) {
-  return third_party::starboard::wpe::shared::Application::Get()->CreateWindow(
+  return third_party::starboard::wpe::shared::Application::Get()->CreateSbWindow(
       options);
 }

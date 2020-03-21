@@ -16,6 +16,6 @@
 #include "third_party/starboard/wpe/shared/application_wpe.h"
 
 bool SbWindowDestroy(SbWindow window) {
-  return third_party::starboard::wpe::shared::Application::Get()->DestroyWindow(
+  return third_party::starboard::wpe::shared::Application::Get()->DestroySbWindow(
       window);
 }
