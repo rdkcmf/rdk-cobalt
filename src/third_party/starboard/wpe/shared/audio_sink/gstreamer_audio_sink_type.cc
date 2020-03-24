@@ -148,7 +148,8 @@ GStreamerAudioSink::GStreamerAudioSink(
   GstCaps* audio_caps = gst_caps_new_simple(
       "audio/x-raw", "format", G_TYPE_STRING, format, "rate", G_TYPE_INT,
       sampling_frequency_hz, "channels", G_TYPE_INT, channels, "layout",
-      G_TYPE_STRING, "interleaved", nullptr);
+      G_TYPE_STRING, "interleaved", "channel-mask", GST_TYPE_BITMASK,
+      gst_audio_channel_get_fallback_mask(channels), nullptr);
 
   appsrc_ = gst_element_factory_make("appsrc", "source");
   GstAppSrcCallbacks callbacks = {&GStreamerAudioSink::AppSrcNeedData,
@@ -297,7 +298,7 @@ void GStreamerAudioSink::AppSrcNeedData(GstAppSrc* src,
   int offset_in_frames = 0;
   bool is_playing = true;
   bool is_eos_reached = false;
-  while (!is_eos_reached && !sink->enough_data_) {
+  while (/*!is_eos_reached &&*/ !sink->enough_data_) {
     bool destroying = false;
     {
       ::starboard::ScopedLock lock(sink->mutex_);
@@ -320,14 +321,13 @@ void GStreamerAudioSink::AppSrcNeedData(GstAppSrc* src,
                        frames_in_buffer, offset_in_frames, is_playing,
                        is_eos_reached);
 
-      int frames_to_write =
-          std::min(kFramesPerRequest, frames_in_buffer - offset_in_frames);
+      int frames_to_write = ((frames_in_buffer + offset_in_frames) < sink->frame_buffers_size_in_frames_)
+          ? frames_in_buffer
+          : sink->frame_buffers_size_in_frames_ - offset_in_frames;
+
+      frames_to_write = std::min(kFramesPerRequest, frames_to_write);
 
       if (is_playing && frames_to_write > 0) {
-        if (is_eos_reached) {
-          GST_LOG_OBJECT(sink->pipeline_, "EOS");
-          gst_app_src_end_of_stream(GST_APP_SRC(sink->appsrc_));
-        } else {
           GstBuffer* buffer = gst_buffer_new_allocate(
               nullptr, frames_to_write * sink->GetBytesPerFrame(), nullptr);
           uint8_t* beginning = static_cast<uint8_t*>(sink->frame_buffers_[0]) +
@@ -384,7 +384,10 @@ void GStreamerAudioSink::AppSrcNeedData(GstAppSrc* src,
             SbFileClose(file);
           }
 #endif
-        }
+      }
+
+      if (!is_playing || frames_in_buffer <= 0) {
+          SbThreadSleep(15 * kSbTimeMillisecond);
       }
     }
   }
