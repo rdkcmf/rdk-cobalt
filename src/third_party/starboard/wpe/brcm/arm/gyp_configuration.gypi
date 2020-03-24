@@ -46,6 +46,8 @@
       # Disable strict aliasing.
       '-fno-strict-aliasing',
 
+      '-fno-delete-null-pointer-checks',
+
       # To support large files
       '-D_FILE_OFFSET_BITS=64',
 
