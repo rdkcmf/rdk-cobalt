@@ -80,11 +80,11 @@ bool GetModelName(char* out_value, int value_length) {
   return CopyStringAndTestIfSuccess(out_value, value_length, SB_PLATFORM_MODEL_NAME);
 }
 
-bool GetBrandName(char* out_value, int value_length) {
-  const char* env = std::getenv("COBALT_BRAND_NAME");
+bool GetOperatorName(char* out_value, int value_length) {
+  const char* env = std::getenv("COBALT_OPERATOR_NAME");
   if (env && CopyStringAndTestIfSuccess(out_value, value_length, env))
     return true;
-  return CopyStringAndTestIfSuccess(out_value, value_length, SB_PLATFORM_BRAND_NAME);
+  return CopyStringAndTestIfSuccess(out_value, value_length, SB_PLATFORM_OPERATOR_NAME);
 }
 
 }  // namespace
@@ -101,7 +101,7 @@ bool SbSystemGetProperty(SbSystemPropertyId property_id,
       return GetModelName(out_value, value_length);
 
     case kSbSystemPropertyBrandName:
-      return GetBrandName(out_value, value_length);
+      return GetOperatorName(out_value, value_length);
 
 #if defined(SB_PLATFORM_CHIPSET_MODEL_NUMBER_STRING)
     case kSbSystemPropertyChipsetModelNumber:
