@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "base/logging.h"
 #include "starboard/player.h"
 #include "third_party/starboard/wpe/shared/player/player_internal.h"
 
@@ -22,6 +21,6 @@ void SbPlayerGetInfo2(SbPlayer player, SbPlayerInfo2* out_player_info) {
 }
 #else
 void SbPlayerGetInfo(SbPlayer /*player*/, SbPlayerInfo* /*out_player_info*/) {
-  NOTIMPLEMENTED();
+  SB_NOTIMPLEMENTED();
 }
 #endif  // SB_API_VERSION >= 10

@@ -25,7 +25,6 @@
 #include <gst/audio/streamvolume.h>
 #include <gst/gst.h>
 
-#include "base/logging.h"
 #include "starboard/common/mutex.h"
 #include "starboard/configuration.h"
 #include "starboard/file.h"
@@ -66,7 +65,7 @@ class GStreamerAudioSink : public SbAudioSinkPrivate {
   bool IsType(Type* type) override { return type_ == type; }
 
   void SetPlaybackRate(double playback_rate) override {
-    NOTIMPLEMENTED();
+    SB_NOTIMPLEMENTED();
   }
 
   void SetVolume(double volume) override {
@@ -139,7 +138,7 @@ GStreamerAudioSink::GStreamerAudioSink(
 
   GST_TRACE("TID: %d", SbThreadGetId());
 
-  DCHECK(audio_frame_storage_type == kSbMediaAudioFrameStorageTypeInterleaved)
+  SB_DCHECK(audio_frame_storage_type == kSbMediaAudioFrameStorageTypeInterleaved)
       << "It seems SbAudioSinkIsAudioFrameStorageTypeSupported() was changed "
       << "without adjustng here.";
 

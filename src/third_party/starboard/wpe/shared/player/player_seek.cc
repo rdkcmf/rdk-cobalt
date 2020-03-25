@@ -24,6 +24,6 @@ void SbPlayerSeek2(SbPlayer player, SbTime seek_to_timestamp, int ticket) {
 void SbPlayerSeek(SbPlayer /*player*/,
                   SbMediaTime /*seek_to_timestamp*/,
                   int /*ticket*/) {
-  NOTIMPLEMENTED();
+  SB_NOTIMPLEMENTED();
 }
 #endif  // SB_API_VERSION >= 10

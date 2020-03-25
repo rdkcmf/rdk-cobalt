@@ -30,10 +30,10 @@
 #include <map>
 #include <string>
 
-#include "base/logging.h"
 #include "starboard/common/mutex.h"
 #include "starboard/thread.h"
 #include "starboard/time.h"
+#include "starboard/memory.h"
 #include "third_party/starboard/wpe/shared/drm/drm_system_ocdm.h"
 #include "third_party/starboard/wpe/shared/media/gst_media_utils.h"
 
@@ -83,7 +83,7 @@ static GSourceFuncs SourceFunctions = {
 unsigned getGstPlayFlag(const char* nick) {
   static GFlagsClass* flagsClass = static_cast<GFlagsClass*>(
       g_type_class_ref(g_type_from_name("GstPlayFlags")));
-  DCHECK(flagsClass);
+  SB_DCHECK(flagsClass);
 
   GFlagsValue* flag = g_flags_get_value_by_nick(flagsClass, nick);
   if (!flag)
@@ -798,7 +798,7 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
     DispatchData(const DispatchData&) = delete;
 
     DispatchData(Task* task, GSource* src) : task_(task), src_(src) {
-      DCHECK(task_ && src_);
+      SB_DCHECK(task_ && src_);
     }
 
     ~DispatchData() {
@@ -850,7 +850,7 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
           subsamples_(subsamples),
           subsamples_count_(subsamples_count),
           key_(key) {
-      DCHECK(gst_buffer_is_writable(buffer));
+      SB_DCHECK(gst_buffer_is_writable(buffer));
       buffer_copy_ = gst_buffer_copy_deep(buffer);
     }
 
@@ -1167,7 +1167,7 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
             is_seek_pending = self->is_seek_pending_;
             is_rate_pending = self->pending_rate_ != .0;
             pending_seek_pos = self->seek_position_;
-            DCHECK(!is_seek_pending || self->seek_position_ != kSbTimeMax);
+            SB_DCHECK(!is_seek_pending || self->seek_position_ != kSbTimeMax);
             rate = self->pending_rate_;
             if (is_seek_pending && is_rate_pending) {
               is_rate_pending = false;
@@ -1298,7 +1298,7 @@ void PlayerImpl::DispatchOnWorkerThread(Task* task) const {
 gboolean PlayerImpl::FinishSourceSetup(gpointer user_data) {
   PlayerImpl* self = static_cast<PlayerImpl*>(user_data);
   ::starboard::ScopedLock lock(self->source_setup_mutex_);
-  DCHECK(self->source_);
+  SB_DCHECK(self->source_);
   GstElement* source = self->source_;
   GstAppSrcCallbacks callbacks = {&PlayerImpl::AppSrcNeedData,
                                   &PlayerImpl::AppSrcEnoughData,
@@ -1330,7 +1330,7 @@ void PlayerImpl::AppSrcNeedData(GstAppSrc* src,
 
   ::starboard::ScopedLock lock(self->mutex_);
   int need_data = static_cast<int>(MediaType::kNone);
-  DCHECK(src == GST_APP_SRC(self->video_appsrc_) ||
+  SB_DCHECK(src == GST_APP_SRC(self->video_appsrc_) ||
          src == GST_APP_SRC(self->audio_appsrc_));
   if (src == GST_APP_SRC(self->video_appsrc_)) {
     self->has_enough_data_ &= ~static_cast<int>(MediaType::kVideo);
@@ -1395,7 +1395,7 @@ void PlayerImpl::SetupSource(GstElement* pipeline,
                              GstElement* source,
                              PlayerImpl* self) {
   ::starboard::ScopedLock lock(self->source_setup_mutex_);
-  DCHECK(!self->source_);
+  SB_DCHECK(!self->source_);
   self->source_ = source;
   static constexpr int kAsyncSourceFinishTimeMs = 50;
   self->source_setup_id_ = g_timeout_add(kAsyncSourceFinishTimeMs,
@@ -1445,7 +1445,7 @@ bool PlayerImpl::WriteSample(SbMediaType sample_type,
   bool decrypted = true;
   if (!session_id.empty()) {
     GST_LOG_OBJECT(src, "Decrypting using %s...", session_id.c_str());
-    DCHECK(drm_system_ && subsample && subsample_count && iv && key);
+    SB_DCHECK(drm_system_ && subsample && subsample_count && iv && key);
     decrypted = drm_system_->Decrypt(session_id, buffer, subsample,
                                      subsample_count, iv, key);
     if (!decrypted)
@@ -1487,7 +1487,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
   static_assert(kMaxNumberOfSamplesPerWrite == 1,
                 "Adjust impl. to handle more samples after changing samples"
                 "count");
-  DCHECK(number_of_sample_infos == kMaxNumberOfSamplesPerWrite);
+  SB_DCHECK(number_of_sample_infos == kMaxNumberOfSamplesPerWrite);
   GstBuffer* buffer =
       gst_buffer_new_allocate(nullptr, sample_infos[0].buffer_size, nullptr);
   gst_buffer_fill(buffer, 0, sample_infos[0].buffer,
@@ -1542,7 +1542,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
   if (sample_infos[0].drm_info) {
     GST_LOG("Encounterd encrypted %s sample",
             sample_type == kSbMediaTypeVideo ? "video" : "audio");
-    DCHECK(drm_system_);
+    SB_DCHECK(drm_system_);
     key = gst_buffer_new_allocate(
         nullptr, sample_infos[0].drm_info->identifier_size, nullptr);
     gst_buffer_fill(key, 0, sample_infos[0].drm_info->identifier,
@@ -1660,7 +1660,7 @@ void PlayerImpl::Seek(SbTime seek_to_timestamp, int ticket) {
     seek_position_ = seek_to_timestamp;
 
     if (state_ == State::kInitial) {
-      DCHECK(seek_position_ == .0);
+      SB_DCHECK(seek_position_ == .0);
       // This is the initial seek to 0 which will trigger data pumping.
       state_ = State::kInitialPreroll;
       DispatchOnWorkerThread(new PlayerStatusTask(player_status_func_, player_,
@@ -1988,7 +1988,7 @@ void PlayerImpl::OnKeyReady(const uint8_t* key, size_t key_len) {
     std::string session_id;
     if (drm_system_) {
       session_id = drm_system_->SessionIdByKeyId(key, key_len);
-      DCHECK(!session_id.empty());
+      SB_DCHECK(!session_id.empty());
     }
 
     PendingSamples local_samples;
@@ -2033,8 +2033,8 @@ void PlayerImpl::OnKeyReady(const uint8_t* key, size_t key_len) {
 }
 
 MediaType PlayerImpl::GetBothMediaTypeTakingCodecsIntoAccount() const {
-  DCHECK(audio_codec_ != kSbMediaAudioCodecNone ||
-         video_codec_ == kSbMediaVideoCodecNone);
+  SB_DCHECK(audio_codec_ != kSbMediaAudioCodecNone ||
+            video_codec_ != kSbMediaVideoCodecNone);
   MediaType both_need_data = MediaType::kBoth;
 
   if (audio_codec_ == kSbMediaAudioCodecNone)

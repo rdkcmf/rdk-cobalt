@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "base/logging.h"
 #include "starboard/configuration.h"
+#include "starboard/common/log.h"
 #include "starboard/media.h"
 #include "starboard/shared/starboard/media/media_support_internal.h"
 #include "third_party/starboard/wpe/shared/media/gst_media_utils.h"
@@ -37,8 +37,8 @@ SB_EXPORT bool SbMediaIsVideoSupported(SbMediaVideoCodec video_codec,
 #endif  // SB_API_VERSION >= 10
 ) {
   if (decode_to_texture_required) {
-    LOG(WARNING) << "Decoding to texture required with " << frame_width << "x"
-                 << frame_height;
+    SB_LOG(WARNING) << "Decoding to texture required with " << frame_width << "x"
+                    << frame_height;
     return false;
   }
 

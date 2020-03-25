@@ -33,7 +33,7 @@ void SbPlayerWriteSample(SbPlayer /*player*/,
                          SbMediaTime /*sample_pts*/,
                          const SbMediaVideoSampleInfo* /*video_sample_info*/,
                          const SbDrmSampleInfo* /*sample_drm_info*/) {
-  NOTIMPLEMENTED();
+  SB_NOTIMPLEMENTED();
 }
 
 #endif  // SB_API_VERSION >= 10

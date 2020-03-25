@@ -18,7 +18,6 @@
 #if defined(HAS_OCDM)
 #include "third_party/starboard/wpe/shared/drm/drm_system_ocdm.h"
 
-#include "base/logging.h"
 #include "starboard/common/mutex.h"
 #include "starboard/shared/starboard/thread_checker.h"
 
@@ -156,7 +155,7 @@ Session::~Session() {
 }
 
 void Session::Close() {
-  DCHECK(thread_checker_.CalledOnValidThread());
+  SB_DCHECK(thread_checker_.CalledOnValidThread());
   if (session_) {
     opencdm_session_close(session_.get());
     session_ = nullptr;
@@ -166,7 +165,7 @@ void Session::Close() {
   if (!id.empty())
     session_closed_callback_(drm_system_, context_, id.c_str(), id.size());
   else
-    LOG(WARNING) << "Closing ivalid session ?";
+    SB_LOG(WARNING) << "Closing ivalid session ?";
 
   {
     ::starboard::ScopedLock lock(mutex_);
@@ -180,8 +179,8 @@ void Session::GenerateChallenge(const std::string& type,
                                 const void* initialization_data,
                                 int initialization_data_size,
                                 int ticket) {
-  DCHECK(thread_checker_.CalledOnValidThread());
-  LOG(INFO) << "Generating challenge";
+  SB_DCHECK(thread_checker_.CalledOnValidThread());
+  SB_LOG(INFO) << "Generating challenge";
   {
     ::starboard::ScopedLock lock(mutex_);
     ticket_ = ticket;
@@ -220,12 +219,12 @@ void Session::GenerateChallenge(const std::string& type,
 }
 
 void Session::Update(const void* key, int key_size, int ticket) {
-  DCHECK(thread_checker_.CalledOnValidThread());
+  SB_DCHECK(thread_checker_.CalledOnValidThread());
   auto id = Id();
-  DCHECK(!id.empty());
+  SB_DCHECK(!id.empty());
   {
     ::starboard::ScopedLock lock(mutex_);
-    LOG(INFO) << "Updating session " << id;
+    SB_LOG(INFO) << "Updating session " << id;
     ticket_ = ticket;
     operation_ = Operation::kUpdate;
   }
@@ -273,7 +272,7 @@ void Session::ProcessChallenge(Session* session,
                                std::string&& id,
                                std::string&& url,
                                std::string&& challenge) {
-  DCHECK(!id.empty() && !challenge.empty());
+  SB_DCHECK(!id.empty() && !challenge.empty());
 
   size_t type_position = challenge.find(":Type:");
   std::string request_type = {
@@ -291,7 +290,7 @@ void Session::ProcessChallenge(Session* session,
 
   challenge = {challenge.c_str() + offset, challenge.size() - offset};
 
-  LOG(INFO) << "Process challenge for " << id << " type " << request_type;
+  SB_LOG(INFO) << "Process challenge for " << id << " type " << request_type;
   session->session_update_request_callback_(
       session->drm_system_, session->context_, ticket, kSbDrmStatusSuccess,
       message_type, "", id.c_str(), id.size(), challenge.c_str(),
@@ -310,7 +309,7 @@ void Session::OnKeyUpdated(struct OpenCDMSession* /*ocdm_session*/,
     id = session->Id();
   }
   if (id.empty()) {
-    LOG(WARNING) << "Updating closed session ?";
+    SB_LOG(WARNING) << "Updating closed session ?";
     return;
   }
 
@@ -336,7 +335,7 @@ void Session::OnAllKeysUpdated(const struct OpenCDMSession* /*ocdm_session*/,
     session->ticket_ = kSbDrmTicketInvalid;
   }
   if (id.empty()) {
-    LOG(WARNING) << "Updating closed session ?";
+    SB_LOG(WARNING) << "Updating closed session ?";
     return;
   }
 
@@ -356,7 +355,7 @@ void Session::OnAllKeysUpdated(const struct OpenCDMSession* /*ocdm_session*/,
       session->drm_system_, session->context_, id.c_str(), id.size(),
       session_keys.size(), keys.data(), statuses.data());
 
-  LOG(INFO) << "Session update ended " << id;
+  SB_LOG(INFO) << "Session update ended " << id;
 }
 
 // static
@@ -375,7 +374,7 @@ void Session::OnError(struct OpenCDMSession* /*ocdm_session*/,
     session->ticket_ = kSbDrmTicketInvalid;
     id = session->Id();
   }
-  LOG(ERROR) << "DRM error: " << message << ", session " << id;
+  SB_LOG(ERROR) << "DRM error: " << message << ", session " << id;
   switch (operation) {
     case Operation::kGenrateChallenge:
       session->session_update_request_callback_(
@@ -391,7 +390,7 @@ void Session::OnError(struct OpenCDMSession* /*ocdm_session*/,
     case Operation::kNone:
       break;
     default:
-      NOTREACHED();
+      SB_NOTREACHED();
       break;
   }
 }
@@ -415,7 +414,7 @@ DrmSystemOcdm::DrmSystemOcdm(
       key_statuses_changed_callback_(key_statuses_changed_callback),
       server_certificate_updated_callback_(server_certificate_updated_callback),
       session_closed_callback_(session_closed_callback) {
-  LOG(INFO) << "Create DRM system ";
+  SB_LOG(INFO) << "Create DRM system ";
   ocdm_system_ = opencdm_create_system(key_system_.c_str());
 }
 
@@ -439,7 +438,7 @@ void DrmSystemOcdm::GenerateSessionUpdateRequest(
     const char* type,
     const void* initialization_data,
     int initialization_data_size) {
-  LOG(INFO) << "Generate challenge type: " << type;
+  SB_LOG(INFO) << "Generate challenge type: " << type;
   std::unique_ptr<Session> session(
       new Session(this, ocdm_system_, context_,
                   session_update_request_callback_, session_updated_callback_,
@@ -455,7 +454,7 @@ void DrmSystemOcdm::UpdateSession(int ticket,
                                   const void* session_id,
                                   int session_id_size) {
   std::string id = {static_cast<const char*>(session_id), session_id_size};
-  LOG(INFO) << "Update: " << id;
+  SB_LOG(INFO) << "Update: " << id;
   auto* session = GetSessionById(id);
   if (session)
     session->Update(key, key_size, ticket);
@@ -463,7 +462,7 @@ void DrmSystemOcdm::UpdateSession(int ticket,
 
 void DrmSystemOcdm::CloseSession(const void* session_id, int session_id_size) {
   std::string id = {static_cast<const char*>(session_id), session_id_size};
-  LOG(INFO) << "Close: " << id;
+  SB_LOG(INFO) << "Close: " << id;
   auto* session = GetSessionById(id);
   if (session)
     session->Close();
@@ -482,7 +481,7 @@ void DrmSystemOcdm::UpdateServerCertificate(int ticket,
 }
 
 SbDrmSystemPrivate::DecryptStatus DrmSystemOcdm::Decrypt(InputBuffer* buffer) {
-  NOTREACHED();
+  SB_NOTREACHED();
   return kFailure;
 }
 
@@ -505,7 +504,7 @@ void DrmSystemOcdm::AddObserver(DrmSystemOcdm::Observer* obs) {
 void DrmSystemOcdm::RemoveObserver(DrmSystemOcdm::Observer* obs) {
   ::starboard::ScopedLock lock(mutex_);
   auto found = std::find(observers_.begin(), observers_.end(), obs);
-  DCHECK(found != observers_.end());
+  SB_DCHECK(found != observers_.end());
   observers_.erase(found);
 }
 
@@ -600,7 +599,7 @@ bool DrmSystemOcdm::Decrypt(const std::string& id,
                             _GstBuffer* iv,
                             _GstBuffer* key) {
   session::Session* session = GetSessionById(id);
-  DCHECK(session);
+  SB_DCHECK(session);
   return opencdm_gstreamer_session_decrypt(session->OcdmSession(), buffer,
                                            sub_sample, sub_sample_count, iv,
                                            key, 0) == ERROR_NONE;

@@ -21,7 +21,7 @@
 #include <glib.h>
 #include <gst/gst.h>
 
-#include "base/logging.h"
+#include "starboard/common/log.h"
 #include "third_party/starboard/wpe/shared/media/gst_media_utils.h"
 
 namespace third_party {
@@ -45,8 +45,8 @@ using UniqueCaps = std::unique_ptr<GstCaps, CapsDeleter>;
 UniqueFeatureList GetFactoryForCaps(GList* elements,
                                     UniqueCaps&& caps,
                                     GstPadDirection direction) {
-  DLOG(INFO) << __FUNCTION__ << ": " << gst_caps_to_string(caps.get());
-  DCHECK(direction != GST_PAD_UNKNOWN);
+  SB_DLOG(INFO) << __FUNCTION__ << ": " << gst_caps_to_string(caps.get());
+  SB_DCHECK(direction != GST_PAD_UNKNOWN);
   UniqueFeatureList candidates{
       gst_element_factory_list_filter(elements, caps.get(), direction, false)};
   return candidates;
@@ -71,7 +71,7 @@ bool GstRegistryHasElementForCodec(C codec) {
 
   caps = CodecToGstCaps(codec);
   if (caps.empty()) {
-    DLOG(INFO) << "No caps for codec " << codec;
+    SB_DLOG(INFO) << "No caps for codec " << codec;
     return false;
   }
 
@@ -80,7 +80,7 @@ bool GstRegistryHasElementForCodec(C codec) {
     elements = std::move(GetFactoryForCaps(decoder_factories.get(),
                                            std::move(gst_caps), GST_PAD_SINK));
     if (elements) {
-      DLOG(INFO) << "Found decoder for " << single_caps;
+      SB_DLOG(INFO) << "Found decoder for " << single_caps;
       break;
     }
   }
@@ -90,7 +90,7 @@ bool GstRegistryHasElementForCodec(C codec) {
     return true;
   }
 
-  DLOG(INFO) << "No decoder for codec " << codec << ". Falling back to parsers.";
+  SB_DLOG(INFO) << "No decoder for codec " << codec << ". Falling back to parsers.";
   // No decoder. Check if there's a parser and a decoder accepting its caps.
   for (auto single_caps : caps) {
     UniqueCaps gst_caps{gst_caps_from_string(single_caps.c_str())};
@@ -111,9 +111,9 @@ bool GstRegistryHasElementForCodec(C codec) {
             UniqueCaps pad_caps{gst_static_pad_template_get_caps(pad_template)};
             if (GetFactoryForCaps(decoder_factories.get(), std::move(pad_caps),
                                   GST_PAD_SINK)) {
-              DLOG(INFO) << "Found parser for " << single_caps
-                        << " and decoder"
-                           " accepting parser's src caps.";
+              SB_DLOG(INFO) << "Found parser for " << single_caps
+                            << " and decoder"
+                               " accepting parser's src caps.";
               return true;
             }
           }
@@ -122,7 +122,7 @@ bool GstRegistryHasElementForCodec(C codec) {
     }
   }
 
-  LOG(WARNING) << "Can not play codec " << codec;
+  SB_LOG(WARNING) << "Can not play codec " << codec;
   return false;
 }
 
@@ -192,7 +192,7 @@ std::vector<std::string> CodecToGstCaps(SbMediaAudioCodec codec,
         primary_caps +=
             ", channels=" + std::to_string(info->number_of_channels);
         primary_caps += ", rate=" + std::to_string(info->samples_per_second);
-        LOG(INFO) << "Adding audio caps data from sample info.";
+        SB_LOG(INFO) << "Adding audio caps data from sample info.";
       }
       return {{primary_caps}, {"audio/aac"}};
     }
