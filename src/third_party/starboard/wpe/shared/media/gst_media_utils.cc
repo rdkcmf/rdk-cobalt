@@ -20,6 +20,7 @@
 
 #include <glib.h>
 #include <gst/gst.h>
+#include <gst/pbutils/pbutils.h>
 
 #include "starboard/common/log.h"
 #include "third_party/starboard/wpe/shared/media/gst_media_utils.h"
@@ -202,8 +203,24 @@ std::vector<std::string> CodecToGstCaps(SbMediaAudioCodec codec,
     case kSbMediaAudioCodecEac3:
       return {{"audio/x-eac3"}};
 #endif  // SB_HAS(AC3_AUDIO)
-    case kSbMediaAudioCodecOpus:
-      return {{"audio/x-opus, channel-mapping-family=0"}};
+    case kSbMediaAudioCodecOpus: {
+      std::string primary_caps = "audio/x-opus, channel-mapping-family=0";
+      if (info && info->audio_specific_config_size >= 19) {
+        uint16_t codec_priv_size = info->audio_specific_config_size;
+        const void* codec_priv = info->audio_specific_config;
+
+        GstBuffer *tmp = gst_buffer_new_wrapped (g_memdup (codec_priv, codec_priv_size), codec_priv_size);
+        GstCaps* gst_caps = gst_codec_utils_opus_create_caps_from_header (tmp, NULL);
+        gchar* caps_str = gst_caps_to_string (gst_caps);
+
+        primary_caps = caps_str;
+
+        g_free (caps_str);
+        gst_caps_unref (gst_caps);
+        gst_buffer_unref (tmp);
+      }
+      return {{primary_caps}};
+    }
 
     case kSbMediaAudioCodecVorbis:
       return {{"audio/x-vorbis"}};
