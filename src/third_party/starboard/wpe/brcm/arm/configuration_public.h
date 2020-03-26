@@ -341,7 +341,7 @@
 // being played without audio for several seconds after seeking.  When the
 // following macro is defined, the app will append audio frames start from the
 // timestamp that is before the timestamp of the video key frame being appended.
-#define SB_HAS_QUIRK_SEEK_TO_KEYFRAME 1
+#define SB_HAS_QUIRK_SEEK_TO_KEYFRAME 0
 
 // The implementation is allowed to support kSbMediaAudioSampleTypeInt16 only
 // when this macro is defined.
