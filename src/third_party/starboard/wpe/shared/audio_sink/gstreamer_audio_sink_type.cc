@@ -386,7 +386,7 @@ void GStreamerAudioSink::AppSrcNeedData(GstAppSrc* src,
       }
 
       if (!is_playing || frames_in_buffer <= 0) {
-          SbThreadSleep(15 * kSbTimeMillisecond);
+          SbThreadSleep(5 * kSbTimeMillisecond);
       }
     }
   }

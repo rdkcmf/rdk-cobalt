@@ -928,6 +928,18 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   void RecordTimestamp(SbMediaType type, SbTime timestamp);
   SbTime MinTimestamp(MediaType* origin) const;
 
+  void DecoderNeedsData(::starboard::ScopedLock&, MediaType media) const {
+    int need_data = static_cast<int>(media);
+    if (media != MediaType::kNone && (decoder_state_data_ & need_data) == need_data) {
+      GST_LOG("Already sent 'kSbPlayerDecoderStateNeedsData', ignoring new request");
+      return;
+    }
+    decoder_state_data_ |= need_data;
+    DispatchOnWorkerThread(new DecoderStatusTask(
+      decoder_status_func_, player_, ticket_, context_,
+      kSbPlayerDecoderStateNeedsData, media));
+  }
+
   SbPlayer player_;
   SbWindow window_;
   SbMediaVideoCodec video_codec_;
@@ -965,6 +977,7 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   double pending_rate_{.0};
   bool is_rate_being_changed_{false};
   int has_enough_data_{static_cast<int>(MediaType::kBoth)};
+  mutable int decoder_state_data_{static_cast<int>(MediaType::kNone)};
   int total_video_frames_{0};
   int frame_width_{0};
   int frame_height_{0};
@@ -1028,11 +1041,10 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   pipeline_ = gst_element_factory_make("playbin", "media_pipeline");
 
   if (video_codec != kSbMediaVideoCodecNone) {
-    GstElement* videoSink = gst_element_factory_make("westerossink", nullptr);
-    if (videoSink) {
-      g_object_set(pipeline_, "video-sink", videoSink, nullptr);
-      g_object_set(G_OBJECT(videoSink), "zorder", 0.0f, nullptr);
-      g_object_unref(videoSink);
+    GstElement* vid_sink = gst_element_factory_make("westerossink", nullptr);
+    if (vid_sink) {
+      g_object_set(pipeline_, "video-sink", vid_sink, nullptr);
+      g_object_set(G_OBJECT(vid_sink), "zorder", 0.0f, "zoom-mode", 1, nullptr);
     }
   }
 
@@ -1072,6 +1084,10 @@ PlayerImpl::PlayerImpl(SbPlayer player,
       SbThreadCreate(0, kSbThreadPriorityRealTime, kSbThreadNoAffinity, true,
                      "playback_thread", &PlayerImpl::ThreadEntryPoint, this);
   SB_DCHECK(SbThreadIsValid(playback_thread_));
+  if (SbThreadIsValid(playback_thread_)) {
+    while(!g_main_loop_is_running(main_loop_))
+      g_usleep(1);
+  }
 }
 
 PlayerImpl::~PlayerImpl() {
@@ -1351,9 +1367,7 @@ void PlayerImpl::AppSrcNeedData(GstAppSrc* src,
   }
 
   GST_LOG_OBJECT(src, "===> Really. Gimme more data need:%d", need_data);
-  self->DispatchOnWorkerThread(new DecoderStatusTask(
-      self->decoder_status_func_, self->player_, self->ticket_, self->context_,
-      kSbPlayerDecoderStateNeedsData, static_cast<MediaType>(need_data)));
+  self->DecoderNeedsData(lock, static_cast<MediaType>(need_data));
 }
 
 // static
@@ -1437,6 +1451,14 @@ bool PlayerImpl::WriteSample(SbMediaType sample_type,
     src = audio_appsrc_;
   }
 
+  {
+    ::starboard::ScopedLock lock(mutex_);
+    if (sample_type == kSbMediaTypeVideo)
+      decoder_state_data_ &= ~static_cast<int>(MediaType::kVideo);
+    else
+      decoder_state_data_ &= ~static_cast<int>(MediaType::kAudio);
+  }
+
   GST_TRACE_OBJECT(src,
                    "SampleType:%d %" GST_TIME_FORMAT " b:%p, s:%p, iv:%p, k:%p",
                    sample_type, GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(buffer)),
@@ -1469,11 +1491,10 @@ bool PlayerImpl::WriteSample(SbMediaType sample_type,
        (has_enough_data_ & static_cast<int>(MediaType::kAudio)) != 0);
   if (!has_enough) {
     GST_LOG_OBJECT(src, "Asking for more");
-    DispatchOnWorkerThread(new DecoderStatusTask(
-        decoder_status_func_, player_, ticket_, context_,
-        kSbPlayerDecoderStateNeedsData,
-        sample_type == kSbMediaTypeVideo ? MediaType::kVideo
-                                         : MediaType::kAudio));
+    MediaType media = sample_type == kSbMediaTypeVideo
+      ? MediaType::kVideo
+      : MediaType::kAudio;
+    DecoderNeedsData(lock, media);
   } else {
     GST_LOG_OBJECT(src, "Has enough data");
   }
@@ -1524,12 +1545,13 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
                   sample_infos[0].timestamp * kSbTimeNanosecondsPerMicrosecond);
 
   if (MinTimestamp(nullptr) == GST_BUFFER_TIMESTAMP(buffer) &&
-      GST_STATE(pipeline_) == GST_STATE_PAUSED &&
+      GST_STATE(pipeline_) <= GST_STATE_PAUSED &&
       (GST_STATE_PENDING(pipeline_) == GST_STATE_VOID_PENDING ||
        GST_STATE_PENDING(pipeline_) == GST_STATE_PAUSED) &&
       rate_ > .0) {
     GST_TRACE("Moving to playing for %" GST_TIME_FORMAT,
               GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(buffer)));
+    cached_position_ns_ = GST_BUFFER_TIMESTAMP(buffer);
     ChangePipelineState(GST_STATE_PLAYING);
   }
 
@@ -1658,6 +1680,7 @@ void PlayerImpl::Seek(SbTime seek_to_timestamp, int ticket) {
 
     ticket_ = ticket;
     seek_position_ = seek_to_timestamp;
+    decoder_state_data_ = 0;
 
     if (state_ == State::kInitial) {
       SB_DCHECK(seek_position_ == .0);
@@ -1667,6 +1690,12 @@ void PlayerImpl::Seek(SbTime seek_to_timestamp, int ticket) {
                                                   ticket_, context_,
                                                   kSbPlayerStatePrerolling));
       seek_position_ = kSbTimeMax;
+      if (GST_STATE(pipeline_) < GST_STATE_PAUSED &&
+          GST_STATE_PENDING(pipeline_) < GST_STATE_PAUSED) {
+        mutex_.Release();
+        ChangePipelineState(GST_STATE_PAUSED);
+        mutex_.Acquire();
+      }
       return;
     }
 
@@ -1680,15 +1709,11 @@ void PlayerImpl::Seek(SbTime seek_to_timestamp, int ticket) {
                                                     player_, ticket_, context_,
                                                     kSbPlayerStatePrerolling));
         if ((has_enough_data_ & static_cast<int>(MediaType::kVideo)) == 0) {
-          DispatchOnWorkerThread(new DecoderStatusTask(
-              decoder_status_func_, player_, ticket_, context_,
-              kSbPlayerDecoderStateNeedsData, MediaType::kVideo));
+          DecoderNeedsData(lock, MediaType::kVideo);
         }
 
         if ((has_enough_data_ & static_cast<int>(MediaType::kAudio)) == 0) {
-          DispatchOnWorkerThread(new DecoderStatusTask(
-              decoder_status_func_, player_, ticket_, context_,
-              kSbPlayerDecoderStateNeedsData, MediaType::kAudio));
+          DecoderNeedsData(lock, MediaType::kAudio);
         }
       }
       is_seek_pending_ = true;
@@ -1729,6 +1754,7 @@ bool PlayerImpl::SetRate(double rate) {
   {
     ::starboard::ScopedLock lock(mutex_);
     current_rate = rate_;
+    decoder_state_data_ = 0;
   }
   GetPosition();  // Update cached
   if (rate == .0) {
@@ -1856,9 +1882,11 @@ void PlayerImpl::GetInfo(SbPlayerInfo2* out_player_info) {
       }
       gst_query_unref(query);
       gst_object_unref(GST_OBJECT(pad));
-      gst_object_unref(GST_OBJECT(vid_sink));
     }
   }
+
+  if (vid_sink)
+    gst_object_unref(GST_OBJECT(vid_sink));
 
   GST_LOG("Frames dropped: %d, Frames corrupted: %d",
           out_player_info->dropped_video_frames,
@@ -1878,6 +1906,8 @@ void PlayerImpl::SetBounds(int zindex, int x, int y, int w, int h) {
   } else {
     pending_bounds_ = PendingBounds{x, y, w, h};
   }
+  if (vid_sink)
+    gst_object_unref(GST_OBJECT(vid_sink));
 }
 
 bool PlayerImpl::ChangePipelineState(GstState state) const {
@@ -1937,9 +1967,10 @@ gint64 PlayerImpl::GetPosition() const {
   if (min_ts != kSbTimeMax && min_ts + kMarginNs <= position &&
       GST_STATE(pipeline_) == GST_STATE_PLAYING &&
       GST_STATE_PENDING(pipeline_) != GST_STATE_PAUSED) {
-    DispatchOnWorkerThread(
-        new DecoderStatusTask(decoder_status_func_, player_, ticket_, context_,
-                              kSbPlayerDecoderStateNeedsData, origin));
+    {
+      ::starboard::ScopedLock lock(mutex_);
+      DecoderNeedsData(lock, origin);
+    }
     GST_WARNING("Force setting to PAUSED. Pos: %" GST_TIME_FORMAT
                 " sample:%" GST_TIME_FORMAT,
                 GST_TIME_ARGS(position), GST_TIME_ARGS(min_ts + kMarginNs));
