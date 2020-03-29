@@ -597,6 +597,14 @@ static int CompareColorMetadata(const SbMediaColorMetadata& lhs, const SbMediaCo
   return SbMemoryCompare(&lhs, &rhs, sizeof(SbMediaColorMetadata));
 }
 
+static void AddVideoInfoToGstCaps(const SbMediaVideoSampleInfo& info, GstCaps* caps) {
+  AddColorMetadataToGstCaps(caps, info.color_metadata);
+  gst_caps_set_simple (caps,
+    "width", G_TYPE_INT, info.frame_width,
+    "height", G_TYPE_INT, info.frame_height,
+    NULL);
+}
+
 }  // namespace
 
 // ********************************* Player ******************************** //
@@ -1534,7 +1542,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
       auto caps = CodecToGstCaps(video_codec_);
       if (!caps.empty()) {
         GstCaps* gst_caps = gst_caps_from_string(caps[0].c_str());
-        AddColorMetadataToGstCaps(gst_caps, color_metadata_);
+        AddVideoInfoToGstCaps(info, gst_caps);
         gst_app_src_set_caps(GST_APP_SRC(video_appsrc_), gst_caps);
         gst_caps_unref(gst_caps);
       }
