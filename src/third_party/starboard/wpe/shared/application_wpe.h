@@ -72,6 +72,9 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   void OnDisplaySize(int width, int height);
 
  private:
+  void MaterializeNativeWindow();
+  void DestroyNativeWindow();
+
   static EssTerminateListener terminateListener;
   static EssKeyListener keyListener;
   static EssSettingsListener settingsListener;
@@ -82,6 +85,7 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   NativeWindowType native_window_ { 0 };
   int window_width_ { 0 };
   int window_height_ { 0 };
+  bool resize_pending_ { false };
 };
 
 }  // namespace shared

@@ -60,28 +60,10 @@ Application::Application() : input_handler_(new EssInput) {
   else if ( !EssContextSetSettingsListener(ctx_, this, &settingsListener) ) {
     error = true;
   }
-  else if ( !EssContextSetKeyRepeatInitialDelay(ctx_, INT_MAX) )  {
-    error = true;
-  }
-  else if ( !EssContextSetKeyRepeatPeriod(ctx_, INT_MAX) ) {
-    error = true;
-  }
-  else if ( !EssContextGetDisplaySize(ctx_, &window_width_, &window_height_) ) {
-    error= true;
-  }
-  else if ( !EssContextSetInitialWindowSize(ctx_, window_width_, window_height_) ) {
-    error = true;
-  }
-  else if ( !EssContextCreateNativeWindow(ctx_, window_width_, window_height_, &native_window_) ) {
-    error = true;
-  }
-  else if ( !EssContextStart(ctx_) ) {
-    error = true;
-  }
 
   if ( error ) {
     const char *detail = EssContextGetLastErrorDetail(ctx_);
-    SB_DLOG(ERROR) << "Essos error: '" <<  detail << '\'';
+    SB_LOG(ERROR) << "Essos error: '" <<  detail << '\'';
   }
 }
 
@@ -117,6 +99,9 @@ void Application::WakeSystemEventWait() {
 
 SbWindow Application::CreateSbWindow(const SbWindowOptions* options) {
   SB_DCHECK(window_ == nullptr);
+  if (window_ != nullptr)
+    return kSbWindowInvalid;
+  MaterializeNativeWindow();
   window_  = new SbWindowPrivate(options);
   return window_;
 }
@@ -126,6 +111,7 @@ bool Application::DestroySbWindow(SbWindow window) {
     return false;
   window_ = nullptr;
   delete window;
+  DestroyNativeWindow();
   return true;
 }
 
@@ -143,37 +129,12 @@ void Application::Inject(Event* e) {
   QueueApplication::Inject(e);
 }
 
-void Application::OnSuspend()
-{
-  SB_DCHECK(native_window_ != 0);
-
-  if ( !EssContextDestroyNativeWindow(ctx_, native_window_) ) {
-    const char *detail = EssContextGetLastErrorDetail(ctx_);
-    SB_DLOG(ERROR) << "Essos error: '" <<  detail << '\'';
-  }
-
-  native_window_ = 0;
-
-  EssContextStop(ctx_);
+void Application::OnSuspend() {
+  DestroyNativeWindow();
 }
 
-void Application::OnResume()
-{
-  SB_DCHECK(native_window_ == 0);
-
-  bool error = false;
-
-  if ( !EssContextCreateNativeWindow(ctx_, window_width_, window_height_, &native_window_) ) {
-    error = true;
-  }
-  else if ( !EssContextStart(ctx_) ) {
-    error = true;
-  }
-
-  if ( error ) {
-    const char *detail = EssContextGetLastErrorDetail(ctx_);
-    SB_DLOG(ERROR) << "Essos error: '" <<  detail << '\'';
-  }
+void Application::OnResume() {
+  MaterializeNativeWindow();
 }
 
 void Application::OnTerminated() {
@@ -189,15 +150,55 @@ void Application::OnKeyReleased(unsigned int key) {
 }
 
 void Application::OnDisplaySize(int width, int height) {
-  if (window_width_ == width && window_height_ == height)
+  if (window_width_ == width && window_height_ == height) {
+    resize_pending_ = false;
     return;
+  }
 
   SB_DCHECK(native_window_ == 0);
+  resize_pending_ = true;
+}
 
-  window_width_ = width;
-  window_height_ = height;
+void Application::MaterializeNativeWindow() {
+  if (native_window_ != 0)
+    return;
 
-  EssContextResizeWindow(ctx_, window_width_, window_height_);
+  bool error = false;
+
+  if ( !EssContextGetDisplaySize(ctx_, &window_width_, &window_height_) ) {
+    error = true;
+  }
+
+  if ( resize_pending_ ) {
+    EssContextResizeWindow(ctx_, window_width_, window_height_);
+    resize_pending_ = false;
+  }
+
+  if ( !EssContextCreateNativeWindow(ctx_, window_width_, window_height_, &native_window_) ) {
+    error = true;
+  }
+  else if ( !EssContextStart(ctx_) ) {
+    error = true;
+  }
+
+  if ( error ) {
+    const char *detail = EssContextGetLastErrorDetail(ctx_);
+    SB_LOG(ERROR) << "Essos error: '" <<  detail << '\'';
+  }
+}
+
+void Application::DestroyNativeWindow() {
+  if (native_window_ == 0)
+    return;
+
+  if ( !EssContextDestroyNativeWindow(ctx_, native_window_) ) {
+    const char *detail = EssContextGetLastErrorDetail(ctx_);
+    SB_LOG(ERROR) << "Essos error: '" <<  detail << '\'';
+  }
+
+  native_window_ = 0;
+
+  EssContextStop(ctx_);
 }
 
 }  // namespace shared
