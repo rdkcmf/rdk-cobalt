@@ -72,7 +72,6 @@
       '-I<(sysroot)/usr/include/gstreamer-1.0',
       '-I<(sysroot)/usr/include/glib-2.0',
       '-I<(sysroot)/usr/lib/glib-2.0/include/',
-      '-I<(sysroot)/usr/include/WPEFramework/compositor/',
     ],
     'linker_flags': [
       '<@(common_linker_flags)',

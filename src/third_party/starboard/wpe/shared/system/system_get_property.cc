@@ -15,12 +15,14 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <algorithm>
 
 #if SB_API_VERSION >= 11
 #include "starboard/format_string.h"
 #endif  // SB_API_VERSION >= 11
 #include "starboard/common/log.h"
 #include "starboard/common/string.h"
+#include "starboard/character.h"
 
 namespace {
 
@@ -35,10 +37,7 @@ bool CopyStringAndTestIfSuccess(char* out_value,
   return true;
 }
 
-bool TryReadModelNameFromPropertiesFile(char* out_value, int value_length) {
-  const char kPrefixStr[] = "MODEL_NUM=";
-  const size_t kPrefixStrLength = SB_ARRAY_SIZE(kPrefixStr) - 1;
-
+bool TryReadFromPropertiesFile(const char* prefix, size_t prefix_len, char* out_value, int value_length) {
   FILE* properties = fopen("/etc/device.properties", "r");
   if (!properties) {
     return false;
@@ -49,13 +48,16 @@ bool TryReadModelNameFromPropertiesFile(char* out_value, int value_length) {
   size_t size = 0;
 
   while (getline(&buffer, &size, properties) != -1) {
-    if (SbStringCompare(kPrefixStr, buffer, kPrefixStrLength) == 0) {
-      char* remainder = buffer + kPrefixStrLength;
+    if (SbStringCompare(prefix, buffer, prefix_len) == 0) {
+      char* remainder = buffer + prefix_len;
       size_t remainder_length = SbStringGetLength(remainder);
       if (remainder_length > 1 && remainder_length < value_length) {
         // trim the newline character
         for(int i = remainder_length - 1; i >= 0 && !std::isalnum(remainder[i]); --i)
           remainder[i] = '\0';
+        std::transform(
+          remainder, remainder + remainder_length - 1, remainder,
+          [](unsigned char c) -> unsigned char { return SbCharacterToUpper(c); } );
         SbStringCopy(out_value, remainder, remainder_length);
         result = true;
         break;
@@ -74,7 +76,9 @@ bool GetModelName(char* out_value, int value_length) {
   if (env && CopyStringAndTestIfSuccess(out_value, value_length, env))
     return true;
 
-  if (TryReadModelNameFromPropertiesFile(out_value, value_length))
+  const char kPrefixStr[] = "MODEL_NUM=";
+  const size_t kPrefixStrLength = SB_ARRAY_SIZE(kPrefixStr) - 1;
+  if (TryReadFromPropertiesFile(kPrefixStr, kPrefixStrLength, out_value, value_length))
     return true;
 
   return CopyStringAndTestIfSuccess(out_value, value_length, SB_PLATFORM_MODEL_NAME);
@@ -85,6 +89,20 @@ bool GetOperatorName(char* out_value, int value_length) {
   if (env && CopyStringAndTestIfSuccess(out_value, value_length, env))
     return true;
   return CopyStringAndTestIfSuccess(out_value, value_length, SB_PLATFORM_OPERATOR_NAME);
+}
+
+bool GetManufacturerName(char* out_value, int value_length) {
+  const char kPrefixStr[] = "MANUFACTURE=";
+  const size_t kPrefixStrLength = SB_ARRAY_SIZE(kPrefixStr) - 1;
+  if (TryReadFromPropertiesFile(kPrefixStr, kPrefixStrLength, out_value, value_length))
+    return true;
+
+#if defined(SB_PLATFORM_MANUFACTURER_NAME)
+  return CopyStringAndTestIfSuccess(out_value, value_length,
+                                    SB_PLATFORM_MANUFACTURER_NAME);
+#else
+  return false;
+#endif  // defined(SB_PLATFORM_MANUFACTURER_NAME)
 }
 
 }  // namespace
@@ -121,11 +139,8 @@ bool SbSystemGetProperty(SbSystemPropertyId property_id,
           std::to_string(SB_PLATFORM_MODEL_YEAR).c_str());
 #endif  // defined(SB_PLATFORM_MODEL_YEAR)
 
-#if defined(SB_PLATFORM_MANUFACTURER_NAME)
     case kSbSystemPropertyOriginalDesignManufacturerName:
-      return CopyStringAndTestIfSuccess(out_value, value_length,
-                                        SB_PLATFORM_MANUFACTURER_NAME);
-#endif  // defined(SB_PLATFORM_MANUFACTURER_NAME)
+      return GetManufacturerName(out_value, value_length);
 
     case kSbSystemPropertySpeechApiKey:
       return false;
