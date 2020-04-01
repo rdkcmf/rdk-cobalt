@@ -34,7 +34,9 @@ EssKeyListener Application::keyListener = {
   // keyPressed
   [](void* data, unsigned int key) { reinterpret_cast<Application*>(data)->OnKeyPressed(key); },
   // keyReleased
-  [](void* data, unsigned int key) { reinterpret_cast<Application*>(data)->OnKeyReleased(key); }
+  [](void* data, unsigned int key) { reinterpret_cast<Application*>(data)->OnKeyReleased(key); },
+  // keyRepeat
+  nullptr
 };
 
 EssSettingsListener Application::settingsListener = {

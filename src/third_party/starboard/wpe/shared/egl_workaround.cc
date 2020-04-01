@@ -16,7 +16,7 @@
 
 #include "third_party/starboard/wpe/shared/application_wpe.h"
 
-#include <essos.h>
+#include <essos-app.h>
 
 extern "C" EGLDisplay __real_eglGetDisplay(EGLNativeDisplayType native_display);
 extern "C" EGLDisplay __wrap_eglGetDisplay(EGLNativeDisplayType native_display);

@@ -25,7 +25,7 @@
 #include "third_party/starboard/wpe/shared/ess_input.h"
 
 #include <memory>
-#include <essos.h>
+#include <essos-app.h>
 
 namespace third_party {
 namespace starboard {
