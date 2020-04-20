@@ -324,6 +324,15 @@ SbKey KeyCodeToSbKey(uint16_t code) {
     case KEY_BLUE:
       return kSbKeyBlue;
 
+    case KEY_CHANNELUP:
+     return kSbKeyChannelUp;
+    case KEY_CHANNELDOWN:
+     return kSbKeyChannelDown;
+    case KEY_INFO:
+     return kSbKeyInfo;
+
+    case KEY_UNKNOWN:
+      break;
   }
   SB_DLOG(WARNING) << "Unknown code: 0x" << std::hex << code;
   return kSbKeyUnknown;
@@ -378,6 +387,22 @@ void EssInput::CreateKey(unsigned int key, SbInputEventType type, bool repeatabl
   unsigned int modifiers = key_modifiers_;
   if (modifiers == kSbKeyModifiersCtrl) {  // only Ctrl is set
     switch(key) {
+      case KEY_M:  // Menu
+      case KEY_G:  // Guide
+      case KEY_R:  // Record
+      case KEY_U:  // Volume Up
+      case KEY_D:  // Volume Down
+      case KEY_S:  // Stop
+      case KEY_N:  // Favorite
+      case KEY_O:  // OnDemand
+      case KEY_B:  // Replay
+      case KEY_C:  // Search
+      case KEY_E:  // Exit
+        key = KEY_UNKNOWN; modifiers = 0;
+        break;
+
+      case KEY_I: key = KEY_INFO; modifiers = 0; break;
+      case KEY_Y: key = KEY_MUTE; modifiers = 0; break;
       case KEY_L: key = KEY_BACKSPACE; modifiers = 0; break;
       case KEY_F: key = KEY_FASTFORWARD; modifiers = 0; break;
       case KEY_W: key = KEY_REWIND; modifiers = 0; break;
@@ -386,8 +411,17 @@ void EssInput::CreateKey(unsigned int key, SbInputEventType type, bool repeatabl
       case KEY_1: key = KEY_GREEN; modifiers = 0; break;
       case KEY_2: key = KEY_YELLOW; modifiers = 0; break;
       case KEY_3: key = KEY_BLUE; modifiers = 0; break;
+      case KEY_UP: key = KEY_CHANNELUP; modifiers = 0; break;
+      case KEY_DOWN: key = KEY_CHANNELDOWN; modifiers = 0; break;
+
       default: break;
     }
+  }
+
+  SbKey sb_key = KeyCodeToSbKey(key);
+  if (sb_key == kSbKeyUnknown) {
+    DeleteRepeatKey();
+    return;
   }
 
   SbInputData* data = new SbInputData();
@@ -396,7 +430,7 @@ void EssInput::CreateKey(unsigned int key, SbInputEventType type, bool repeatabl
   data->type = type;
   data->device_type = kSbInputDeviceTypeRemote;
   data->device_id = 1;  // kKeyboardDeviceId;
-  data->key = KeyCodeToSbKey(key);
+  data->key = sb_key;
   data->key_location = KeyCodeToSbKeyLocation(key);
   data->key_modifiers = modifiers;
 
