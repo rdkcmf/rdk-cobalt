@@ -92,6 +92,10 @@ bool GetOperatorName(char* out_value, int value_length) {
 }
 
 bool GetManufacturerName(char* out_value, int value_length) {
+  const char* env = std::getenv("COBALT_MANUFACTURE_NAME");
+  if (env && CopyStringAndTestIfSuccess(out_value, value_length, env))
+    return true;
+
   const char kPrefixStr[] = "MANUFACTURE=";
   const size_t kPrefixStrLength = SB_ARRAY_SIZE(kPrefixStr) - 1;
   if (TryReadFromPropertiesFile(kPrefixStr, kPrefixStrLength, out_value, value_length))

@@ -31,16 +31,6 @@ bool GetHomeDirectory(SbUser user, char* out_path, int path_size) {
     return false;
   }
 
-  const char* data_home = getenv("XDG_DATA_HOME");
-  if (data_home) {
-    int result = SbStringFormatF(out_path, path_size, "%s/cobalt", data_home);
-    if (result < 0 || result >= path_size || !SbDirectoryCreate(out_path)) {
-      out_path[0] = '\0';
-    } else {
-      return true;
-    }
-  }
-
   const char* home_directory = getenv("HOME");
   if (home_directory) {
     SbStringCopy(out_path, home_directory, path_size);
