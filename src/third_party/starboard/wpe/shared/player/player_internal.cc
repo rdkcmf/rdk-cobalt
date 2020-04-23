@@ -1048,14 +1048,6 @@ PlayerImpl::PlayerImpl(SbPlayer player,
 
   pipeline_ = gst_element_factory_make("playbin", "media_pipeline");
 
-  if (video_codec != kSbMediaVideoCodecNone) {
-    GstElement* vid_sink = gst_element_factory_make("westerossink", nullptr);
-    if (vid_sink) {
-      g_object_set(pipeline_, "video-sink", vid_sink, nullptr);
-      g_object_set(G_OBJECT(vid_sink), "zorder", 0.0f, "zoom-mode", 1, nullptr);
-    }
-  }
-
   unsigned flagAudio = getGstPlayFlag("audio");
   unsigned flagVideo = getGstPlayFlag("video");
   unsigned flagNativeVideo = getGstPlayFlag("native-video");
@@ -1198,6 +1190,12 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
               self->rate_ = rate;
               self->pending_rate_ = .0;
             }
+          }
+
+          if (self->video_codec_ != kSbMediaVideoCodecNone && !self->pending_bounds_.IsEmpty()) {
+            PendingBounds bounds = self->pending_bounds_;
+            self->pending_bounds_ = {};
+            self->SetBounds(0, bounds.x, bounds.y, bounds.w, bounds.h);
           }
 
           if (is_rate_pending) {
@@ -1559,7 +1557,6 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
       rate_ > .0) {
     GST_TRACE("Moving to playing for %" GST_TIME_FORMAT,
               GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(buffer)));
-    cached_position_ns_ = GST_BUFFER_TIMESTAMP(buffer);
     ChangePipelineState(GST_STATE_PLAYING);
   }
 
@@ -1999,9 +1996,14 @@ gint64 PlayerImpl::GetPosition() const {
                 GST_TIME_ARGS(cached_position_ns_));
       return cached_position_ns_;
     }
-    cached_position_ns_ =
+
+    SbTime max_ts = std::max(max_sample_timestamps_[kVideoIndex],
+                             max_sample_timestamps_[kAudioIndex]);
+    if (max_ts == kSbTimeMax || cached_position_ns_ < max_ts +  kMarginNs) {
+      cached_position_ns_ =
         cached_position_ns_ + (position_update_time_us_ - last_update) * rate *
                                   kSbTimeNanosecondsPerMicrosecond;
+    }
     GST_TRACE("Checking position after %" PRId64
               " ms. Using cached %" GST_TIME_FORMAT,
               (position_update_time_us_ - last_update) / kSbTimeMillisecond,

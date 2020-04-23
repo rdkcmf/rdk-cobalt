@@ -498,7 +498,7 @@
 
 // --- Platform Specific Audits ----------------------------------------------
 
-#undef SB_HAS_NATIVE_AUDIO
+#define SB_HAS_NATIVE_AUDIO 1
 
 #if !defined(__GNUC__)
 #error "Wpe builds need a GCC-like compiler (for the moment)."
