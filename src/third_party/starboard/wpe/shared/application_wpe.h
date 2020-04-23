@@ -23,6 +23,7 @@
 #include "starboard/types.h"
 
 #include "third_party/starboard/wpe/shared/ess_input.h"
+#include "third_party/starboard/wpe/shared/system_services.h"
 
 #include <memory>
 #include <essos-app.h>
@@ -50,6 +51,8 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   NativeWindowType GetNativeWindow() const { return native_window_; }
   int GetWindowWidth() const { return window_width_; }
   int GetWindowHeight() const { return window_height_; }
+  ResolutionInfo GetDisplayResolution() const;
+  bool DisplayHasHDRSupport() const;
 
  protected:
   // --- Application overrides ---
@@ -86,6 +89,8 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   int window_width_ { 0 };
   int window_height_ { 0 };
   bool resize_pending_ { false };
+
+  std::unique_ptr<DisplayInfo> display_info_ { nullptr };
 };
 
 }  // namespace shared

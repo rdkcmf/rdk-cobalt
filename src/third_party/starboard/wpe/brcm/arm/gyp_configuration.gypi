@@ -74,6 +74,8 @@
       '-I<(sysroot)/usr/include/gstreamer-1.0',
       '-I<(sysroot)/usr/include/glib-2.0',
       '-I<(sysroot)/usr/lib/glib-2.0/include/',
+
+      '-I=/usr/include/WPEFramework/',
     ],
     'linker_flags': [
       '<@(common_linker_flags)',
@@ -113,7 +115,8 @@
       '-O2',
     ],
     'compiler_flags_cc_qa': [
-      '-fno-rtti',
+      '-frtti',
+      '-fno-exceptions',
     ],
     'compiler_flags_gold': [
       '-Wno-unused-but-set-variable',
@@ -125,7 +128,8 @@
       '-O2',
     ],
     'compiler_flags_cc_gold': [
-      '-fno-rtti',
+      '-frtti',
+      '-fno-exceptions',
     ],
     'conditions': [
       ['cobalt_fastbuild==0', {

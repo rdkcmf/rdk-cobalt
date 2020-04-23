@@ -25,6 +25,7 @@ bool SbWindowGetSize(SbWindow window, SbWindowSize* size) {
 
   size->width = static_cast<SbWindowPrivate*>(window)->Width();
   size->height = static_cast<SbWindowPrivate*>(window)->Height();
-  size->video_pixel_ratio = 1.0f;
+  size->video_pixel_ratio = static_cast<SbWindowPrivate*>(window)->VideoPixelRatio();
+
   return true;
 }

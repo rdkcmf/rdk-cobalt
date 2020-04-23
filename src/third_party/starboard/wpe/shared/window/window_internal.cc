@@ -32,3 +32,12 @@ int SbWindowPrivate::Width() const {
 int SbWindowPrivate::Height() const {
   return Application::Get()->GetWindowHeight();
 }
+
+float SbWindowPrivate::VideoPixelRatio() const {
+  auto resolution_info = Application::Get()->GetDisplayResolution();
+  int window_height = Application::Get()->GetWindowHeight();
+  float ratio = resolution_info.Height / static_cast<float>(window_height);
+  float max_ratio = ( window_height < 1080 )
+    ? 1.5f : ( resolution_info.Height <= 2160 ? 2.f : 4.f );
+  return std::min(ratio, max_ratio);
+}

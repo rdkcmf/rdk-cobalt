@@ -46,7 +46,9 @@ EssSettingsListener Application::settingsListener = {
   nullptr
 };
 
-Application::Application() : input_handler_(new EssInput) {
+Application::Application()
+  : input_handler_(new EssInput)
+  , display_info_ (new DisplayInfo) {
   bool error = false;
   ctx_ = EssContextCreate();
 
@@ -201,6 +203,14 @@ void Application::DestroyNativeWindow() {
   native_window_ = 0;
 
   EssContextStop(ctx_);
+}
+
+ResolutionInfo Application::GetDisplayResolution() const {
+  return display_info_->GetResolution();
+}
+
+bool Application::DisplayHasHDRSupport() const {
+  return display_info_->HasHDRSupport();
 }
 
 }  // namespace shared

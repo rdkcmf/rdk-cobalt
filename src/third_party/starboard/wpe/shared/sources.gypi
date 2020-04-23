@@ -420,6 +420,7 @@
         '<(DEPTH)/starboard/shared/nouser/user_get_property.cc',
         '<(DEPTH)/starboard/shared/nouser/user_get_signed_in.cc',
         '<(DEPTH)/starboard/shared/nouser/user_internal.cc',
+        '<(DEPTH)/third_party/starboard/wpe/shared/system_services.cc',
         '<(DEPTH)/third_party/starboard/wpe/shared/ess_input.cc',
         '<(DEPTH)/third_party/starboard/wpe/shared/application_wpe.cc',
         '<(DEPTH)/third_party/starboard/wpe/shared/get_home_directory.cc',

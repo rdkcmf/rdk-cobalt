@@ -19,6 +19,9 @@
 #if !SB_HAS(MEDIA_IS_VIDEO_SUPPORTED_REFINEMENT)
 SB_EXPORT bool SbMediaIsTransferCharacteristicsSupported(
     SbMediaTransferId transfer_id) {
-  return true;
+  return transfer_id == kSbMediaTransferIdBt709 ||
+         transfer_id == kSbMediaTransferIdSmpteSt2084 ||
+         transfer_id == kSbMediaTransferIdAribStdB67 ||
+         transfer_id == kSbMediaTransferIdUnspecified;
 }
 #endif  // !SB_HAS(MEDIA_IS_VIDEO_SUPPORTED_REFINEMENT)
