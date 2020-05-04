@@ -29,6 +29,7 @@
 
         '<(DEPTH)/third_party/starboard/wpe/shared/audio_sink/gstreamer_audio_sink_type.cc',
         '<(DEPTH)/third_party/starboard/wpe/shared/audio_sink/audio_sink_is_audio_sample_type_supported.cc',
+        '<(DEPTH)/third_party/starboard/wpe/shared/audio_sink/gstreamer_audio_sink_type_lifecycle.cc',
     ],
 
     'directory_sources': [
@@ -370,6 +371,9 @@
 
     'dependencies': [
         '<(DEPTH)/third_party/libevent/libevent.gyp:libevent',
+        '<(DEPTH)/third_party/starboard/wpe/shared/system.gyp:essos',
+        '<(DEPTH)/third_party/starboard/wpe/shared/system.gyp:gstreamer',
+        '<(DEPTH)/third_party/starboard/wpe/shared/system.gyp:wpeframework',
     ],
 
     'sources': [
@@ -427,6 +431,9 @@
       ['<(has_ocdm)==1', {
         'common_defines': [
           'HAS_OCDM',
+        ],
+        'dependencies': [
+          '<(DEPTH)/third_party/starboard/wpe/shared/system.gyp:ocdm',
         ],
       }],
     ],

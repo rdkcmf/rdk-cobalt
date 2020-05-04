@@ -22,7 +22,7 @@ SbWindowPrivate::SbWindowPrivate(const SbWindowOptions* /* options */) { }
 SbWindowPrivate::~SbWindowPrivate() = default;
 
 void* SbWindowPrivate::Native() const {
-  return Application::Get()->GetNativeWindow();
+  return reinterpret_cast<void*>(Application::Get()->GetNativeWindow());
 }
 
 int SbWindowPrivate::Width() const {

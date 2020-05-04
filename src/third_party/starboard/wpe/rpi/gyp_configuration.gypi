@@ -14,7 +14,7 @@
 {
   'includes': [
     '../shared/libraries.gypi',
-    '<(DEPTH)/<(architecture_gypi)',
+    'architecture.gypi',
   ],
   'variables': {
     'target_arch': 'arm',
@@ -46,6 +46,8 @@
       # Disable strict aliasing.
       '-fno-strict-aliasing',
 
+      '-fno-delete-null-pointer-checks',
+
       # To support large files
       '-D_FILE_OFFSET_BITS=64',
 
@@ -67,13 +69,6 @@
 
       # Specify the sysroot with all your include dependencies.
       '--sysroot=<(sysroot)',
-
-      # GStreamer includes
-      '-I<(sysroot)/usr/include/gstreamer-1.0',
-      '-I<(sysroot)/usr/include/glib-2.0',
-      '-I<(sysroot)/usr/lib/glib-2.0/include/',
-
-      '-I=/usr/include/WPEFramework/',
     ],
     'linker_flags': [
       '<@(common_linker_flags)',

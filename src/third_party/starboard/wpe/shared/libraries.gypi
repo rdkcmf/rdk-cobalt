@@ -13,36 +13,13 @@
 # limitations under the License.
 {
   'variables': {
-    'has_ocdm': '<!(echo $COBALT_HAS_OCDM)',
     'common_libs': [
       '-lEGL',
       '-lGLESv2',
-      '-lWPEFrameworkCore',
-      '-lWPEFrameworkDefinitions',
-      '-lWPEFrameworkTracing',
-      '-lWPEFrameworkCryptalgo',
-      '-lWPEFrameworkPlugins',
-      '-lWPEFrameworkProtocols',
-      '-lessos',
-      '-lglib-2.0',
-      '-lgstreamer-1.0',
-      '-lgstaudio-1.0',
-      '-lgstvideo-1.0',
-      '-lgstpbutils-1.0',
-      '-lgstapp-1.0',
-      '-lgstbase-1.0',
-      '-lgobject-2.0',
       '-lpthread',
     ],
     'common_linker_flags': [
       '-Wl,--wrap=eglGetDisplay',
-    ],
-    'conditions': [
-      ['<(has_ocdm)==1', {
-        'common_libs': [
-          '-locdm',
-        ],
-      }],
     ],
   },
 }

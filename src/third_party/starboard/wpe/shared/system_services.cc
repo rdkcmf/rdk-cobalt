@@ -19,7 +19,7 @@
 
 #include <string>
 
-#include <WPEFramework/websocket/JSONRPCLink.h>
+#include <websocket/JSONRPCLink.h>
 
 #include "starboard/atomic.h"
 #include "starboard/common/log.h"

@@ -39,11 +39,10 @@
       'type': 'static_library',
       'sources': [
         '<(DEPTH)/starboard/raspi/shared/system_gles2.cc',
-        '<(DEPTH)/third_party/starboard/wpe/rpi/media/media_get_audio_configuration_5_1.cc',
-        '<(DEPTH)/third_party/starboard/wpe/rpi/media/media_get_audio_output_count.cc',
+        '<(DEPTH)/starboard/shared/starboard/media/media_get_audio_output_count_single_audio_output.cc',
+        '<(DEPTH)/starboard/shared/starboard/media/media_get_audio_configuration_stereo_only.cc',
         '<@(sources)',
         'atomic_public.h',
-        'audio_sink/gstreamer_audio_sink_type_lifecycle.cc',
         'thread_types_public.h',
       ],
       'sources!': [

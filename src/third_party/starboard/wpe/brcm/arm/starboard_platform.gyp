@@ -38,11 +38,10 @@
       'target_name': 'starboard_platform',
       'type': 'static_library',
       'sources': [
-        '<(DEPTH)/third_party/starboard/wpe/brcm/arm/media/media_get_audio_configuration_5_1.cc',
-        '<(DEPTH)/third_party/starboard/wpe/brcm/arm/media/media_get_audio_output_count.cc',
         '<@(sources)',
+        '<(DEPTH)/starboard/shared/starboard/media/media_get_audio_output_count_single_audio_output.cc',
+        '<(DEPTH)/starboard/shared/starboard/media/media_get_audio_configuration_5_1.cc',
         'atomic_public.h',
-        'audio_sink/gstreamer_audio_sink_type_lifecycle.cc',
         'thread_types_public.h',
       ],
       'cflags': [
