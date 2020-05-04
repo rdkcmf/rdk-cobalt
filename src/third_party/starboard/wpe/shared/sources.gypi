@@ -370,7 +370,6 @@
 
     'dependencies': [
         '<(DEPTH)/third_party/libevent/libevent.gyp:libevent',
-        '<(DEPTH)/third_party/libjpeg/libjpeg.gyp:libjpeg',
     ],
 
     'sources': [
@@ -389,10 +388,8 @@
         '<@(time_sources)',
         '<@(threading_sources)',
         '<@(window_sources)',
-        '<(DEPTH)/starboard/shared/libjpeg/image_decode.cc',
-        '<(DEPTH)/starboard/shared/libjpeg/image_is_decode_supported.cc',
-        '<(DEPTH)/starboard/shared/libjpeg/jpeg_image_decoder.cc',
-        '<(DEPTH)/starboard/shared/libjpeg/jpeg_image_decoder.h',
+        '<(DEPTH)/starboard/shared/stub/image_decode.cc',
+        '<(DEPTH)/starboard/shared/stub/image_is_decode_supported.cc',
         '<(DEPTH)/starboard/shared/linux/byte_swap.cc',
         '<(DEPTH)/starboard/shared/linux/cpu_features_get.cc',
         '<(DEPTH)/starboard/shared/signal/crash_signals.cc',

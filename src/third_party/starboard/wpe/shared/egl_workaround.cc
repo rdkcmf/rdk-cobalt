@@ -19,9 +19,9 @@
 #include <essos-app.h>
 
 extern "C" EGLDisplay __real_eglGetDisplay(EGLNativeDisplayType native_display);
-extern "C" EGLDisplay __wrap_eglGetDisplay(EGLNativeDisplayType native_display);
+extern "C" SB_EXPORT_PLATFORM EGLDisplay __wrap_eglGetDisplay(EGLNativeDisplayType native_display);
 
-extern "C" EGLDisplay __wrap_eglGetDisplay(
+extern "C" SB_EXPORT_PLATFORM EGLDisplay __wrap_eglGetDisplay(
     EGLNativeDisplayType native_display) {
   NativeDisplayType display_type;
   EssCtx *ctx = third_party::starboard::wpe::shared::Application::Get()->GetEssCtx();
