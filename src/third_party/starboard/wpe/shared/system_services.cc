@@ -20,7 +20,6 @@
 #include <string>
 
 #include <WPEFramework/websocket/JSONRPCLink.h>
-#include <WPEFramework/interfaces/json/JsonData_DisplayInfo.h>
 
 #include "starboard/atomic.h"
 #include "starboard/common/log.h"
@@ -82,17 +81,16 @@ void DisplayInfo::Impl::Refresh() {
   if (!needs_refresh_.load())
     return;
 
-  using JsonData::DisplayInfo::DisplayinfoData;
-
-  DisplayinfoData data;
+  JsonObject data;
   uint32_t rc;
 
-  rc = client_.Get<DisplayinfoData>(kDefaultTimeoutMs, "displayinfo", data);
+  rc = client_.Get<JsonObject>(kDefaultTimeoutMs, "displayinfo", data);
 
   if (Core::ERROR_NONE == rc) {
-    resolution_info_.Width = data.Width;
-    resolution_info_.Height = data.Height;
-    has_hdr_support_ = data.Hdrtype.Value() != DisplayinfoData::HdrtypeType::HDROFF;
+    resolution_info_.Width = data.Get("width").Number();
+    resolution_info_.Height = data.Get("height").Number();
+    Core::JSON::String hdrtype = data.Get("hdrtype");
+    has_hdr_support_ = !hdrtype.IsNull() && !hdrtype.Value().empty() && hdrtype.Value().compare("HDROff") != 0;
   } else {
     SB_LOG(ERROR) << "Failed to get 'displayinfo', rc=" << rc;
   }
