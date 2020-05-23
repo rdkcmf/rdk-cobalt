@@ -32,8 +32,8 @@
 // The Starboard configuration for a rdk implementation designed to be
 // built on rdk platforms.
 
-#ifndef THIRD_PARTY_STARBOARD_RDK_BRCM_ARM_CONFIGURATION_PUBLIC_H_
-#define THIRD_PARTY_STARBOARD_RDK_BRCM_ARM_CONFIGURATION_PUBLIC_H_
+#ifndef THIRD_PARTY_STARBOARD_RDK_ARM_CONFIGURATION_PUBLIC_H_
+#define THIRD_PARTY_STARBOARD_RDK_ARM_CONFIGURATION_PUBLIC_H_
 
 #define SB_API_VERSION 12
 
@@ -88,7 +88,7 @@
 
 // Whether the current platform is expected to have many cores (> 6), or a
 // wildly varying number of cores.
-#define SB_HAS_MANY_CORES 0
+#define SB_HAS_MANY_CORES 1
 
 // Whether the current platform is expected to have exactly 1 core.
 #define SB_HAS_1_CORE 0
@@ -97,7 +97,7 @@
 #define SB_HAS_2_CORES 0
 
 // Whether the current platform is expected to have exactly 4 cores.
-#define SB_HAS_4_CORES 1
+#define SB_HAS_4_CORES 0
 
 // Whether the current platform is expected to have exactly 6 cores.
 #define SB_HAS_6_CORES 0
@@ -511,9 +511,6 @@
 
 // --- Platform Specific Audits ----------------------------------------------
 
-#define SB_HAS_NATIVE_AUDIO 1
-#define GST_HAS_HDR_SUPPORT 1
-
 #if !defined(__GNUC__)
 #error "Rdk builds need a GCC-like compiler (for the moment)."
 #endif
@@ -523,7 +520,5 @@
 #define SB_PLATFORM_MODEL_YEAR 2020
 #define SB_PLATFORM_MODEL_NAME "RDKReference"
 #define SB_PLATFORM_FIRMWARE_VERSION_STRING "1.0.0"
-#define SB_PLATFORM_CHIPSET_MODEL_NUMBER_STRING "BCM7268"
-#define SB_PLATFORM_MANUFACTURER_NAME "Broadcom"
 
-#endif  // THIRD_PARTY_STARBOARD_RDK_BRCM_ARM_CONFIGURATION_PUBLIC_H_
+#endif  // THIRD_PARTY_STARBOARD_RDK_ARM_CONFIGURATION_PUBLIC_H_

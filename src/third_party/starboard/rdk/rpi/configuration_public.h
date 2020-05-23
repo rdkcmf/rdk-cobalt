@@ -43,10 +43,6 @@
 // automatically set based on this.
 #define SB_IS_BIG_ENDIAN 0
 
-// Whether the current platform is big endian. SB_IS_LITTLE_ENDIAN will be
-// automatically set based on this.
-#define SB_IS_BIG_ENDIAN 0
-
 // Whether the current platform is an ARM architecture.
 #define SB_IS_ARCH_ARM 1
 

@@ -60,6 +60,10 @@ namespace {
 GST_DEBUG_CATEGORY(cobalt_gst_player_debug);
 #define GST_CAT_DEFAULT cobalt_gst_player_debug
 
+#if !defined(GST_HAS_HDR_SUPPORT) && GST_CHECK_VERSION(1, 18, 0)
+#define GST_HAS_HDR_SUPPORT 1
+#endif
+
 static GSourceFuncs SourceFunctions = {
     // prepare
     nullptr,
@@ -453,6 +457,7 @@ static void gst_cobalt_src_class_init(GstCobaltSrcClass* klass) {
   eklass->change_state = GST_DEBUG_FUNCPTR(gst_cobalt_src_change_state);
 }
 
+#if defined(GST_HAS_HDR_SUPPORT) && GST_HAS_HDR_SUPPORT
 static GstVideoColorRange RangeIdToGstVideoColorRange(SbMediaRangeId value) {
   switch (value) {
     case kSbMediaRangeIdLimited:
@@ -592,6 +597,9 @@ static void AddColorMetadataToGstCaps(GstCaps* caps, const SbMediaColorMetadata&
     g_free (tmp);
   }
 }
+#else
+static void AddColorMetadataToGstCaps(GstCaps*, const SbMediaColorMetadata&) {}
+#endif
 
 static int CompareColorMetadata(const SbMediaColorMetadata& lhs, const SbMediaColorMetadata& rhs) {
   return SbMemoryCompare(&lhs, &rhs, sizeof(SbMediaColorMetadata));
