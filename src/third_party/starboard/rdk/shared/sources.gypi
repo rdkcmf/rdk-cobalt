@@ -369,6 +369,7 @@
         '<(DEPTH)/starboard/shared/pthread/thread_set_local_value.cc',
         '<(DEPTH)/starboard/shared/pthread/thread_types_public.h',
         '<(DEPTH)/starboard/shared/pthread/thread_yield.cc',
+        '<(DEPTH)/starboard/shared/pthread/thread_context_internal.cc',
     ],
 
     'window_sources': [
