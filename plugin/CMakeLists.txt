@@ -37,6 +37,13 @@ if(NOT CONFIG_HEADER)
     message(FATAL_ERROR "Cobalt configurtion not found: '${CONFIG_HEADER_DIRECTORY}/${CONFIG_HEADER_NAME}'")
 endif()
 
+# find_package(JsonGenerator REQUIRED)
+# JsonGenerator(DOCS
+#   INPUT  ${CMAKE_CURRENT_SOURCE_DIR}/CobaltPlugin.json
+#   IFDIR  ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/json/
+#   OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/doc/
+# )
+
 add_library(${MODULE_NAME} SHARED
     Cobalt.cpp
     CobaltImplementation.cpp

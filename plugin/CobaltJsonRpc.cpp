@@ -31,17 +31,17 @@ using namespace JsonData::StateControl;
 // Registration
 //
 void Cobalt::RegisterAll() {
-  Property < Core::JSON::String >    (_T("url"), &Cobalt::get_url, &Cobalt::set_url, this); /* Browser */
-  Property < Core::JSON::EnumType < VisibilityType >> (_T("visibility"), &Cobalt::get_visibility, &Cobalt::set_visibility, this); /* Browser */
-  Property < Core::JSON::DecUInt32 > (_T("fps"), &Cobalt::get_fps, nullptr, this); /* Browser */
+  // Property < Core::JSON::String >    (_T("url"), &Cobalt::get_url, &Cobalt::set_url, this); /* Browser */
+  // Property < Core::JSON::EnumType < VisibilityType >> (_T("visibility"), &Cobalt::get_visibility, &Cobalt::set_visibility, this); /* Browser */
+  // Property < Core::JSON::DecUInt32 > (_T("fps"), &Cobalt::get_fps, nullptr, this); /* Browser */
   Property < Core::JSON::EnumType < StateType >> (_T("state"), &Cobalt::get_state, &Cobalt::set_state, this); /* StateControl */
 }
 
 void Cobalt::UnregisterAll() {
   Unregister(_T("state"));
-  Unregister(_T("fps"));
-  Unregister(_T("visibility"));
-  Unregister(_T("url"));
+  // Unregister(_T("fps"));
+  // Unregister(_T("visibility"));
+  // Unregister(_T("url"));
 }
 
 // API implementation
