@@ -162,11 +162,14 @@ private:
     }
     uint32_t Worker() override
     {
+      int exitCode = EXIT_SUCCESS;
       const std::string cmdURL = "--url=" + _url;
       const char* argv[] = {"Cobalt", cmdURL.c_str()};
-      while (IsRunning() == true) {
-        StarboardMain(2, const_cast<char**>(argv));
+      if (IsRunning() == true) {
+        exitCode = StarboardMain(2, const_cast<char**>(argv));
       }
+      exit(exitCode);
+      Block();
       return (Core::infinite);
     }
 
