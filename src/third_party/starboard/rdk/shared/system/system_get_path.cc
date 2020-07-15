@@ -21,14 +21,37 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <string>
+#include <sstream>
 
 #include "starboard/common/log.h"
 #include "starboard/common/string.h"
 #include "starboard/directory.h"
+#include "starboard/file.h"
 #include "starboard/user.h"
 
 namespace {
 const int kMaxPathSize = SB_FILE_MAX_PATH;
+
+bool GetContentDirectory(char* out_path, int path_size)
+{
+  const char* paths = std::getenv("COBALT_CONTENT_DIR");
+  if(paths){ // Treat the environment variable as PATH-like search variable
+    std::stringstream pathsStream(paths);
+    const std::string testFilePath = "/fonts/fonts.xml";
+    std::string contentPath;
+    while(getline(pathsStream, contentPath,':')){
+      //check if fonts/fonts.xml file exists, if not, evaluate another path.
+      std::string tmp = contentPath + testFilePath;
+      if(SbFileExists(tmp.c_str())){
+        return (SbStringConcat(out_path, contentPath.c_str(), path_size) < path_size);
+      }
+    }
+    return false;
+  } else { // Default to /usr/share/content/data if COBALT_CONTENT_PATH is not set
+    return (SbStringConcat(out_path, "/usr/share/content/data", path_size) < path_size);
+  }
+}
 
 // Gets the path to the cache directory, using the user's home directory.
 bool GetCacheDirectory(char* out_path, int path_size) {
@@ -138,8 +161,7 @@ bool SbSystemGetPath(SbSystemPathId path_id, char* out_path, int path_size) {
 
   switch (path_id) {
     case kSbSystemPathContentDirectory:
-      if (SbStringConcat(path,
-                         "/usr/share/content/data", kPathSize) >= kPathSize) {
+      if (!GetContentDirectory(path, kPathSize)){
         return false;
       }
       break;
