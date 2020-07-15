@@ -25,6 +25,15 @@
 
 extern "C" int StarboardMain(int argc, char **argv);
 
+extern "C" {
+
+SB_EXPORT_PLATFORM void SbRdkHandleDeepLink(const char* link);
+SB_EXPORT_PLATFORM void SbRdkSuspend();
+SB_EXPORT_PLATFORM void SbRdkResume();
+SB_EXPORT_PLATFORM void SbRdkQuit();
+
+}  // extern "C"
+
 namespace WPEFramework {
 
 namespace Plugin {
@@ -71,7 +80,9 @@ private:
   public:
     void RequestForStateChange(
       const PluginHost::IStateControl::command command) {
+      _lock.Lock();
       _command = command;
+      _lock.Unlock();
       Run();
     }
 
@@ -79,11 +90,15 @@ private:
     virtual uint32_t Worker() {
       bool success = false;
 
+      _lock.Lock();
+      const PluginHost::IStateControl::command command = _command;
+      _lock.Unlock();
+
       if ((IsRunning() == true) && (success == false)) {
-        success = _parent.RequestForStateChange(_command);
+        success = _parent.RequestForStateChange(command);
       }
       Block();
-      _parent.StateChangeCompleted(success, _command);
+      _parent.StateChangeCompleted(success, command);
       return (Core::infinite);
     }
 
@@ -91,6 +106,7 @@ private:
     CobaltImplementation &_parent;
     uint32_t _waitTime;
     PluginHost::IStateControl::command _command;
+    mutable Core::CriticalSection _lock;
   };
 
   class CobaltWindow : public Core::Thread {
@@ -107,7 +123,7 @@ private:
     virtual ~CobaltWindow()
     {
       Block();
-      Signal(SIGQUIT);
+      SbRdkQuit();
       Wait(Thread::BLOCKED | Thread::STOPPED | Thread::STOPPING, Core::infinite);
     }
 
@@ -139,10 +155,10 @@ private:
     bool Suspend(const bool suspend)
     {
       if (suspend == true) {
-        kill(getpid(), SIGUSR1);
+        SbRdkSuspend();
       }
       else {
-        kill(getpid(), SIGCONT);
+        SbRdkResume();
       }
       return (true);
     }
@@ -165,9 +181,8 @@ private:
       int exitCode = EXIT_SUCCESS;
       const std::string cmdURL = "--url=" + _url;
       const char* argv[] = {"Cobalt", cmdURL.c_str()};
-      if (IsRunning() == true) {
+      if (IsRunning() == true)
         exitCode = StarboardMain(2, const_cast<char**>(argv));
-      }
       exit(exitCode);
       Block();
       return (Core::infinite);
@@ -199,6 +214,7 @@ public:
   }
 
   virtual void SetURL(const string &URL) override {
+    SbRdkHandleDeepLink(URL.c_str());
   }
 
   virtual string GetURL() const override {

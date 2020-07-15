@@ -445,6 +445,8 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/application_rdk.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/get_home_directory.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/main_rdk.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/libcobalt.h',
+        '<(DEPTH)/third_party/starboard/rdk/shared/libcobalt.cpp',
     ],
     'conditions': [
       ['<(has_ocdm)==1', {

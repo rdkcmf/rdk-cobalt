@@ -42,6 +42,11 @@ namespace starboard {
 namespace rdk {
 namespace shared {
 
+namespace libcobalt_api {
+void Initialize();
+void Teardown();
+}
+
 EssTerminateListener Application::terminateListener = {
   //terminated
   [](void* data) { reinterpret_cast<Application*>(data)->OnTerminated(); }
@@ -94,10 +99,12 @@ Application::~Application() {
 
 void Application::Initialize() {
   SbAudioSinkPrivate::Initialize();
+  libcobalt_api::Initialize();
 }
 
 void Application::Teardown() {
   SbAudioSinkPrivate::TearDown();
+  libcobalt_api::Teardown();
 }
 
 bool Application::MayHaveSystemEvents() {
@@ -143,10 +150,6 @@ void Application::InjectInputEvent(SbInputData* data) {
 }
 
 void Application::Inject(Event* e) {
-  if (e->event->type == kSbEventTypeSuspend) {
-    e->destructor = nullptr;
-  }
-
   QueueApplication::Inject(e);
 }
 

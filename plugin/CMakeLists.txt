@@ -43,6 +43,11 @@ endif()
 #   IFDIR  ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/json/
 #   OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/doc/
 # )
+# JsonGenerator(CODE STUBS
+#   INPUT  ${CMAKE_CURRENT_SOURCE_DIR}/CobaltPlugin.json
+#   IFDIR  ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/json/
+#   OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/json/
+# )
 
 add_library(${MODULE_NAME} SHARED
     Cobalt.cpp

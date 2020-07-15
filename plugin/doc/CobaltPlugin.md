@@ -13,6 +13,7 @@ Cobalt plugin for Thunder framework.
 - [Introduction](#head.Introduction)
 - [Description](#head.Description)
 - [Configuration](#head.Configuration)
+- [Methods](#head.Methods)
 - [Properties](#head.Properties)
 - [Notifications](#head.Notifications)
 
@@ -22,7 +23,7 @@ Cobalt plugin for Thunder framework.
 <a name="head.Scope"></a>
 ## Scope
 
-This document describes purpose and functionality of the Cobalt plugin. It includes detailed specification of its configuration, properties provided and notifications sent.
+This document describes purpose and functionality of the Cobalt plugin. It includes detailed specification of its configuration, methods and properties provided, as well as notifications sent.
 
 <a name="head.Case_Sensitivity"></a>
 ## Case Sensitivity
@@ -78,6 +79,55 @@ The table below lists configuration options of the plugin.
 | configuration | object | <sup>*(optional)*</sup>  |
 | configuration?.url | string | <sup>*(optional)*</sup> The URL that is loaded upon starting the browser |
 
+<a name="head.Methods"></a>
+# Methods
+
+The following methods are provided by the Cobalt plugin:
+
+Cobalt interface methods:
+
+| Method | Description |
+| :-------- | :-------- |
+| [deeplink](#method.deeplink) | Send a deep link to the application |
+
+<a name="method.deeplink"></a>
+## *deeplink <sup>method</sup>*
+
+Send a deep link to the application.
+
+### Parameters
+
+| Name | Type | Description |
+| :-------- | :-------- | :-------- |
+| params | string | An application-specific link |
+
+### Result
+
+| Name | Type | Description |
+| :-------- | :-------- | :-------- |
+| result | null |  |
+
+### Example
+
+#### Request
+
+```json
+{
+    "jsonrpc": "2.0",
+    "id": 1234567890,
+    "method": "Cobalt.1.deeplink",
+    "params": ""
+}
+```
+#### Response
+
+```json
+{
+    "jsonrpc": "2.0",
+    "id": 1234567890,
+    "result": null
+}
+```
 <a name="head.Properties"></a>
 # Properties
 

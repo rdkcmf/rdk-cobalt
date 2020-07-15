@@ -71,6 +71,9 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   ResolutionInfo GetDisplayResolution() const;
   bool DisplayHasHDRSupport() const;
 
+  bool IsStartImmediate() override { return !HasPreloadSwitch(); }
+  bool IsPreloadImmediate() override { return HasPreloadSwitch(); }
+
  protected:
   // --- Application overrides ---
   void Initialize() override;

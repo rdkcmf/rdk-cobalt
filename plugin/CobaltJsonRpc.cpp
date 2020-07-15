@@ -34,6 +34,7 @@ void Cobalt::RegisterAll() {
   // Property < Core::JSON::String >    (_T("url"), &Cobalt::get_url, &Cobalt::set_url, this); /* Browser */
   // Property < Core::JSON::EnumType < VisibilityType >> (_T("visibility"), &Cobalt::get_visibility, &Cobalt::set_visibility, this); /* Browser */
   // Property < Core::JSON::DecUInt32 > (_T("fps"), &Cobalt::get_fps, nullptr, this); /* Browser */
+  Register<Core::JSON::String,void>(_T("deeplink"), &Cobalt::endpoint_deeplink, this);
   Property < Core::JSON::EnumType < StateType >> (_T("state"), &Cobalt::get_state, &Cobalt::set_state, this); /* StateControl */
 }
 
@@ -46,6 +47,20 @@ void Cobalt::UnregisterAll() {
 
 // API implementation
 //
+
+// Method: deeplink - Send a deep link to the application
+// Return codes:
+//  - ERROR_NONE: Success
+uint32_t Cobalt::endpoint_deeplink(const Core::JSON::String& param)
+{
+  uint32_t result = Core::ERROR_INCORRECT_URL;
+  if (param.IsSet() && !param.Value().empty()) {
+    _cobalt->SetURL(param.Value());  // Abuse SetURL
+    result = Core::ERROR_NONE;
+  }
+  return result;
+}
+
 
 // Property: url - URL loaded in the browser
 // Return codes:

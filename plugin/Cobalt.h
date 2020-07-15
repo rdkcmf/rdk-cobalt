@@ -159,6 +159,7 @@ private:
   // JsonRpc
   void RegisterAll();
   void UnregisterAll();
+  uint32_t endpoint_deeplink(const Core::JSON::String& params);
   uint32_t get_url(Core::JSON::String &response) const; // Browser
   uint32_t set_url(const Core::JSON::String &param); // Browser
   uint32_t get_visibility(

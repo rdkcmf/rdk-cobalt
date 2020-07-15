@@ -13,5 +13,17 @@
     "statecontrol": {
       "$ref": "StateControl.json#"
     }
+  },
+  "methods": {
+    "deeplink": {
+      "summary": "Send a deep link to the application",
+      "params": {
+        "description": "An application-specific link",
+        "type": "string"
+      },
+      "result": {
+        "type": "null"
+      }
+    }
   }
 }
