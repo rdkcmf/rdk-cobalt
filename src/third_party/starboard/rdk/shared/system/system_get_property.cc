@@ -105,6 +105,24 @@ bool GetOperatorName(char* out_value, int value_length) {
   const char* env = std::getenv("COBALT_OPERATOR_NAME");
   if (env && CopyStringAndTestIfSuccess(out_value, value_length, env))
     return true;
+
+  FILE* partnerId = fopen("/opt/www/authService/partnerId3.dat", "r");
+  if (partnerId) {
+    bool result = false;
+    char* buffer = nullptr;
+    size_t size = 0;
+    if (getline(&buffer, &size, partnerId) != -1) {
+      // trim the newline character
+      for(int i = size - 1; i >= 0 && !std::isalnum(buffer[i]); --i)
+        buffer[i] = '\0';
+      result = CopyStringAndTestIfSuccess(out_value, value_length, buffer);
+    }
+    free(buffer);
+    fclose(partnerId);
+    if (result)
+      return true;
+  }
+
   return CopyStringAndTestIfSuccess(out_value, value_length, SB_PLATFORM_OPERATOR_NAME);
 }
 
