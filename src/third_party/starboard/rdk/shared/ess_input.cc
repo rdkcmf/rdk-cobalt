@@ -420,7 +420,7 @@ void EssInput::CreateKey(unsigned int key, SbInputEventType type, bool repeatabl
 
       case KEY_I: key = KEY_INFO; modifiers = 0; break;
       case KEY_Y: key = KEY_MUTE; modifiers = 0; break;
-      case KEY_L: key = KEY_BACKSPACE; modifiers = 0; break;
+      case KEY_L: key = KEY_ESC; modifiers = 0; break;
       case KEY_F: key = KEY_FASTFORWARD; modifiers = 0; break;
       case KEY_W: key = KEY_REWIND; modifiers = 0; break;
       case KEY_P: key = KEY_PLAYPAUSE; modifiers = 0; break;
