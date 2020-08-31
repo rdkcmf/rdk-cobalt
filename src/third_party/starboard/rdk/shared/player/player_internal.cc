@@ -995,6 +995,7 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   int has_enough_data_{static_cast<int>(MediaType::kBoth)};
   mutable int decoder_state_data_{static_cast<int>(MediaType::kNone)};
   int total_video_frames_{0};
+  int dropped_video_frames_{0};
   int frame_width_{0};
   int frame_height_{0};
   State state_{State::kNull};
@@ -1281,6 +1282,22 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
     case GST_MESSAGE_LATENCY:
       gst_bin_recalculate_latency(GST_BIN(self->pipeline_));
       break;
+
+    case GST_MESSAGE_QOS: {
+      const gchar *klass;
+      klass = gst_element_class_get_metadata (
+          GST_ELEMENT_GET_CLASS (GST_MESSAGE_SRC(message)),
+          GST_ELEMENT_METADATA_KLASS);
+      if (g_strrstr(klass, "Video")) {
+        GstFormat format;
+        guint64 dropped = 0;
+        gst_message_parse_qos_stats(message, &format, nullptr, &dropped);
+        if (format == GST_FORMAT_BUFFERS) {
+          ::starboard::ScopedLock lock(self->mutex_);
+          self->dropped_video_frames_ = static_cast<int>(dropped);
+        }
+      }
+    } break;
 
     default:
       GST_LOG("Got GST message %s from %s", GST_MESSAGE_TYPE_NAME(message),
@@ -1845,7 +1862,14 @@ void PlayerImpl::GetInfo(SbPlayerInfo2* out_player_info) {
   out_player_info->volume = gst_stream_volume_get_volume(
       GST_STREAM_VOLUME(pipeline_), GST_STREAM_VOLUME_FORMAT_LINEAR);
   out_player_info->total_video_frames = total_video_frames_;
+  out_player_info->corrupted_video_frames = 0;
 
+  {
+    ::starboard::ScopedLock lock(mutex_);
+    out_player_info->dropped_video_frames = dropped_video_frames_;
+  }
+
+#if 0
   GstElement* vid_sink = nullptr;
   g_object_get(pipeline_, "video-sink", &vid_sink, nullptr);
 
@@ -1900,6 +1924,7 @@ void PlayerImpl::GetInfo(SbPlayerInfo2* out_player_info) {
 
   if (vid_sink)
     gst_object_unref(GST_OBJECT(vid_sink));
+#endif
 
   GST_LOG("Frames dropped: %d, Frames corrupted: %d",
           out_player_info->dropped_video_frames,
