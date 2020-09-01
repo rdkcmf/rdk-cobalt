@@ -60,8 +60,10 @@ namespace {
 GST_DEBUG_CATEGORY(cobalt_gst_player_debug);
 #define GST_CAT_DEFAULT cobalt_gst_player_debug
 
-#if !defined(GST_HAS_HDR_SUPPORT) && GST_CHECK_VERSION(1, 18, 0)
+#if !defined(GST_HAS_HDR_SUPPORT)
+#if GST_CHECK_VERSION(1, 18, 0) || (defined(__has_include) &&  __has_include("gstreamer-1.0/gst/video/video-hdr.h"))
 #define GST_HAS_HDR_SUPPORT 1
+#endif
 #endif
 
 static GSourceFuncs SourceFunctions = {
