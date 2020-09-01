@@ -135,9 +135,10 @@ private:
     CobaltWindow& operator=(const CobaltWindow&) = delete;
 
   public:
-    CobaltWindow()
+    CobaltWindow(CobaltImplementation& parent)
       : Core::Thread(0, _T("Cobalt"))
-      , _url{"https://www.youtube.com/tv"}
+      , _url("https://www.youtube.com/tv")
+      , _parent(parent)
     {
     }
     virtual ~CobaltWindow()
@@ -145,6 +146,7 @@ private:
       Block();
       SbRdkQuit();
       Wait(Thread::BLOCKED | Thread::STOPPED | Thread::STOPPING, Core::infinite);
+      exit(_exitCode);
     }
 
     uint32_t Configure(PluginHost::IShell* service) {
@@ -163,6 +165,8 @@ private:
       } else {
         Core::SystemInfo::SetEnvironment(_T("CLIENT_IDENTIFIER"), service->Callsign());
       }
+
+      SetThunderAccessPointIfNeeded();
 
       if (config.Url.IsSet() == true) {
         _url = config.Url.Value();
@@ -198,17 +202,19 @@ private:
     }
     uint32_t Worker() override
     {
-      int exitCode = EXIT_SUCCESS;
       const std::string cmdURL = "--url=" + _url;
       const char* argv[] = {"Cobalt", cmdURL.c_str()};
       if (IsRunning() == true)
-        exitCode = StarboardMain(2, const_cast<char**>(argv));
-      exit(exitCode);
+          _exitCode = StarboardMain(2, const_cast<char**>(argv));
+      if (IsRunning() == true) // app initiated exit
+          _parent.StateChange(PluginHost::IStateControl::EXITED);
       Block();
       return (Core::infinite);
     }
 
+    int _exitCode { 0 };
     string _url;
+    CobaltImplementation &_parent;
   };
 
 private:
@@ -217,6 +223,7 @@ private:
 
 public:
   CobaltImplementation() :
+    _window(*this),
     _adminLock(),
     _state(PluginHost::IStateControl::UNINITIALIZED),
     _cobaltClients(),

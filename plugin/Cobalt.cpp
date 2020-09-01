@@ -91,6 +91,9 @@ void Cobalt::Deinitialize(PluginHost::IShell *service) {
   ASSERT(_cobalt != nullptr);
   ASSERT(_memory != nullptr);
 
+  if (_cobalt == nullptr)
+      return;
+
   PluginHost::IStateControl *stateControl(
     _cobalt->QueryInterface<PluginHost::IStateControl>());
 
