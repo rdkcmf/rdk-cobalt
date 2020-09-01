@@ -41,6 +41,8 @@
 #include "starboard/common/string.h"
 #include "starboard/character.h"
 
+#include "third_party/starboard/rdk/shared/system_services.h"
+
 namespace {
 
 const char kPlatformName[] = "Linux";
@@ -144,6 +146,20 @@ bool GetManufacturerName(char* out_value, int value_length) {
 #endif  // defined(SB_PLATFORM_MANUFACTURER_NAME)
 }
 
+bool GetChipsetModelNumber(char* out_value, int value_length) {
+  std::string chipset =
+    third_party::starboard::rdk::shared::DeviceIdentification{}.GetChipset();
+  return CopyStringAndTestIfSuccess(
+    out_value, value_length, chipset.c_str());
+}
+
+bool GetFirmwareVersion(char* out_value, int value_length) {
+  std::string firmware_version =
+    third_party::starboard::rdk::shared::DeviceIdentification{}.GetFirmwareVersion();
+  return CopyStringAndTestIfSuccess(
+    out_value, value_length, firmware_version.c_str());
+}
+
 }  // namespace
 
 bool SbSystemGetProperty(SbSystemPropertyId property_id,
@@ -160,17 +176,11 @@ bool SbSystemGetProperty(SbSystemPropertyId property_id,
     case kSbSystemPropertyBrandName:
       return GetOperatorName(out_value, value_length);
 
-#if defined(SB_PLATFORM_CHIPSET_MODEL_NUMBER_STRING)
     case kSbSystemPropertyChipsetModelNumber:
-      return CopyStringAndTestIfSuccess(
-            out_value, value_length, SB_PLATFORM_CHIPSET_MODEL_NUMBER_STRING);
-#endif  // defined(SB_PLATFORM_CHIPSET_MODEL_NUMBER_STRING)
+      return GetChipsetModelNumber(out_value, value_length);
 
-#if defined(SB_PLATFORM_FIRMWARE_VERSION_STRING)
     case kSbSystemPropertyFirmwareVersion:
-      return CopyStringAndTestIfSuccess(out_value, value_length,
-                                        SB_PLATFORM_FIRMWARE_VERSION_STRING);
-#endif  // defined(SB_PLATFORM_FIRMWARE_VERSION_STRING)
+      return GetFirmwareVersion(out_value, value_length);
 
 #if defined(SB_PLATFORM_MODEL_YEAR)
     case kSbSystemPropertyModelYear:

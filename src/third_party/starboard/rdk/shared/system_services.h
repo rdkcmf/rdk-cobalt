@@ -42,6 +42,14 @@ private:
   mutable ::starboard::scoped_ptr<Impl> impl_;
 };
 
+class DeviceIdentification {
+public:
+  DeviceIdentification();
+  virtual ~DeviceIdentification();
+  std::string GetChipset() const;
+  std::string GetFirmwareVersion() const;
+};
+
 }  // namespace shared
 }  // namespace rdk
 }  // namespace starboard
