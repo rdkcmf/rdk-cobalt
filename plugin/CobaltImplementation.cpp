@@ -38,6 +38,26 @@ namespace WPEFramework {
 
 namespace Plugin {
 
+static void SetThunderAccessPointIfNeeded() {
+  const std::string envName = _T("THUNDER_ACCESS");
+  std::string envVal;
+  if (Core::SystemInfo::GetEnvironment(envName, envVal))
+    return;
+
+  Core::File file("/etc/WPEFramework/config.json", false);
+  if (!file.Open(true))
+    return;
+
+  JsonObject config;
+  if (config.IElement::FromFile(file)) {
+    Core::JSON::String port = config.Get("port");
+    Core::JSON::String binding = config.Get("binding");
+    envVal = binding.Value() + ":" + port.Value();
+    Core::SystemInfo::SetEnvironment(envName, envVal);
+  }
+  file.Close();
+}
+
 class CobaltImplementation:
     public Exchange::IBrowser,
     public PluginHost::IStateControl {
