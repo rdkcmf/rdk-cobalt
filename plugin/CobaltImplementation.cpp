@@ -119,6 +119,16 @@ private:
       }
       Block();
       _parent.StateChangeCompleted(success, command);
+
+      if (success == true) {
+        _lock.Lock();
+        bool completed = (command == _command);
+        _lock.Unlock();
+        // Spin one more time
+        if (!completed)
+          Run();
+      }
+
       return (Core::infinite);
     }
 
@@ -226,6 +236,7 @@ public:
     _window(*this),
     _adminLock(),
     _state(PluginHost::IStateControl::UNINITIALIZED),
+    _statePending(PluginHost::IStateControl::UNINITIALIZED),
     _cobaltClients(),
     _stateControlClients(),
     _sink(*this) {
@@ -339,14 +350,16 @@ public:
     } else {
       switch (command) {
         case PluginHost::IStateControl::SUSPEND:
-          if (_state == PluginHost::IStateControl::RESUMED) {
+          if (_state == PluginHost::IStateControl::RESUMED || _statePending == PluginHost::IStateControl::RESUMED) {
+            _statePending = PluginHost::IStateControl::SUSPENDED;
             _sink.RequestForStateChange(
               PluginHost::IStateControl::SUSPEND);
             result = Core::ERROR_NONE;
           }
           break;
         case PluginHost::IStateControl::RESUME:
-          if (_state == PluginHost::IStateControl::SUSPENDED) {
+          if (_state == PluginHost::IStateControl::SUSPENDED || _statePending == PluginHost::IStateControl::SUSPENDED) {
+            _statePending = PluginHost::IStateControl::RESUMED;
             _sink.RequestForStateChange(
               PluginHost::IStateControl::RESUME);
             result = Core::ERROR_NONE;
@@ -429,6 +442,7 @@ public:
     _adminLock.Lock();
 
     _state = newState;
+    _statePending = PluginHost::IStateControl::UNINITIALIZED;
 
     std::list<PluginHost::IStateControl::INotification*>::iterator index(
       _stateControlClients.begin());
@@ -445,6 +459,7 @@ private:
   CobaltWindow _window;
   mutable Core::CriticalSection _adminLock;
   PluginHost::IStateControl::state _state;
+  PluginHost::IStateControl::state _statePending;
   std::list<Exchange::IBrowser::INotification*> _cobaltClients;
   std::list<PluginHost::IStateControl::INotification*> _stateControlClients;
   NotificationSink _sink;
