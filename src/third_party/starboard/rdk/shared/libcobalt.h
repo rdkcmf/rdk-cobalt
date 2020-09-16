@@ -1,7 +1,5 @@
-// If not stated otherwise in this file or this component's license file the
-// following copyright and licenses apply:
 //
-// Copyright 2020 RDK Management
+// Copyright 2020 Comcast Cable Communications Management, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-
+// SPDX-License-Identifier: Apache-2.0
 #ifndef THIRD_PARTY_STARBOARD_RDK_SHARED_LIBCOBALT_H_
 #define THIRD_PARTY_STARBOARD_RDK_SHARED_LIBCOBALT_H_
 
