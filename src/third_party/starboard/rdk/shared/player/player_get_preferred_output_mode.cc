@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// Copyright 2017 The Cobalt Authors. All Rights Reserved.
+// Copyright 2019 The Cobalt Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,16 +29,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "starboard/configuration.h"
-#include "starboard/configuration_constants.h"
-#include "starboard/media.h"
-#include "starboard/shared/starboard/media/media_support_internal.h"
-#include "third_party/starboard/rdk/shared/media/gst_media_utils.h"
+#include "starboard/player.h"
 
-bool SbMediaIsAudioSupported(SbMediaAudioCodec audio_codec,
-                             const char* content_type,
-                             int64_t bitrate) {
-    return bitrate < kSbMediaMaxAudioBitrateInBitsPerSecond &&
-         third_party::starboard::rdk::shared::media::
-             GstRegistryHasElementForMediaType(audio_codec);
+#include "starboard/configuration.h"
+
+#if SB_HAS(PLAYER_CREATION_AND_OUTPUT_MODE_QUERY_IMPROVEMENT)
+
+SbPlayerOutputMode SbPlayerGetPreferredOutputMode(
+    const SbPlayerCreationParam* creation_param) {
+  return kSbPlayerOutputModePunchOut;
 }
+
+#endif  // SB_HAS(PLAYER_CREATION_AND_OUTPUT_MODE_QUERY_IMPROVEMENT)

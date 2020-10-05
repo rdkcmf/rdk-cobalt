@@ -30,6 +30,7 @@
 # limitations under the License.
 {
   'includes': [
+    '<(DEPTH)/starboard/sabi/sabi.gypi',
     '../../shared/libraries.gypi',
     'architecture.gypi',
   ],
@@ -39,9 +40,10 @@
 
     'sysroot%': '/',
     'gl_type': 'system_gles2',
+    'has_ocdm%': '0',
 
     # This is to create cobalt shared library
-    'final_executable_type': '<!(echo $COBALT_EXECUTABLE_TYPE)',
+    'final_executable_type': 'shared_library',
 
     'platform_libraries': [
       '<@(common_libs)',
@@ -55,9 +57,7 @@
       '-O2',
     ],
     'compiler_flags': [
-      # We'll pretend not to be Linux, but Starboard instead.
-      '-U__linux__',
-
+      '-fvisibility=hidden',
       # Force char to be signed.
       '-fsigned-char',
       # Disable strict aliasing.
@@ -90,6 +90,8 @@
     'linker_flags': [
       '<@(common_linker_flags)',
       '--sysroot=<(sysroot)',
+      # Cleanup unused sections
+      '-Wl,-gc-sections',
       # We don't wrap these symbols, but this ensures that they aren't
       # linked in.
       # '-Wl,--wrap=malloc',

@@ -87,6 +87,8 @@ class DrmSystemOcdm : public SbDrmSystemPrivate {
                                const void* certificate,
                                int certificate_size) override;
 
+  const void* GetMetrics(int* size) override;
+
   void AddObserver(Observer* obs);
   void RemoveObserver(Observer* obs);
   void OnKeyUpdated(const std::string& session_id,

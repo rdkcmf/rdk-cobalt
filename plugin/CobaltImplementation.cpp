@@ -21,16 +21,13 @@
 #include <interfaces/IMemory.h>
 #include <interfaces/IBrowser.h>
 
-#include "starboard/export.h"
-
-extern "C" int StarboardMain(int argc, char **argv);
-
 extern "C" {
 
-SB_EXPORT_PLATFORM void SbRdkHandleDeepLink(const char* link);
-SB_EXPORT_PLATFORM void SbRdkSuspend();
-SB_EXPORT_PLATFORM void SbRdkResume();
-SB_EXPORT_PLATFORM void SbRdkQuit();
+int  StarboardMain(int argc, char **argv);
+void SbRdkHandleDeepLink(const char* link);
+void SbRdkSuspend();
+void SbRdkResume();
+void SbRdkQuit();
 
 }  // extern "C"
 

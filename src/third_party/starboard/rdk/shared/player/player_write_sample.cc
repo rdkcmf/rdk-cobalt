@@ -33,7 +33,6 @@
 
 #include "third_party/starboard/rdk/shared/player/player_internal.h"
 
-#if SB_API_VERSION >= 10
 void SbPlayerWriteSample2(SbPlayer player,
                           SbMediaType sample_type,
                           const SbPlayerSampleInfo* sample_infos,
@@ -41,16 +40,3 @@ void SbPlayerWriteSample2(SbPlayer player,
   player->player_->WriteSample(sample_type, sample_infos,
                                number_of_sample_infos);
 }
-#else
-void SbPlayerWriteSample(SbPlayer /*player*/,
-                         SbMediaType /*sample_type*/,
-                         const void* const* /*sample_buffers*/,
-                         const int* /*sample_buffer_sizes*/,
-                         int /*number_of_sample_buffers*/,
-                         SbMediaTime /*sample_pts*/,
-                         const SbMediaVideoSampleInfo* /*video_sample_info*/,
-                         const SbDrmSampleInfo* /*sample_drm_info*/) {
-  SB_NOTIMPLEMENTED();
-}
-
-#endif  // SB_API_VERSION >= 10

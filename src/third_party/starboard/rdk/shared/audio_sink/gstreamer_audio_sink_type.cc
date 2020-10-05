@@ -75,7 +75,8 @@ class GStreamerAudioSink : public SbAudioSinkPrivate {
       SbAudioSinkFrameBuffers frame_buffers,
       int frame_buffers_size_in_frames,
       SbAudioSinkUpdateSourceStatusFunc update_source_status_func,
-      SbAudioSinkConsumeFramesFunc consume_frames_func,
+      SbAudioSinkPrivate::ConsumeFramesFunc consume_frames_func,
+      SbAudioSinkPrivate::ErrorFunc error_func,
       void* context);
   ~GStreamerAudioSink() override;
 
@@ -112,7 +113,8 @@ class GStreamerAudioSink : public SbAudioSinkPrivate {
   int sampling_frequency_hz_{0};
   SbMediaAudioSampleType audio_sample_type_{kSbMediaAudioSampleTypeInt16};
   SbAudioSinkUpdateSourceStatusFunc update_source_status_func_{nullptr};
-  SbAudioSinkConsumeFramesFunc consume_frame_func_{nullptr};
+  SbAudioSinkPrivate::ConsumeFramesFunc consume_frame_func_{nullptr};
+  SbAudioSinkPrivate::ErrorFunc error_func_{nullptr};
   SbAudioSinkFrameBuffers frame_buffers_{nullptr};
   int frame_buffers_size_in_frames_{0};
   SbThread audio_loop_thread_{kSbThreadInvalid};
@@ -139,7 +141,8 @@ GStreamerAudioSink::GStreamerAudioSink(
     SbAudioSinkFrameBuffers frame_buffers,
     int frame_buffers_size_in_frames,
     SbAudioSinkUpdateSourceStatusFunc update_source_status_func,
-    SbAudioSinkConsumeFramesFunc consume_frame_func,
+    SbAudioSinkPrivate::ConsumeFramesFunc consume_frame_func,
+    SbAudioSinkPrivate::ErrorFunc error_func,
     void* context)
     : type_(type),
       channels_(channels),
@@ -147,6 +150,7 @@ GStreamerAudioSink::GStreamerAudioSink(
       audio_sample_type_(audio_sample_type),
       update_source_status_func_(update_source_status_func),
       consume_frame_func_(consume_frame_func),
+      error_func_(error_func),
       frame_buffers_(frame_buffers),
       frame_buffers_size_in_frames_(frame_buffers_size_in_frames),
       context_(context) {
@@ -374,9 +378,7 @@ void GStreamerAudioSink::AppSrcNeedData(GstAppSrc* src,
                            frames_to_write, sink->total_frames_,
                            sink->total_frames_ * sink->GetBytesPerFrame());
           sink->consume_frame_func_(frames_to_write,
-#if SB_HAS(ASYNC_AUDIO_FRAMES_REPORTING)
                                     SbTimeGetMonotonicNow(),
-#endif  // SB_HAS(ASYNC_AUDIO_FRAMES_REPORTING)
                                     sink->context_);
 
 #if defined(DUMP_PCM_TO_FILE)
@@ -448,12 +450,13 @@ SbAudioSink GStreamerAudioSinkType::Create(
     SbAudioSinkFrameBuffers frame_buffers,
     int frame_buffers_size_in_frames,
     SbAudioSinkUpdateSourceStatusFunc update_source_status_func,
-    SbAudioSinkConsumeFramesFunc consume_frames_func,
+    SbAudioSinkPrivate::ConsumeFramesFunc consume_frames_func,
+    SbAudioSinkPrivate::ErrorFunc error_func,
     void* context) {
   return new GStreamerAudioSink(
       this, channels, sampling_frequency_hz, audio_sample_type,
       audio_frame_storage_type, frame_buffers, frame_buffers_size_in_frames,
-      update_source_status_func, consume_frames_func, context);
+      update_source_status_func, consume_frames_func, error_func, context);
 }
 
 }  // namespace audio_sink

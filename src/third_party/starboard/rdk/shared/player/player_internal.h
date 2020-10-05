@@ -53,10 +53,8 @@ struct SbPlayerPrivate {
                   SbMediaVideoCodec video_codec,
                   SbMediaAudioCodec audio_codec,
                   SbDrmSystem drm_system,
-                  const SbMediaAudioSampleInfo* audio_sample_info,
-#if SB_API_VERSION >= 11
+                  const SbMediaAudioSampleInfo& audio_sample_info,
                   const char* max_video_capabilities,
-#endif  // SB_API_VERSION >= 11
                   SbPlayerDeallocateSampleFunc sample_deallocate_func,
                   SbPlayerDecoderStatusFunc decoder_status_func,
                   SbPlayerStatusFunc player_status_func,

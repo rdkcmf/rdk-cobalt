@@ -33,31 +33,25 @@
 #include "third_party/starboard/rdk/shared/player/player_internal.h"
 #include "third_party/starboard/rdk/shared/media/gst_media_utils.h"
 
-SbPlayer SbPlayerCreate(SbWindow window,
-                        SbMediaVideoCodec video_codec,
-                        SbMediaAudioCodec audio_codec,
-#if SB_API_VERSION < 10
-                        SbMediaTime /* duration_pts */,
-#endif  // SB_API_VERSION < 10
-                        SbDrmSystem drm_system,
-                        const SbMediaAudioSampleInfo* audio_sample_info,
-#if SB_API_VERSION >= 11
-                        const char* max_video_capabilities,
-#endif  // SB_API_VERSION >= 11
-                        SbPlayerDeallocateSampleFunc sample_deallocate_func,
-                        SbPlayerDecoderStatusFunc decoder_status_func,
-                        SbPlayerStatusFunc player_status_func,
-                        SbPlayerErrorFunc player_error_func,
-                        void* context,
-                        SbPlayerOutputMode output_mode,
-                        SbDecodeTargetGraphicsContextProvider* provider) {
-  if (!sample_deallocate_func || !decoder_status_func || !player_status_func
-#if SB_HAS(PLAYER_ERROR_MESSAGE)
-      || !player_error_func
-#endif  // SB_HAS(PLAYER_ERROR_MESSAGE)
-      ) {
+SB_EXPORT SbPlayer
+SbPlayerCreate(SbWindow window,
+               const SbPlayerCreationParam* creation_param,
+               SbPlayerDeallocateSampleFunc sample_deallocate_func,
+               SbPlayerDecoderStatusFunc decoder_status_func,
+               SbPlayerStatusFunc player_status_func,
+               SbPlayerErrorFunc player_error_func,
+               void* context,
+               SbDecodeTargetGraphicsContextProvider* provider)
+{
+  if (!sample_deallocate_func || !decoder_status_func || !player_status_func || !player_error_func) {
     return kSbPlayerInvalid;
   }
+
+  auto *max_video_capabilities = creation_param->video_sample_info.max_video_capabilities;
+  auto audio_codec = creation_param->audio_sample_info.codec;
+  auto video_codec = creation_param->video_sample_info.codec;
+  auto drm_system  = creation_param->drm_system;
+  auto output_mode = creation_param->output_mode;
 
   if (audio_codec == kSbMediaAudioCodecNone &&
       video_codec == kSbMediaVideoCodecNone) {
@@ -80,16 +74,14 @@ SbPlayer SbPlayerCreate(SbWindow window,
     return kSbPlayerInvalid;
   }
 
-  if (!SbPlayerOutputModeSupported(output_mode, video_codec, drm_system)) {
+  if (output_mode != kSbPlayerOutputModePunchOut) {
     SB_LOG(ERROR) << "Unsupported player output mode " << output_mode;
     return kSbPlayerInvalid;
   }
 
   return new SbPlayerPrivate(
-      window, video_codec, audio_codec, drm_system, audio_sample_info,
-#if SB_API_VERSION >= 11
+      window, video_codec, audio_codec, drm_system, creation_param->audio_sample_info,
       max_video_capabilities,
-#endif  // SB_API_VERSION >= 11
       sample_deallocate_func, decoder_status_func, player_status_func,
       player_error_func, context, output_mode, provider);
 }

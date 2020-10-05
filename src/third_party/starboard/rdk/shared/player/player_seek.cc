@@ -33,14 +33,6 @@
 
 #include "third_party/starboard/rdk/shared/player/player_internal.h"
 
-#if SB_API_VERSION >= 10
 void SbPlayerSeek2(SbPlayer player, SbTime seek_to_timestamp, int ticket) {
   player->player_->Seek(seek_to_timestamp, ticket);
 }
-#else
-void SbPlayerSeek(SbPlayer /*player*/,
-                  SbMediaTime /*seek_to_timestamp*/,
-                  int /*ticket*/) {
-  SB_NOTIMPLEMENTED();
-}
-#endif  // SB_API_VERSION >= 10

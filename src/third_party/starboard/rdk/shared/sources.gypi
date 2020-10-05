@@ -30,7 +30,6 @@
 # limitations under the License.
 {
   'variables': {
-    'has_ocdm': '<!(echo $COBALT_HAS_OCDM)',
     'common_defines': [],
     'use_system_libjpeg': 1,
     'audio_sink_sources': [
@@ -70,6 +69,7 @@
         '<(DEPTH)/starboard/shared/starboard/drm/drm_system_internal.h',
         '<(DEPTH)/starboard/shared/starboard/drm/drm_update_server_certificate.cc',
         '<(DEPTH)/starboard/shared/starboard/drm/drm_update_session.cc',
+        '<(DEPTH)/starboard/shared/starboard/drm/drm_get_metrics.cc',
 
         '<(DEPTH)/third_party/starboard/rdk/shared/drm/drm_create_system.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/drm/drm_system_ocdm.cc',
@@ -88,6 +88,8 @@
         '<(DEPTH)/starboard/shared/posix/file_seek.cc',
         '<(DEPTH)/starboard/shared/posix/file_truncate.cc',
         '<(DEPTH)/starboard/shared/posix/file_write.cc',
+        '<(DEPTH)/starboard/shared/posix/file_atomic_replace.cc',
+        '<(DEPTH)/starboard/shared/starboard/file_atomic_replace_write_file.cc',
     ],
 
     'log_sources': [
@@ -106,11 +108,14 @@
     ],
 
     'media_sources': [
+        '<(DEPTH)/starboard/shared/starboard/media/avc_util.cc',
         '<(DEPTH)/starboard/shared/starboard/media/codec_util.cc',
         '<(DEPTH)/starboard/shared/starboard/media/media_can_play_mime_and_key_system.cc',
-        '<(DEPTH)/starboard/shared/starboard/media/media_set_output_protection.cc',
         '<(DEPTH)/starboard/shared/starboard/media/media_util.cc',
         '<(DEPTH)/starboard/shared/starboard/media/mime_type.cc',
+        '<(DEPTH)/starboard/shared/starboard/media/video_capabilities.cc',
+        '<(DEPTH)/starboard/shared/starboard/media/vp9_util.cc',
+        '<(DEPTH)/starboard/shared/stub/media_set_output_protection.cc',
         '<(DEPTH)/starboard/shared/stub/media_set_audio_write_duration.cc',
         '<(DEPTH)/starboard/shared/stub/decode_target_get_info.cc',
         '<(DEPTH)/starboard/shared/stub/decode_target_release.cc',
@@ -133,6 +138,14 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/media/media_is_supported.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/media/media_is_transfer_characteristics_supported.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/media/media_is_video_supported.cc',
+
+        '<(DEPTH)/starboard/shared/stub/microphone_close.cc',
+        '<(DEPTH)/starboard/shared/stub/microphone_create.cc',
+        '<(DEPTH)/starboard/shared/stub/microphone_destroy.cc',
+        '<(DEPTH)/starboard/shared/stub/microphone_get_available.cc',
+        '<(DEPTH)/starboard/shared/stub/microphone_is_sample_rate_supported.cc',
+        '<(DEPTH)/starboard/shared/stub/microphone_open.cc',
+        '<(DEPTH)/starboard/shared/stub/microphone_read.cc',
     ],
 
     'memory_sources': [
@@ -159,6 +172,7 @@
         '<(DEPTH)/starboard/shared/posix/memory_allocate_aligned_unchecked.cc',
         '<(DEPTH)/starboard/shared/posix/memory_flush.cc',
         '<(DEPTH)/starboard/shared/posix/memory_free_aligned.cc',
+        '<(DEPTH)/starboard/shared/starboard/memory.cc',
     ],
 
     'player_sources': [
@@ -175,6 +189,7 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/player/player_set_volume.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/player/player_write_end_of_stream.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/player/player_write_sample.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/player/player_get_preferred_output_mode.cc',
     ],
 
     'socket_sources': [
@@ -216,6 +231,7 @@
         '<(DEPTH)/starboard/shared/libevent/socket_waiter_wait.cc',
         '<(DEPTH)/starboard/shared/libevent/socket_waiter_wait_timed.cc',
         '<(DEPTH)/starboard/shared/libevent/socket_waiter_wake_up.cc',
+        '<(DEPTH)/starboard/shared/posix/socket_is_ipv6_supported.cc',
     ],
 
     'storage_sources': [
@@ -326,7 +342,7 @@
         '<(DEPTH)/starboard/shared/posix/time_get_now.cc',
         '<(DEPTH)/starboard/shared/posix/time_zone_get_current.cc',
         '<(DEPTH)/starboard/shared/posix/time_zone_get_name.cc',
-
+        '<(DEPTH)/starboard/shared/posix/time_is_time_thread_now_supported.cc',
     ],
 
     'threading_sources': [
@@ -370,6 +386,7 @@
         '<(DEPTH)/starboard/shared/pthread/thread_types_public.h',
         '<(DEPTH)/starboard/shared/pthread/thread_yield.cc',
         '<(DEPTH)/starboard/shared/pthread/thread_context_internal.cc',
+        '<(DEPTH)/starboard/shared/stub/thread_create_priority.cc',
     ],
 
     'window_sources': [
@@ -377,6 +394,16 @@
         '<(DEPTH)/starboard/shared/stub/window_get_diagonal_size_in_inches.cc',
         '<(DEPTH)/starboard/shared/stub/window_on_screen_keyboard_suggestions_supported.cc',
         '<(DEPTH)/starboard/shared/stub/window_update_on_screen_keyboard_suggestions.cc',
+        '<(DEPTH)/starboard/shared/stub/window_blur_on_screen_keyboard.cc',
+        '<(DEPTH)/starboard/shared/stub/window_hide_on_screen_keyboard.cc',
+        '<(DEPTH)/starboard/shared/stub/window_is_on_screen_keyboard_shown.cc',
+        '<(DEPTH)/starboard/shared/stub/window_on_screen_keyboard_is_supported.cc',
+        '<(DEPTH)/starboard/shared/stub/window_on_screen_keyboard_suggestions_supported.cc',
+        '<(DEPTH)/starboard/shared/stub/window_set_on_screen_keyboard_keep_focus.cc',
+        '<(DEPTH)/starboard/shared/stub/window_show_on_screen_keyboard.cc',
+        '<(DEPTH)/starboard/shared/stub/window_update_on_screen_keyboard_suggestions.cc',
+        '<(DEPTH)/starboard/shared/stub/window_focus_on_screen_keyboard.cc',
+        '<(DEPTH)/starboard/shared/stub/window_get_on_screen_keyboard_bounding_rect.cc',
 
         # SB
         '<(DEPTH)/starboard/shared/starboard/window_set_default_options.cc',
@@ -440,13 +467,26 @@
         '<(DEPTH)/starboard/shared/nouser/user_get_property.cc',
         '<(DEPTH)/starboard/shared/nouser/user_get_signed_in.cc',
         '<(DEPTH)/starboard/shared/nouser/user_internal.cc',
-        '<(DEPTH)/third_party/starboard/rdk/shared/system_services.cc',
+        '<(DEPTH)/starboard/shared/stub/accessibility_get_caption_settings.cc',
+        '<(DEPTH)/starboard/shared/stub/accessibility_get_display_settings.cc',
+        '<(DEPTH)/starboard/shared/stub/accessibility_get_text_to_speech_settings.cc',
+        '<(DEPTH)/starboard/shared/stub/accessibility_set_captions_enabled.cc',
+        '<(DEPTH)/starboard/shared/stub/speech_recognizer_cancel.cc',
+        '<(DEPTH)/starboard/shared/stub/speech_recognizer_create.cc',
+        '<(DEPTH)/starboard/shared/stub/speech_recognizer_destroy.cc',
+        '<(DEPTH)/starboard/shared/stub/speech_recognizer_is_supported.cc',
+        '<(DEPTH)/starboard/shared/stub/speech_recognizer_start.cc',
+        '<(DEPTH)/starboard/shared/stub/speech_recognizer_stop.cc',
+        '<(DEPTH)/starboard/shared/stub/speech_synthesis_cancel.cc',
+        '<(DEPTH)/starboard/shared/stub/speech_synthesis_is_supported.cc',
+        '<(DEPTH)/starboard/shared/stub/speech_synthesis_speak.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/rdkservices.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/ess_input.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/application_rdk.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/get_home_directory.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/main_rdk.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/libcobalt.h',
-        '<(DEPTH)/third_party/starboard/rdk/shared/libcobalt.cpp',
+        '<(DEPTH)/third_party/starboard/rdk/shared/libcobalt.cc',
     ],
     'conditions': [
       ['<(has_ocdm)==1', {

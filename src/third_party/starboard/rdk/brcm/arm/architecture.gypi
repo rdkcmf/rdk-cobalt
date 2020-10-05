@@ -30,19 +30,6 @@
 # limitations under the License.
 
 {
-  'variables': {
-    'arm_version': 7,
-    'armv7': 1,
-    'arm_neon': 1,
-    'arch_64bit': 'n',
-    'arm_float_abi': 'hard',
-    'arm_fpu': 'default',
-    'arm_thumb': 'default',
-
-    'compiler_flags': [
-      '-fvisibility=hidden',
-    ],
-  },
   'target_defaults': {
     'target_conditions': [
       ['_toolset=="target"', {

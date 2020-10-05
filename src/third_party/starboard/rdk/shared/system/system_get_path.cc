@@ -24,6 +24,7 @@
 #include <string>
 #include <sstream>
 
+#include "starboard/configuration_constants.h"
 #include "starboard/common/log.h"
 #include "starboard/common/string.h"
 #include "starboard/directory.h"
@@ -31,7 +32,6 @@
 #include "starboard/user.h"
 
 namespace {
-const int kMaxPathSize = SB_FILE_MAX_PATH;
 
 bool GetContentDirectory(char* out_path, int path_size)
 {
@@ -55,9 +55,9 @@ bool GetContentDirectory(char* out_path, int path_size)
 
 // Gets the path to the cache directory, using the user's home directory.
 bool GetCacheDirectory(char* out_path, int path_size) {
-  char home_path[kMaxPathSize + 1];
+  char home_path[kSbFileMaxPath + 1];
   if (!SbUserGetProperty(SbUserGetCurrent(), kSbUserPropertyHomeDirectory,
-                         home_path, kMaxPathSize)) {
+                         home_path, kSbFileMaxPath)) {
     return false;
   }
   int result = SbStringFormatF(out_path, path_size, "%s/.cache", home_path);
@@ -77,8 +77,8 @@ bool GetExecutablePath(char* out_path, int path_size) {
     return false;
   }
 
-  char path[kMaxPathSize + 1];
-  ssize_t bytes_read = readlink("/proc/self/exe", path, kMaxPathSize);
+  char path[kSbFileMaxPath + 1];
+  ssize_t bytes_read = readlink("/proc/self/exe", path, kSbFileMaxPath);
   if (bytes_read < 1) {
     return false;
   }
@@ -114,8 +114,8 @@ bool GetExecutableDirectory(char* out_path, int path_size) {
 
 // Gets only the name portion of the current executable.
 bool GetExecutableName(char* out_path, int path_size) {
-  char path[kMaxPathSize] = {0};
-  if (!GetExecutablePath(path, kMaxPathSize)) {
+  char path[kSbFileMaxPath] = {0};
+  if (!GetExecutablePath(path, kSbFileMaxPath)) {
     return false;
   }
 
@@ -134,8 +134,8 @@ bool GetTemporaryDirectory(char* out_path, int path_size) {
     return true;
   }
 
-  char binary_name[kMaxPathSize] = {0};
-  if (!GetExecutableName(binary_name, kMaxPathSize)) {
+  char binary_name[kSbFileMaxPath] = {0};
+  if (!GetExecutableName(binary_name, kSbFileMaxPath)) {
     return false;
   }
 
@@ -155,22 +155,21 @@ bool SbSystemGetPath(SbSystemPathId path_id, char* out_path, int path_size) {
     return false;
   }
 
-  const int kPathSize = SB_FILE_MAX_PATH;
-  char path[kPathSize];
+  char path[kSbFileMaxPath];
   path[0] = '\0';
 
   switch (path_id) {
     case kSbSystemPathContentDirectory:
-      if (!GetContentDirectory(path, kPathSize)){
+      if (!GetContentDirectory(path, kSbFileMaxPath)){
         return false;
       }
       break;
 
     case kSbSystemPathCacheDirectory:
-      if (!GetCacheDirectory(path, kPathSize)) {
+      if (!GetCacheDirectory(path, kSbFileMaxPath)) {
         return false;
       }
-      if (SbStringConcat(path, "/cobalt", kPathSize) >= kPathSize) {
+      if (SbStringConcat(path, "/cobalt", kSbFileMaxPath) >= kSbFileMaxPath) {
         return false;
       }
       if (!SbDirectoryCreate(path)) {
@@ -179,17 +178,17 @@ bool SbSystemGetPath(SbSystemPathId path_id, char* out_path, int path_size) {
       break;
 
     case kSbSystemPathDebugOutputDirectory:
-      if (!SbSystemGetPath(kSbSystemPathTempDirectory, path, kPathSize)) {
+      if (!SbSystemGetPath(kSbSystemPathTempDirectory, path, kSbFileMaxPath)) {
         return false;
       }
-      if (SbStringConcat(path, "/log", kPathSize) >= kPathSize) {
+      if (SbStringConcat(path, "/log", kSbFileMaxPath) >= kSbFileMaxPath) {
         return false;
       }
       SbDirectoryCreate(path);
       break;
 
     case kSbSystemPathTempDirectory:
-      if (!GetTemporaryDirectory(path, kPathSize)) {
+      if (!GetTemporaryDirectory(path, kSbFileMaxPath)) {
         return false;
       }
       SbDirectoryCreate(path);

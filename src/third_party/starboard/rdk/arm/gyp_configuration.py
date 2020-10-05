@@ -35,15 +35,17 @@ import os
 from starboard.build import clang
 from starboard.build import platform_configuration
 from starboard.tools import build
-from starboard.tools.testing import test_filter
 
 class RDKPlatformConfig(platform_configuration.PlatformConfiguration):
   """Starboard RDK Linux platform configuration."""
 
   def __init__(self, platform):
     super(RDKPlatformConfig, self).__init__(platform)
-    self.AppendApplicationConfigurationPath(os.path.dirname(__file__))
+
+    self.has_ocdm = os.environ.get('COBALT_HAS_OCDM', '0')
+    self.sabi_json_path = 'starboard/sabi/arm/%s/sabi-v12.json' % (os.environ.get('COBALT_ARM_CALLCONVENTION', 'hardfp'))
     self.sysroot = os.path.realpath(os.environ.get('PKG_CONFIG_SYSROOT_DIR', '/'))
+    self.AppendApplicationConfigurationPath(os.path.dirname(__file__))
 
   def GetBuildFormat(self):
     """Returns the desired build format."""
@@ -57,11 +59,11 @@ class RDKPlatformConfig(platform_configuration.PlatformConfiguration):
     variables.update({
         'clang': 0,
         'sysroot': self.sysroot,
+        'has_ocdm': self.has_ocdm,
     })
     variables.update({
         'cobalt_font_package': 'limited',
         'javascript_engine': 'v8',
-        'cobalt_enable_jit': 1,
     })
     return variables
 
@@ -86,6 +88,9 @@ class RDKPlatformConfig(platform_configuration.PlatformConfiguration):
         'qtcreator_session_name_prefix': 'cobalt',
     }
     return generator_variables
+
+  def GetPathToSabiJsonFile(self):
+    return self.sabi_json_path
 
 def CreatePlatformConfig():
   return RDKPlatformConfig('rdk-arm')

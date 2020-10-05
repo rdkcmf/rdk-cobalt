@@ -22,6 +22,8 @@
 #include <gst/gst.h>
 #include <gst/pbutils/pbutils.h>
 
+#include "starboard/configuration.h"
+#include "starboard/configuration_constants.h"
 #include "starboard/common/log.h"
 #include "third_party/starboard/rdk/shared/media/gst_media_utils.h"
 
@@ -130,10 +132,8 @@ bool GstRegistryHasElementForCodec(C codec) {
 }  // namespace
 
 bool GstRegistryHasElementForMediaType(SbMediaVideoCodec codec) {
-#if !SB_HAS(MEDIA_WEBM_VP9_SUPPORT)
-  if (kSbMediaVideoCodecVp9 == codec)
+  if (kSbMediaVideoCodecVp9 == codec && !kSbHasMediaWebmVp9Support)
     return false;
-#endif
   return GstRegistryHasElementForCodec(codec);
 }
 
@@ -151,9 +151,7 @@ std::vector<std::string> CodecToGstCaps(SbMediaVideoCodec codec) {
       return {{"video/x-h264, stream-format=byte-stream, alignment=nal"}};
 
     case kSbMediaVideoCodecH265:
-      return {
-          {"video/x-h265"},
-      };
+      return {{"video/x-h265"}};
 
     case kSbMediaVideoCodecMpeg2:
       return {{"video/mpeg, mpegversion=(int) 2"}};
@@ -164,13 +162,8 @@ std::vector<std::string> CodecToGstCaps(SbMediaVideoCodec codec) {
     case kSbMediaVideoCodecVc1:
       return {{"video/x-vc1"}};
 
-#if SB_API_VERSION < 11
-    case kSbMediaVideoCodecVp10:
-      return {{"video/x-vp10"}};
-#else   // SB_API_VERSION < 11
     case kSbMediaVideoCodecAv1:
       return {};
-#endif  // SB_API_VERSION < 11
 
     case kSbMediaVideoCodecVp8:
       return {{"video/x-vp8"}};
@@ -198,11 +191,10 @@ std::vector<std::string> CodecToGstCaps(SbMediaAudioCodec codec,
       return {{primary_caps}, {"audio/aac"}};
     }
 
-#if SB_HAS(AC3_AUDIO)
     case kSbMediaAudioCodecAc3:
     case kSbMediaAudioCodecEac3:
       return {{"audio/x-eac3"}};
-#endif  // SB_HAS(AC3_AUDIO)
+
     case kSbMediaAudioCodecOpus: {
       std::string primary_caps = "audio/x-opus, channel-mapping-family=0";
       if (info && info->audio_specific_config_size >= 19) {

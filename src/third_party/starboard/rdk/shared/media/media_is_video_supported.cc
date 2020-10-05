@@ -30,6 +30,7 @@
 // limitations under the License.
 
 #include "starboard/configuration.h"
+#include "starboard/configuration_constants.h"
 #include "starboard/common/log.h"
 #include "starboard/media.h"
 #include "starboard/shared/starboard/media/media_support_internal.h"
@@ -41,23 +42,18 @@ using starboard::shared::starboard::media::IsSDRVideo;
 using third_party::starboard::rdk::shared::Application;
 
 SB_EXPORT bool SbMediaIsVideoSupported(SbMediaVideoCodec video_codec,
-#if SB_HAS(MEDIA_IS_VIDEO_SUPPORTED_REFINEMENT)
+                                       const char* content_type,
                                        int /*profile*/,
                                        int /*level*/,
                                        int bit_depth,
                                        SbMediaPrimaryId primary_id,
                                        SbMediaTransferId transfer_id,
                                        SbMediaMatrixId matrix_id,
-#endif  // SB_HAS(MEDIA_IS_VIDEO_SUPPORTED_REFINEMENT)
                                        int frame_width,
                                        int frame_height,
                                        int64_t bitrate,
-                                       int fps
-#if SB_API_VERSION >= 10
-                                       ,
-                                       bool decode_to_texture_required
-#endif  // SB_API_VERSION >= 10
-) {
+                                       int fps,
+                                       bool decode_to_texture_required) {
   if (decode_to_texture_required) {
     SB_LOG(WARNING) << "Decoding to texture required with " << frame_width << "x"
                     << frame_height;
@@ -69,17 +65,12 @@ SB_EXPORT bool SbMediaIsVideoSupported(SbMediaVideoCodec video_codec,
     return false;
   }
 
-#if SB_HAS(MEDIA_IS_VIDEO_SUPPORTED_REFINEMENT)
   if (!IsSDRVideo(bit_depth, primary_id, transfer_id, matrix_id)) {
     if (!Application::Get()->DisplayHasHDRSupport())
       return false;
   }
-#endif  // SB_HAS(MEDIA_IS_VIDEO_SUPPORTED_REFINEMENT)
 
-  return frame_width <= SB_MEDIA_MAX_VIDEO_FRAME_WIDTH &&
-         frame_height <= SB_MEDIA_MAX_VIDEO_FRAME_HEIGHT &&
-         bitrate <= SB_MEDIA_MAX_VIDEO_BITRATE_IN_BITS_PER_SECOND &&
-         fps <= SB_MEDIA_MAX_VIDEO_FRAMERATE_IN_FRAMES_PER_SECOND &&
+  return bitrate <= kSbMediaMaxVideoBitrateInBitsPerSecond && fps <= 60 &&
          third_party::starboard::rdk::shared::media::
              GstRegistryHasElementForMediaType(video_codec);
 }

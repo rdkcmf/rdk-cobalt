@@ -769,10 +769,8 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
              SbMediaVideoCodec video_codec,
              SbMediaAudioCodec audio_codec,
              SbDrmSystem drm_system,
-             const SbMediaAudioSampleInfo* audio_sample_info,
-#if SB_API_VERSION >= 11
+             const SbMediaAudioSampleInfo& audio_sample_info,
              const char* max_video_capabilities,
-#endif  // SB_API_VERSION >= 11
              SbPlayerDeallocateSampleFunc sample_deallocate_func,
              SbPlayerDecoderStatusFunc decoder_status_func,
              SbPlayerStatusFunc player_status_func,
@@ -963,10 +961,8 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   SbMediaVideoCodec video_codec_;
   SbMediaAudioCodec audio_codec_;
   DrmSystemOcdm* drm_system_;
-  const SbMediaAudioSampleInfo* audio_sample_info_;
-#if SB_API_VERSION >= 11
+  const SbMediaAudioSampleInfo audio_sample_info_;
   const char* max_video_capabilities_;
-#endif  // SB_API_VERSION >= 11
   SbPlayerDeallocateSampleFunc sample_deallocate_func_;
   SbPlayerDecoderStatusFunc decoder_status_func_;
   SbPlayerStatusFunc player_status_func_;
@@ -1013,10 +1009,8 @@ PlayerImpl::PlayerImpl(SbPlayer player,
                        SbMediaVideoCodec video_codec,
                        SbMediaAudioCodec audio_codec,
                        SbDrmSystem drm_system,
-                       const SbMediaAudioSampleInfo* audio_sample_info,
-#if SB_API_VERSION >= 11
+                       const SbMediaAudioSampleInfo& audio_sample_info,
                        const char* max_video_capabilities,
-#endif  // SB_API_VERSION >= 11
                        SbPlayerDeallocateSampleFunc sample_deallocate_func,
                        SbPlayerDecoderStatusFunc decoder_status_func,
                        SbPlayerStatusFunc player_status_func,
@@ -1030,9 +1024,7 @@ PlayerImpl::PlayerImpl(SbPlayer player,
       audio_codec_(audio_codec),
       drm_system_(reinterpret_cast<DrmSystemOcdm*>(drm_system)),
       audio_sample_info_(audio_sample_info),
-#if SB_API_VERSION >= 11
       max_video_capabilities_(max_video_capabilities),
-#endif  // SB_API_VERSION >= 11
       sample_deallocate_func_(sample_deallocate_func),
       decoder_status_func_(decoder_status_func),
       player_status_func_(player_status_func),
@@ -1044,10 +1036,8 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   GST_DEBUG_CATEGORY_INIT(cobalt_gst_player_debug, "gstplayer", 0,
                           "Cobalt player");
 
-#if SB_API_VERSION >= 11
   GST_INFO("Creating player with max capabilities: %s",
            max_video_capabilities_);
-#endif
 
   GstElementFactory* src_factory = gst_element_factory_find("cobaltsrc");
   if (!src_factory) {
@@ -1114,10 +1104,12 @@ PlayerImpl::~PlayerImpl() {
   GstBus* bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline_));
   gst_bus_set_sync_handler(bus, nullptr, nullptr, nullptr);
   gst_object_unref(bus);
+  #if SB_API_VERSION < 12
   DispatchOnWorkerThread(
       new DecoderStatusTask(decoder_status_func_, player_, ticket_, context_,
                             kSbPlayerDecoderStateDestroyed,
                             GetBothMediaTypeTakingCodecsIntoAccount()));
+  #endif
   DispatchOnWorkerThread(new PlayerDestroyedTask(
       player_status_func_, player_, ticket_, context_, main_loop_));
   SbThreadJoin(playback_thread_, nullptr);
@@ -1352,7 +1344,7 @@ gboolean PlayerImpl::FinishSourceSetup(gpointer user_data) {
   GstAppSrcCallbacks callbacks = {&PlayerImpl::AppSrcNeedData,
                                   &PlayerImpl::AppSrcEnoughData,
                                   &PlayerImpl::AppSrcSeekData, nullptr};
-  auto caps = CodecToGstCaps(self->audio_codec_, self->audio_sample_info_);
+  auto caps = CodecToGstCaps(self->audio_codec_, &self->audio_sample_info_);
   if (self->audio_codec_ != kSbMediaAudioCodecNone) {
     gst_cobalt_src_setup_and_add_app_src(
         source, self->audio_appsrc_, !caps.empty() ? caps[0].c_str() : nullptr,
@@ -1871,63 +1863,6 @@ void PlayerImpl::GetInfo(SbPlayerInfo2* out_player_info) {
     out_player_info->dropped_video_frames = dropped_video_frames_;
   }
 
-#if 0
-  GstElement* vid_sink = nullptr;
-  g_object_get(pipeline_, "video-sink", &vid_sink, nullptr);
-
-  if (vid_sink && g_object_class_find_property(G_OBJECT_GET_CLASS(vid_sink),
-                                               "frames-dropped")) {
-    GST_TRACE("Getting dropped frames count from the sink");
-    guint64 frames_dropped = 0;
-    g_object_get(vid_sink, "frames-dropped", &frames_dropped, nullptr);
-    out_player_info->dropped_video_frames = static_cast<int>(frames_dropped);
-  } else {
-    out_player_info->dropped_video_frames = 0;
-  }
-
-  if (vid_sink && g_object_class_find_property(G_OBJECT_GET_CLASS(vid_sink),
-                                               "frames-corrupted")) {
-    GST_TRACE("Getting corrupted frames count from the sink");
-    guint64 frames_corrupted = 0;
-    g_object_get(vid_sink, "frames-corrupted", &frames_corrupted, nullptr);
-    out_player_info->corrupted_video_frames =
-        static_cast<int>(frames_corrupted);
-  } else {
-    out_player_info->corrupted_video_frames = 0;
-  }
-
-  if (vid_sink &&
-      (out_player_info->dropped_video_frames == 0 ||
-       out_player_info->corrupted_video_frames == 0)) {
-    GstPad* pad = gst_element_get_static_pad(vid_sink, "sink");
-    if (pad) {
-      GstStructure *structure =
-        gst_structure_new("get_video_playback_quality",
-                          "total", G_TYPE_UINT, 0,
-                          "dropped", G_TYPE_UINT, 0,
-                          "corrupted", G_TYPE_UINT, 0,
-                          nullptr);
-      GstQuery *query = gst_query_new_custom(GST_QUERY_CUSTOM, structure);
-      if (gst_pad_query(pad, query)) {
-        guint dropped = 0;
-        guint corrupted = 0;
-        structure = (GstStructure *)gst_query_get_structure(query);
-        if (!gst_structure_get_uint(structure, "dropped", &dropped))
-           dropped = 0;
-        if (!gst_structure_get_uint(structure, "corrupted", &corrupted))
-          corrupted = 0;
-        out_player_info->dropped_video_frames = dropped;
-        out_player_info->corrupted_video_frames = corrupted;
-      }
-      gst_query_unref(query);
-      gst_object_unref(GST_OBJECT(pad));
-    }
-  }
-
-  if (vid_sink)
-    gst_object_unref(GST_OBJECT(vid_sink));
-#endif
-
   GST_LOG("Frames dropped: %d, Frames corrupted: %d",
           out_player_info->dropped_video_frames,
           out_player_info->corrupted_video_frames);
@@ -2167,10 +2102,8 @@ SbPlayerPrivate::SbPlayerPrivate(
     SbMediaVideoCodec video_codec,
     SbMediaAudioCodec audio_codec,
     SbDrmSystem drm_system,
-    const SbMediaAudioSampleInfo* audio_sample_info,
-#if SB_API_VERSION >= 11
+    const SbMediaAudioSampleInfo& audio_sample_info,
     const char* max_video_capabilities,
-#endif  // SB_API_VERSION >= 11
     SbPlayerDeallocateSampleFunc sample_deallocate_func,
     SbPlayerDecoderStatusFunc decoder_status_func,
     SbPlayerStatusFunc player_status_func,
@@ -2184,9 +2117,7 @@ SbPlayerPrivate::SbPlayerPrivate(
                              audio_codec,
                              drm_system,
                              audio_sample_info,
-#if SB_API_VERSION >= 11
                              max_video_capabilities,
-#endif  // SB_API_VERSION >= 11
                              sample_deallocate_func,
                              decoder_status_func,
                              player_status_func,
