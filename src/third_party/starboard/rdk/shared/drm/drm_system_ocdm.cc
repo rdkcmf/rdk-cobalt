@@ -605,6 +605,10 @@ bool DrmSystemOcdm::Decrypt(const std::string& id,
                                            key, 0) == ERROR_NONE;
 }
 
+const void* DrmSystemOcdm::GetMetrics(int* size) {
+    return nullptr;
+}
+
 }  // namespace drm
 }  // namespace shared
 }  // namespace rdk
@@ -725,6 +729,10 @@ bool DrmSystemOcdm::Decrypt(const std::string& id,
                             _GstBuffer* iv,
                             _GstBuffer* key) {
   return false;
+}
+
+const void* DrmSystemOcdm::GetMetrics(int* size) {
+    return nullptr;
 }
 
 }  // namespace drm

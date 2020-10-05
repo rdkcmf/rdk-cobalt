@@ -34,14 +34,11 @@
 #include <string>
 #include <algorithm>
 
-#if SB_API_VERSION >= 11
-#include "starboard/format_string.h"
-#endif  // SB_API_VERSION >= 11
 #include "starboard/common/log.h"
 #include "starboard/common/string.h"
 #include "starboard/character.h"
 
-#include "third_party/starboard/rdk/shared/system_services.h"
+#include "third_party/starboard/rdk/shared/rdkservices.h"
 
 namespace {
 
@@ -128,24 +125,6 @@ bool GetOperatorName(char* out_value, int value_length) {
   return CopyStringAndTestIfSuccess(out_value, value_length, SB_PLATFORM_OPERATOR_NAME);
 }
 
-bool GetManufacturerName(char* out_value, int value_length) {
-  const char* env = std::getenv("COBALT_MANUFACTURE_NAME");
-  if (env && CopyStringAndTestIfSuccess(out_value, value_length, env))
-    return true;
-
-  const char kPrefixStr[] = "MANUFACTURE=";
-  const size_t kPrefixStrLength = SB_ARRAY_SIZE(kPrefixStr) - 1;
-  if (TryReadFromPropertiesFile(kPrefixStr, kPrefixStrLength, out_value, value_length))
-    return true;
-
-#if defined(SB_PLATFORM_MANUFACTURER_NAME)
-  return CopyStringAndTestIfSuccess(out_value, value_length,
-                                    SB_PLATFORM_MANUFACTURER_NAME);
-#else
-  return false;
-#endif  // defined(SB_PLATFORM_MANUFACTURER_NAME)
-}
-
 bool GetChipsetModelNumber(char* out_value, int value_length) {
   std::string chipset =
     third_party::starboard::rdk::shared::DeviceIdentification{}.GetChipset();
@@ -188,8 +167,8 @@ bool SbSystemGetProperty(SbSystemPropertyId property_id,
           std::to_string(SB_PLATFORM_MODEL_YEAR).c_str());
 #endif  // defined(SB_PLATFORM_MODEL_YEAR)
 
-    case kSbSystemPropertyOriginalDesignManufacturerName:
-      return GetManufacturerName(out_value, value_length);
+    case kSbSystemPropertySystemIntegratorName:
+      return false;
 
     case kSbSystemPropertySpeechApiKey:
       return false;

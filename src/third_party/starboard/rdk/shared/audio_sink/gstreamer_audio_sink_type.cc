@@ -75,7 +75,8 @@ class GStreamerAudioSink : public SbAudioSinkPrivate {
       SbAudioSinkFrameBuffers frame_buffers,
       int frame_buffers_size_in_frames,
       SbAudioSinkUpdateSourceStatusFunc update_source_status_func,
-      SbAudioSinkConsumeFramesFunc consume_frames_func,
+      SbAudioSinkPrivate::ConsumeFramesFunc consume_frames_func,
+      SbAudioSinkPrivate::ErrorFunc error_func,
       void* context);
   ~GStreamerAudioSink() override;
 
@@ -112,7 +113,8 @@ class GStreamerAudioSink : public SbAudioSinkPrivate {
   int sampling_frequency_hz_{0};
   SbMediaAudioSampleType audio_sample_type_{kSbMediaAudioSampleTypeInt16};
   SbAudioSinkUpdateSourceStatusFunc update_source_status_func_{nullptr};
-  SbAudioSinkConsumeFramesFunc consume_frame_func_{nullptr};
+  SbAudioSinkPrivate::ConsumeFramesFunc consume_frame_func_{nullptr};
+  SbAudioSinkPrivate::ErrorFunc error_func_{nullptr};
   SbAudioSinkFrameBuffers frame_buffers_{nullptr};
   int frame_buffers_size_in_frames_{0};
   SbThread audio_loop_thread_{kSbThreadInvalid};
@@ -123,6 +125,7 @@ class GStreamerAudioSink : public SbAudioSinkPrivate {
   GstElement* queue_{nullptr};
   GstElement* audiosink_{nullptr};
   GMainLoop* mainloop_{nullptr};
+  GMainContext* main_loop_context_{nullptr};
   guint source_id_{0};
   bool destroying_{false};
   bool enough_data_{false};
@@ -139,7 +142,8 @@ GStreamerAudioSink::GStreamerAudioSink(
     SbAudioSinkFrameBuffers frame_buffers,
     int frame_buffers_size_in_frames,
     SbAudioSinkUpdateSourceStatusFunc update_source_status_func,
-    SbAudioSinkConsumeFramesFunc consume_frame_func,
+    SbAudioSinkPrivate::ConsumeFramesFunc consume_frame_func,
+    SbAudioSinkPrivate::ErrorFunc error_func,
     void* context)
     : type_(type),
       channels_(channels),
@@ -147,6 +151,7 @@ GStreamerAudioSink::GStreamerAudioSink(
       audio_sample_type_(audio_sample_type),
       update_source_status_func_(update_source_status_func),
       consume_frame_func_(consume_frame_func),
+      error_func_(error_func),
       frame_buffers_(frame_buffers),
       frame_buffers_size_in_frames_(frame_buffers_size_in_frames),
       context_(context) {
@@ -158,6 +163,10 @@ GStreamerAudioSink::GStreamerAudioSink(
   SB_DCHECK(audio_frame_storage_type == kSbMediaAudioFrameStorageTypeInterleaved)
       << "It seems SbAudioSinkIsAudioFrameStorageTypeSupported() was changed "
       << "without adjustng here.";
+
+  main_loop_context_ = g_main_context_new();
+  mainloop_ = g_main_loop_new(main_loop_context_, FALSE);
+  g_main_context_push_thread_default(main_loop_context_);
 
   const char* format =
       audio_sample_type == kSbMediaAudioSampleTypeFloat32 ? "F32LE" : "S16LE";
@@ -187,7 +196,6 @@ GStreamerAudioSink::GStreamerAudioSink(
   source_id_ =
       gst_bus_add_watch(bus, &GStreamerAudioSink::BusMessageCallback, this);
   gst_object_unref(bus);
-  mainloop_ = g_main_loop_new(NULL, FALSE);
 
   GstElement* convert = gst_element_factory_make("audioconvert", nullptr);
   GstElement* resample = gst_element_factory_make("audioresample", nullptr);
@@ -202,6 +210,8 @@ GStreamerAudioSink::GStreamerAudioSink(
 
   gst_element_set_state(pipeline_, GST_STATE_PLAYING);
 
+  g_main_context_pop_thread_default(main_loop_context_);
+
   audio_loop_thread_ = SbThreadCreate(
       0, kSbThreadPriorityRealTime, kSbThreadNoAffinity, true, "audio_loop",
       &GStreamerAudioSink::AudioThreadEntryPoint, this);
@@ -211,19 +221,35 @@ GStreamerAudioSink::GStreamerAudioSink(
 GStreamerAudioSink::~GStreamerAudioSink() {
   GST_TRACE_OBJECT(pipeline_, "TID: %d", SbThreadGetId());
 
+  GSource* timeout_src = g_timeout_source_new_seconds(1);
+  g_source_set_callback(timeout_src, [](gpointer data) -> gboolean {
+    g_main_loop_quit((GMainLoop*)data);
+    return G_SOURCE_REMOVE;
+  }, mainloop_, nullptr);
+  g_source_attach(timeout_src, main_loop_context_);
+  g_source_unref(timeout_src);
+
   {
     ::starboard::ScopedLock lock(mutex_);
     destroying_ = true;
+    // this will wake up apprsc if it is waiting for data
+    gst_app_src_set_max_bytes(GST_APP_SRC(appsrc_), 1);
   }
-  SbThreadJoin(audio_loop_thread_, nullptr);
+
+  bool rc = SbThreadJoin(audio_loop_thread_, nullptr);
+  SB_DCHECK(rc);
 
   gst_element_set_state(pipeline_, GST_STATE_NULL);
-  g_source_remove(source_id_);
+  if (source_id_ > -1) {
+    GSource* src = g_main_context_find_source_by_id(main_loop_context_, source_id_);
+    g_source_destroy(src);
+  }
   GstBus* bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline_));
   gst_bus_set_sync_handler(bus, nullptr, nullptr, nullptr);
   gst_object_unref(bus);
   g_main_loop_unref(mainloop_);
   gst_object_unref(pipeline_);
+  g_main_context_unref(main_loop_context_);
 }
 
 // static
@@ -232,6 +258,7 @@ void* GStreamerAudioSink::AudioThreadEntryPoint(void* context) {
 
   GStreamerAudioSink* sink = reinterpret_cast<GStreamerAudioSink*>(context);
   GST_TRACE_OBJECT(sink->pipeline_, "TID: %d", SbThreadGetId());
+  g_main_context_push_thread_default(sink->main_loop_context_);
   g_main_loop_run(sink->mainloop_);
 
   return nullptr;
@@ -374,9 +401,7 @@ void GStreamerAudioSink::AppSrcNeedData(GstAppSrc* src,
                            frames_to_write, sink->total_frames_,
                            sink->total_frames_ * sink->GetBytesPerFrame());
           sink->consume_frame_func_(frames_to_write,
-#if SB_HAS(ASYNC_AUDIO_FRAMES_REPORTING)
                                     SbTimeGetMonotonicNow(),
-#endif  // SB_HAS(ASYNC_AUDIO_FRAMES_REPORTING)
                                     sink->context_);
 
 #if defined(DUMP_PCM_TO_FILE)
@@ -448,12 +473,13 @@ SbAudioSink GStreamerAudioSinkType::Create(
     SbAudioSinkFrameBuffers frame_buffers,
     int frame_buffers_size_in_frames,
     SbAudioSinkUpdateSourceStatusFunc update_source_status_func,
-    SbAudioSinkConsumeFramesFunc consume_frames_func,
+    SbAudioSinkPrivate::ConsumeFramesFunc consume_frames_func,
+    SbAudioSinkPrivate::ErrorFunc error_func,
     void* context) {
   return new GStreamerAudioSink(
       this, channels, sampling_frequency_hz, audio_sample_type,
       audio_frame_storage_type, frame_buffers, frame_buffers_size_in_frames,
-      update_source_status_func, consume_frames_func, context);
+      update_source_status_func, consume_frames_func, error_func, context);
 }
 
 }  // namespace audio_sink

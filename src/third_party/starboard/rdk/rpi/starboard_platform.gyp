@@ -55,6 +55,7 @@
       'target_name': 'starboard_platform',
       'type': 'static_library',
       'sources': [
+        '<(DEPTH)/third_party/starboard/rdk/rpi/configuration_constants.cc',
         '<(DEPTH)/starboard/raspi/shared/system_gles2.cc',
         '<(DEPTH)/starboard/shared/starboard/media/media_get_audio_output_count_single_audio_output.cc',
         '<(DEPTH)/starboard/shared/starboard/media/media_get_audio_configuration_stereo_only.cc',
