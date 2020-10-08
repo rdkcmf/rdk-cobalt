@@ -125,6 +125,7 @@ class GStreamerAudioSink : public SbAudioSinkPrivate {
   GstElement* queue_{nullptr};
   GstElement* audiosink_{nullptr};
   GMainLoop* mainloop_{nullptr};
+  GMainContext* main_loop_context_{nullptr};
   guint source_id_{0};
   bool destroying_{false};
   bool enough_data_{false};
@@ -163,6 +164,10 @@ GStreamerAudioSink::GStreamerAudioSink(
       << "It seems SbAudioSinkIsAudioFrameStorageTypeSupported() was changed "
       << "without adjustng here.";
 
+  main_loop_context_ = g_main_context_new();
+  mainloop_ = g_main_loop_new(main_loop_context_, FALSE);
+  g_main_context_push_thread_default(main_loop_context_);
+
   const char* format =
       audio_sample_type == kSbMediaAudioSampleTypeFloat32 ? "F32LE" : "S16LE";
   GstCaps* audio_caps = gst_caps_new_simple(
@@ -191,7 +196,6 @@ GStreamerAudioSink::GStreamerAudioSink(
   source_id_ =
       gst_bus_add_watch(bus, &GStreamerAudioSink::BusMessageCallback, this);
   gst_object_unref(bus);
-  mainloop_ = g_main_loop_new(NULL, FALSE);
 
   GstElement* convert = gst_element_factory_make("audioconvert", nullptr);
   GstElement* resample = gst_element_factory_make("audioresample", nullptr);
@@ -206,6 +210,8 @@ GStreamerAudioSink::GStreamerAudioSink(
 
   gst_element_set_state(pipeline_, GST_STATE_PLAYING);
 
+  g_main_context_pop_thread_default(main_loop_context_);
+
   audio_loop_thread_ = SbThreadCreate(
       0, kSbThreadPriorityRealTime, kSbThreadNoAffinity, true, "audio_loop",
       &GStreamerAudioSink::AudioThreadEntryPoint, this);
@@ -215,19 +221,35 @@ GStreamerAudioSink::GStreamerAudioSink(
 GStreamerAudioSink::~GStreamerAudioSink() {
   GST_TRACE_OBJECT(pipeline_, "TID: %d", SbThreadGetId());
 
+  GSource* timeout_src = g_timeout_source_new_seconds(1);
+  g_source_set_callback(timeout_src, [](gpointer data) -> gboolean {
+    g_main_loop_quit((GMainLoop*)data);
+    return G_SOURCE_REMOVE;
+  }, mainloop_, nullptr);
+  g_source_attach(timeout_src, main_loop_context_);
+  g_source_unref(timeout_src);
+
   {
     ::starboard::ScopedLock lock(mutex_);
     destroying_ = true;
+    // this will wake up apprsc if it is waiting for data
+    gst_app_src_set_max_bytes(GST_APP_SRC(appsrc_), 1);
   }
-  SbThreadJoin(audio_loop_thread_, nullptr);
+
+  bool rc = SbThreadJoin(audio_loop_thread_, nullptr);
+  SB_DCHECK(rc);
 
   gst_element_set_state(pipeline_, GST_STATE_NULL);
-  g_source_remove(source_id_);
+  if (source_id_ > -1) {
+    GSource* src = g_main_context_find_source_by_id(main_loop_context_, source_id_);
+    g_source_destroy(src);
+  }
   GstBus* bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline_));
   gst_bus_set_sync_handler(bus, nullptr, nullptr, nullptr);
   gst_object_unref(bus);
   g_main_loop_unref(mainloop_);
   gst_object_unref(pipeline_);
+  g_main_context_unref(main_loop_context_);
 }
 
 // static
@@ -236,6 +258,7 @@ void* GStreamerAudioSink::AudioThreadEntryPoint(void* context) {
 
   GStreamerAudioSink* sink = reinterpret_cast<GStreamerAudioSink*>(context);
   GST_TRACE_OBJECT(sink->pipeline_, "TID: %d", SbThreadGetId());
+  g_main_context_push_thread_default(sink->main_loop_context_);
   g_main_loop_run(sink->mainloop_);
 
   return nullptr;

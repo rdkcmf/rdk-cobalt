@@ -637,6 +637,28 @@ struct Task {
   virtual void PrintInfo() = 0;
 };
 
+static const char* PlayerStateToStr(SbPlayerState state) {
+#define CASE(x) case x: return #x
+    switch(state) {
+        CASE(kSbPlayerStateInitialized);
+        CASE(kSbPlayerStatePrerolling);
+        CASE(kSbPlayerStatePresenting);
+        CASE(kSbPlayerStateEndOfStream);
+        CASE(kSbPlayerStateDestroyed);
+    }
+#undef CASE
+    return "unknown";
+}
+
+static const char* DecoderStateToStr(SbPlayerDecoderState state) {
+#define CASE(x) case x: return #x
+    switch(state) {
+        CASE(kSbPlayerDecoderStateNeedsData);
+    }
+#undef CASE
+    return "unknown";
+}
+
 class PlayerStatusTask : public Task {
  public:
   PlayerStatusTask(SbPlayerStatusFunc func,
@@ -656,7 +678,7 @@ class PlayerStatusTask : public Task {
   void Do() override { func_(player_, ctx_, state_, ticket_); }
 
   void PrintInfo() override {
-    GST_TRACE("PlayerStatusTask state:%d, ticket:%d", state_, ticket_);
+    GST_TRACE("PlayerStatusTask state:%d (%s), ticket:%d", state_, PlayerStateToStr(state_), ticket_);
   }
 
  private:
@@ -721,8 +743,8 @@ class DecoderStatusTask : public Task {
   }
 
   void PrintInfo() override {
-    GST_TRACE("DecoderStatusTask state:%d, ticket:%d, media:%d", state_,
-              ticket_, static_cast<int>(media_));
+    GST_TRACE("DecoderStatusTask state:%d (%s), ticket:%d, media:%d", state_,
+              DecoderStateToStr(state_), ticket_, static_cast<int>(media_));
   }
 
  private:
@@ -947,7 +969,11 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   void DecoderNeedsData(::starboard::ScopedLock&, MediaType media) const {
     int need_data = static_cast<int>(media);
     if (media != MediaType::kNone && (decoder_state_data_ & need_data) == need_data) {
-      GST_LOG("Already sent 'kSbPlayerDecoderStateNeedsData', ignoring new request");
+      GST_DEBUG("Already sent 'kSbPlayerDecoderStateNeedsData', ignoring new request");
+      return;
+    }
+    if (media != MediaType::kNone && (eos_data_ & need_data) == need_data) {
+      GST_DEBUG("Stream(%d) already ended, ignoring needs data request", need_data);
       return;
     }
     decoder_state_data_ |= need_data;
@@ -992,6 +1018,7 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   bool is_rate_being_changed_{false};
   int has_enough_data_{static_cast<int>(MediaType::kBoth)};
   mutable int decoder_state_data_{static_cast<int>(MediaType::kNone)};
+  int eos_data_{static_cast<int>(MediaType::kNone)};
   int total_video_frames_{0};
   int dropped_video_frames_{0};
   int frame_width_{0};
@@ -1030,6 +1057,10 @@ PlayerImpl::PlayerImpl(SbPlayer player,
       player_status_func_(player_status_func),
       player_error_func_(player_error_func),
       context_(context) {
+  main_loop_context_ = g_main_context_new ();
+  g_main_context_push_thread_default(main_loop_context_);
+  main_loop_ = g_main_loop_new(main_loop_context_, FALSE);
+
   if (drm_system_)
     drm_system_->AddObserver(this);
 
@@ -1070,9 +1101,6 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   video_appsrc_ = gst_element_factory_make("appsrc", "vidsrc");
   audio_appsrc_ = gst_element_factory_make("appsrc", "audsrc");
 
-  main_loop_context_ = g_main_context_default();
-  main_loop_context_ = g_main_context_ref(main_loop_context_);
-  main_loop_ = g_main_loop_new(main_loop_context_, FALSE);
   GstElement* playsink = (gst_bin_get_by_name(GST_BIN(pipeline_), "playsink"));
   if (playsink) {
     g_object_set(G_OBJECT(playsink), "send-event-mode", 0, nullptr);
@@ -1081,6 +1109,8 @@ PlayerImpl::PlayerImpl(SbPlayer player,
     GST_WARNING("No playsink ?!?!?");
   }
   ChangePipelineState(GST_STATE_READY);
+  g_main_context_pop_thread_default(main_loop_context_);
+
   playback_thread_ =
       SbThreadCreate(0, kSbThreadPriorityRealTime, kSbThreadNoAffinity, true,
                      "playback_thread", &PlayerImpl::ThreadEntryPoint, this);
@@ -1096,20 +1126,18 @@ PlayerImpl::~PlayerImpl() {
   {
     ::starboard::ScopedLock lock(source_setup_mutex_);
     if (source_setup_id_ > -1) {
-      g_source_remove(source_setup_id_);
+      GSource* src = g_main_context_find_source_by_id(main_loop_context_, source_setup_id_);
+      g_source_destroy(src);
     }
   }
-  g_source_remove(bus_watch_id_);
+  if (bus_watch_id_ > -1) {
+    GSource* src = g_main_context_find_source_by_id(main_loop_context_, bus_watch_id_);
+    g_source_destroy(src);
+  }
   ChangePipelineState(GST_STATE_NULL);
   GstBus* bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline_));
   gst_bus_set_sync_handler(bus, nullptr, nullptr, nullptr);
   gst_object_unref(bus);
-  #if SB_API_VERSION < 12
-  DispatchOnWorkerThread(
-      new DecoderStatusTask(decoder_status_func_, player_, ticket_, context_,
-                            kSbPlayerDecoderStateDestroyed,
-                            GetBothMediaTypeTakingCodecsIntoAccount()));
-  #endif
   DispatchOnWorkerThread(new PlayerDestroyedTask(
       player_status_func_, player_, ticket_, context_, main_loop_));
   SbThreadJoin(playback_thread_, nullptr);
@@ -1309,6 +1337,9 @@ void* PlayerImpl::ThreadEntryPoint(void* context) {
 
   PlayerImpl* self = reinterpret_cast<PlayerImpl*>(context);
   self->state_ = State::kInitial;
+
+  g_main_context_push_thread_default(self->main_loop_context_);
+
   self->DispatchOnWorkerThread(new PlayerStatusTask(
       self->player_status_func_, self->player_, self->ticket_, self->context_,
       kSbPlayerStateInitialized));
@@ -1437,8 +1468,10 @@ void PlayerImpl::SetupSource(GstElement* pipeline,
   SB_DCHECK(!self->source_);
   self->source_ = source;
   static constexpr int kAsyncSourceFinishTimeMs = 50;
-  self->source_setup_id_ = g_timeout_add(kAsyncSourceFinishTimeMs,
-                                         &PlayerImpl::FinishSourceSetup, self);
+  GSource* src = g_timeout_source_new(kAsyncSourceFinishTimeMs);
+  g_source_set_callback(src, &PlayerImpl::FinishSourceSetup, self, nullptr);
+  self->source_setup_id_ = g_source_attach(src, self->main_loop_context_);
+  g_source_unref(src);
 }
 
 void PlayerImpl::MarkEOS(SbMediaType stream_type) {
@@ -1457,6 +1490,11 @@ void PlayerImpl::MarkEOS(SbMediaType stream_type) {
     GST_DEBUG_OBJECT(src, "===> Ignoring due to seek");
     return;
   }
+
+  if (stream_type == kSbMediaTypeVideo)
+      eos_data_ |= static_cast<int>(MediaType::kVideo);
+  else
+      eos_data_ |= static_cast<int>(MediaType::kAudio);
 
   gst_app_src_end_of_stream(GST_APP_SRC(src));
   RecordTimestamp(stream_type, kSbTimeMax);
@@ -1705,6 +1743,7 @@ void PlayerImpl::Seek(SbTime seek_to_timestamp, int ticket) {
     ticket_ = ticket;
     seek_position_ = seek_to_timestamp;
     decoder_state_data_ = 0;
+    eos_data_ = 0;
 
     if (state_ == State::kInitial) {
       SB_DCHECK(seek_position_ == .0);
@@ -1726,12 +1765,6 @@ void PlayerImpl::Seek(SbTime seek_to_timestamp, int ticket) {
     if (GST_STATE(pipeline_) < GST_STATE_PAUSED) {
       GST_INFO("Delaying seek.");
       if (state_ == State::kInitialPreroll) {
-        DispatchOnWorkerThread(new PlayerStatusTask(player_status_func_,
-                                                    player_, ticket_, context_,
-                                                    kSbPlayerStatePresenting));
-        DispatchOnWorkerThread(new PlayerStatusTask(player_status_func_,
-                                                    player_, ticket_, context_,
-                                                    kSbPlayerStatePrerolling));
         if ((has_enough_data_ & static_cast<int>(MediaType::kVideo)) == 0) {
           DecoderNeedsData(lock, MediaType::kVideo);
         }
@@ -1779,6 +1812,7 @@ bool PlayerImpl::SetRate(double rate) {
     ::starboard::ScopedLock lock(mutex_);
     current_rate = rate_;
     decoder_state_data_ = 0;
+    eos_data_ = 0;
   }
   GetPosition();  // Update cached
   if (rate == .0) {
