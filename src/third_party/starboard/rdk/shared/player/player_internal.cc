@@ -969,11 +969,11 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   void DecoderNeedsData(::starboard::ScopedLock&, MediaType media) const {
     int need_data = static_cast<int>(media);
     if (media != MediaType::kNone && (decoder_state_data_ & need_data) == need_data) {
-      GST_DEBUG("Already sent 'kSbPlayerDecoderStateNeedsData', ignoring new request");
+      GST_LOG("Already sent 'kSbPlayerDecoderStateNeedsData', ignoring new request");
       return;
     }
     if (media != MediaType::kNone && (eos_data_ & need_data) == need_data) {
-      GST_DEBUG("Stream(%d) already ended, ignoring needs data request", need_data);
+      GST_LOG("Stream(%d) already ended, ignoring needs data request", need_data);
       return;
     }
     decoder_state_data_ |= need_data;
@@ -1172,10 +1172,20 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
       GError* err = nullptr;
       gchar* debug = nullptr;
       gst_message_parse_error(message, &err, &debug);
-      GST_ERROR("Error %d: %s (%s)", err->code, err->message, debug);
-      self->DispatchOnWorkerThread(new PlayerErrorTask(
+
+      bool is_eos = (self->eos_data_ == (int)self->GetBothMediaTypeTakingCodecsIntoAccount());
+      if (err->domain == GST_STREAM_ERROR && is_eos) {
+        GST_WARNING("Got stream error. But all streams are ended, so reporting EOS. Error code %d: %s (%s).",
+          err->code, err->message, debug);
+        self->DispatchOnWorkerThread(new PlayerStatusTask(
+          self->player_status_func_, self->player_, self->ticket_,
+          self->context_, kSbPlayerStateEndOfStream));
+      } else {
+        GST_ERROR("Error %d: %s (%s)", err->code, err->message, debug);
+        self->DispatchOnWorkerThread(new PlayerErrorTask(
           self->player_error_func_, self->player_, self->context_,
           kSbPlayerErrorDecode, err->message));
+      }
       g_free(debug);
       g_error_free(err);
       break;
