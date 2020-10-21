@@ -15,8 +15,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_STARBOARD_RDK_SHARED_SYSTEM_SERVICES_H_
-#define THIRD_PARTY_STARBOARD_RDK_SHARED_SYSTEM_SERVICES_H_
+#ifndef THIRD_PARTY_STARBOARD_RDK_SHARED_RDKSERVICES_H_
+#define THIRD_PARTY_STARBOARD_RDK_SHARED_RDKSERVICES_H_
 
 #include "starboard/configuration.h"
 #include "starboard/common/scoped_ptr.h"
@@ -55,4 +55,4 @@ public:
 }  // namespace starboard
 }  // namespace third_party
 
-#endif  // THIRD_PARTY_STARBOARD_RDK_SHARED_SYSTEM_SERVICES_H_
+#endif  // THIRD_PARTY_STARBOARD_RDK_SHARED_RDKSERVICES_H_

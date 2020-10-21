@@ -30,7 +30,6 @@
 # limitations under the License.
 {
   'variables': {
-    'has_ocdm': '<!(echo $COBALT_HAS_OCDM)',
     'common_defines': [],
     'use_system_libjpeg': 1,
     'audio_sink_sources': [
@@ -440,13 +439,13 @@
         '<(DEPTH)/starboard/shared/nouser/user_get_property.cc',
         '<(DEPTH)/starboard/shared/nouser/user_get_signed_in.cc',
         '<(DEPTH)/starboard/shared/nouser/user_internal.cc',
-        '<(DEPTH)/third_party/starboard/rdk/shared/system_services.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/rdkservices.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/ess_input.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/application_rdk.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/get_home_directory.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/main_rdk.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/libcobalt.h',
-        '<(DEPTH)/third_party/starboard/rdk/shared/libcobalt.cpp',
+        '<(DEPTH)/third_party/starboard/rdk/shared/libcobalt.cc',
     ],
     'conditions': [
       ['<(has_ocdm)==1', {

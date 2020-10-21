@@ -30,7 +30,6 @@
 # limitations under the License.
 {
   'variables': {
-    'has_ocdm': '<!(echo $COBALT_HAS_OCDM)',
     'pkg-config': 'pkg-config',
     'gst-packages': [
       'gstreamer-1.0',

@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "third_party/starboard/rdk/shared/system_services.h"
+#include "third_party/starboard/rdk/shared/rdkservices.h"
 
 #include <string>
 

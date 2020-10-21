@@ -40,7 +40,7 @@
 #include "starboard/types.h"
 
 #include "third_party/starboard/rdk/shared/ess_input.h"
-#include "third_party/starboard/rdk/shared/system_services.h"
+#include "third_party/starboard/rdk/shared/rdkservices.h"
 
 #include <memory>
 #include <essos-app.h>

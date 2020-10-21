@@ -43,6 +43,7 @@ class RDKPlatformConfig(platform_configuration.PlatformConfiguration):
   def __init__(self, platform):
     super(RDKPlatformConfig, self).__init__(platform)
     self.AppendApplicationConfigurationPath(os.path.dirname(__file__))
+    self.has_ocdm = os.environ.get('COBALT_HAS_OCDM', '0')
     self.sysroot = os.path.realpath(os.environ.get('PKG_CONFIG_SYSROOT_DIR', '/'))
 
   def GetBuildFormat(self):
@@ -57,6 +58,7 @@ class RDKPlatformConfig(platform_configuration.PlatformConfiguration):
     variables.update({
         'clang': 0,
         'sysroot': self.sysroot,
+        'has_ocdm': self.has_ocdm,
     })
     variables.update({
         'cobalt_font_package': 'limited',

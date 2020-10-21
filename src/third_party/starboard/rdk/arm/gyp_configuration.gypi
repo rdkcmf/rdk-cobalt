@@ -39,9 +39,10 @@
 
     'sysroot%': '/',
     'gl_type': 'system_gles2',
+    'has_ocdm%': '0',
 
     # This is to create cobalt shared library
-    'final_executable_type': '<!(echo $COBALT_EXECUTABLE_TYPE)',
+    'final_executable_type': 'shared_library',
 
     'platform_libraries': [
       '<@(common_libs)',
@@ -90,6 +91,8 @@
     'linker_flags': [
       '<@(common_linker_flags)',
       '--sysroot=<(sysroot)',
+      # Cleanup unused sections
+      '-Wl,-gc-sections',
       # We don't wrap these symbols, but this ensures that they aren't
       # linked in.
       # '-Wl,--wrap=malloc',

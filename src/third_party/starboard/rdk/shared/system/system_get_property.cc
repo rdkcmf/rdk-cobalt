@@ -41,7 +41,7 @@
 #include "starboard/common/string.h"
 #include "starboard/character.h"
 
-#include "third_party/starboard/rdk/shared/system_services.h"
+#include "third_party/starboard/rdk/shared/rdkservices.h"
 
 namespace {
 
