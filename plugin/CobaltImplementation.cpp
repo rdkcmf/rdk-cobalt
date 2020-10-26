@@ -173,6 +173,15 @@ private:
         Core::SystemInfo::SetEnvironment(_T("CLIENT_IDENTIFIER"), service->Callsign());
       }
 
+      std::string tmpVal;
+      if (!Core::SystemInfo::GetEnvironment(_T("COBALT_CONTENT_DIR"), tmpVal)) {
+          const char kContentDir[] =
+              "/usr/share/content/data:"
+              "/media/apps/libcobalt/usr/share/content/data:"
+              "/tmp/libcobalt/usr/share/content/data";
+          Core::SystemInfo::SetEnvironment(_T("COBALT_CONTENT_DIR"), kContentDir);
+      }
+
       SetThunderAccessPointIfNeeded();
 
       if (config.Url.IsSet() == true) {
