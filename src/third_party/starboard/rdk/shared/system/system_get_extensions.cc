@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Copyright 2016 The Cobalt Authors. All Rights Reserved.
+// Copyright 2019 The Cobalt Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,12 +30,13 @@
 
 #include "starboard/system.h"
 
-#include "third_party/starboard/rdk/shared/rdkservices.h"
+#include "cobalt/extension/configuration.h"
+#include "starboard/common/string.h"
+#include "third_party/starboard/rdk/shared/configuration.h"
 
-SbSystemConnectionType SbSystemGetConnectionType() {
-  if (third_party::starboard::rdk::shared::NetworkInfo{}.IsConnectionTypeWireless()) {
-    return kSbSystemConnectionTypeWireless;
-  } else {
-    return kSbSystemConnectionTypeWired;
+const void* SbSystemGetExtension(const char* name) {
+  if (SbStringCompareAll(name, kCobaltExtensionConfigurationName) == 0) {
+    return third_party::starboard::rdk::shared::GetConfigurationApi();
   }
+  return NULL;
 }

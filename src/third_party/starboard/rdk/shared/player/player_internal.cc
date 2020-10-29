@@ -1996,6 +1996,7 @@ gint64 PlayerImpl::GetPosition() const {
     cached_position_ns_ = position;
   }
 
+#if 0
   constexpr int kPositionUpdateMinIntervalMs = 250 * kSbTimeMillisecond;
   if (position_update_time_us_ - last_update <= kPositionUpdateMinIntervalMs &&
       cached_position_ns_ != kSbTimeMax) {
@@ -2023,6 +2024,7 @@ gint64 PlayerImpl::GetPosition() const {
               GST_TIME_ARGS(cached_position_ns_));
     return cached_position_ns_;
   }
+#endif
 
   cached_position_ns_ = position;
   return position;

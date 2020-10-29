@@ -125,6 +125,22 @@ bool GetOperatorName(char* out_value, int value_length) {
   return CopyStringAndTestIfSuccess(out_value, value_length, SB_PLATFORM_OPERATOR_NAME);
 }
 
+bool GetManufacturerName(char* out_value, int value_length) {
+    const char* env = std::getenv("COBALT_MANUFACTURE_NAME");
+    if (env && CopyStringAndTestIfSuccess(out_value, value_length, env))
+        return true;
+    const char kPrefixStr[] = "MANUFACTURE=";
+    const size_t kPrefixStrLength = SB_ARRAY_SIZE(kPrefixStr) - 1;
+    if (TryReadFromPropertiesFile(kPrefixStr, kPrefixStrLength, out_value, value_length))
+        return true;
+#if defined(SB_PLATFORM_MANUFACTURER_NAME)
+    return CopyStringAndTestIfSuccess(out_value, value_length,
+                                      SB_PLATFORM_MANUFACTURER_NAME);
+    #else
+    return false;
+#endif  // defined(SB_PLATFORM_MANUFACTURER_NAME)
+}
+
 bool GetChipsetModelNumber(char* out_value, int value_length) {
   std::string chipset =
     third_party::starboard::rdk::shared::DeviceIdentification{}.GetChipset();
@@ -168,7 +184,7 @@ bool SbSystemGetProperty(SbSystemPropertyId property_id,
 #endif  // defined(SB_PLATFORM_MODEL_YEAR)
 
     case kSbSystemPropertySystemIntegratorName:
-      return false;
+      return GetManufacturerName(out_value, value_length);
 
     case kSbSystemPropertySpeechApiKey:
       return false;

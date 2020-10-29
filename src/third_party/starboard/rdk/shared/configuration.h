@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Copyright 2016 The Cobalt Authors. All Rights Reserved.
+// Copyright 2020 The Cobalt Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,14 +28,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "starboard/system.h"
+#ifndef THIRD_PARTY_STARBOARD_RDK_SHARED_CONFIGURATION_H_
+#define THIRD_PARTY_STARBOARD_RDK_SHARED_CONFIGURATION_H_
 
-#include "third_party/starboard/rdk/shared/rdkservices.h"
+namespace third_party {
+namespace starboard {
+namespace rdk {
+namespace shared {
 
-SbSystemConnectionType SbSystemGetConnectionType() {
-  if (third_party::starboard::rdk::shared::NetworkInfo{}.IsConnectionTypeWireless()) {
-    return kSbSystemConnectionTypeWireless;
-  } else {
-    return kSbSystemConnectionTypeWired;
-  }
-}
+const void* GetConfigurationApi();
+
+}  // namespace shared
+}  // namespace rdk
+}  // namespace starboard
+}  // namespace third_party
+
+#endif  // THIRD_PARTY_STARBOARD_RDK_SHARED_CONFIGURATION_H_
