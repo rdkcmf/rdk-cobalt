@@ -33,6 +33,11 @@ namespace WPEFramework {
 
 namespace Plugin {
 
+static constexpr char kDefaultContentDir[] =
+  "/usr/share/content/data:"
+  "/media/apps/libcobalt/usr/share/content/data:"
+  "/tmp/libcobalt/usr/share/content/data";
+
 static void SetThunderAccessPointIfNeeded() {
   const std::string envName = _T("THUNDER_ACCESS");
   std::string envVal;
@@ -61,12 +66,17 @@ private:
   private:
     Config(const Config&);
     Config& operator=(const Config&);
-
   public:
-    Config() :
-      Core::JSON::Container(), Url() {
+    Config()
+      : Core::JSON::Container()
+      , Url()
+      , ClientIdentifier()
+      , Language()
+      , ContentDir(kDefaultContentDir) {
       Add(_T("url"), &Url);
       Add(_T("clientidentifier"), &ClientIdentifier);
+      Add(_T("language"), &Language);
+      Add(_T("contentdir"), &ContentDir);
     }
     ~Config() {
     }
@@ -74,6 +84,8 @@ private:
   public:
     Core::JSON::String Url;
     Core::JSON::String ClientIdentifier;
+    Core::JSON::String Language;
+    Core::JSON::String ContentDir;
   };
 
   class NotificationSink: public Core::Thread {
@@ -171,19 +183,20 @@ private:
         Core::SystemInfo::SetEnvironment(_T("CLIENT_IDENTIFIER"), service->Callsign());
       }
 
-      std::string tmpVal;
-      if (!Core::SystemInfo::GetEnvironment(_T("COBALT_CONTENT_DIR"), tmpVal)) {
-          const char kContentDir[] =
-              "/usr/share/content/data:"
-              "/media/apps/libcobalt/usr/share/content/data:"
-              "/tmp/libcobalt/usr/share/content/data";
-          Core::SystemInfo::SetEnvironment(_T("COBALT_CONTENT_DIR"), kContentDir);
-      }
-
       SetThunderAccessPointIfNeeded();
 
       if (config.Url.IsSet() == true) {
         _url = config.Url.Value();
+      }
+
+      if (config.Language.IsSet() == true) {
+        string lang = config.Language.Value();
+        Core::SystemInfo::SetEnvironment(_T("LANG"), lang);
+      }
+
+      if (config.ContentDir.IsSet() == true && config.ContentDir.Value().empty() == false) {
+        string contentdir = config.ContentDir.Value();
+        Core::SystemInfo::SetEnvironment(_T("COBALT_CONTENT_DIR"), contentdir);
       }
 
       Run();

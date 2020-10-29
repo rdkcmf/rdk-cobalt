@@ -65,6 +65,13 @@ SB_EXPORT bool SbMediaIsVideoSupported(SbMediaVideoCodec video_codec,
     return false;
   }
 
+  if (transfer_id != kSbMediaTransferIdUnspecified &&
+      transfer_id != kSbMediaTransferIdBt709 &&
+      transfer_id != kSbMediaTransferIdSmpteSt2084 &&
+      transfer_id != kSbMediaTransferIdAribStdB67) {
+    return false;
+  }
+
   if (!IsSDRVideo(bit_depth, primary_id, transfer_id, matrix_id)) {
     if (!Application::Get()->DisplayHasHDRSupport())
       return false;

@@ -21,12 +21,17 @@
 #include "starboard/configuration.h"
 #include "starboard/common/scoped_ptr.h"
 
+#include <string>
+
 namespace third_party {
 namespace starboard {
 namespace rdk {
 namespace shared {
 
 struct ResolutionInfo {
+  ResolutionInfo() {}
+  ResolutionInfo(uint32_t w, uint32_t h)
+    : Width(w), Height(h) {}
   uint32_t Width { 1920 };
   uint32_t Height { 1080 };
 };
@@ -34,7 +39,7 @@ struct ResolutionInfo {
 class DisplayInfo {
 public:
   DisplayInfo();
-  virtual ~DisplayInfo();
+  ~DisplayInfo();
   ResolutionInfo GetResolution() const;
   bool HasHDRSupport() const;
 private:
@@ -44,10 +49,13 @@ private:
 
 class DeviceIdentification {
 public:
-  DeviceIdentification();
-  virtual ~DeviceIdentification();
   std::string GetChipset() const;
   std::string GetFirmwareVersion() const;
+};
+
+class NetworkInfo {
+public:
+  bool IsConnectionTypeWireless() const;
 };
 
 }  // namespace shared

@@ -45,6 +45,7 @@
       'WPEFrameworkDefinitions',
       'WPEFrameworkPlugins',
     ],
+    'has_securityagent%' : '<!(pkg-config securityagent && echo 1 || echo 0)',
   },
   'targets': [
     {
@@ -113,5 +114,33 @@
         }, # ocdm
       ],
     }],
+    ['<(has_securityagent)==1', {
+     'targets': [
+        {
+          'target_name': 'securityagent',
+          'type': 'none',
+          'direct_dependent_settings': {
+            'cflags': [
+              '<!@(<(pkg-config) --cflags securityagent) -DHAS_SECURITY_AGENT=1',
+            ],
+          },
+          'link_settings': {
+            'ldflags': [
+              '<!@(<(pkg-config) --libs-only-L --libs-only-other securityagent)',
+            ],
+            'libraries': [
+              '<!@(<(pkg-config) --libs-only-l securityagent)',
+            ],
+          },
+        }, # securityagent
+      ],
+    }, {
+     'targets': [
+        {
+          'target_name': 'securityagent',
+          'type': 'none',
+        }, # securityagent
+      ],
+    }]
   ],
 }

@@ -18,8 +18,17 @@
 #include "third_party/starboard/rdk/shared/rdkservices.h"
 
 #include <string>
+#include <algorithm>
 
 #include <websocket/JSONRPCLink.h>
+
+#include <interfaces/json/JsonData_HDRProperties.h>
+#include <interfaces/json/JsonData_PlayerProperties.h>
+#include <interfaces/json/JsonData_DeviceIdentification.h>
+
+#ifdef HAS_SECURITY_AGENT
+#include <securityagent/securityagent.h>
+#endif
 
 #include "starboard/atomic.h"
 #include "starboard/common/log.h"
@@ -36,24 +45,116 @@ namespace {
 
 const uint32_t kDefaultTimeoutMs = 100;
 const char kDisplayInfoCallsign[] = "DisplayInfo.1";
-const char kDeviceIdentificationCalllsign[] = "DeviceIdentification.1";
+const char kPlayerInfoCallsign[] = "PlayerInfo.1";
+const char kDeviceIdentificationCallsign[] = "DeviceIdentification.1";
+const char kNetworkCallsign[] = "org.rdk.Network.1";
 
-using ClientType = JSONRPC::LinkType<Core::JSON::IElement>;
-auto makeClient(const std::string& callsign) -> ::starboard::scoped_ptr<ClientType> {
-  return ::starboard::scoped_ptr<ClientType>(new ClientType(callsign));
-}
+class ServiceLink {
+  ::starboard::scoped_ptr<JSONRPC::LinkType<Core::JSON::IElement>> link_;
+  std::string callsign_;
 
-struct DeviceIdImpl final {
-  DeviceIdImpl() {
-    uint32_t rc = Core::ERROR_UNAVAILABLE;
-    auto client = makeClient(kDeviceIdentificationCalllsign);
-    if (client) {
-      JsonObject data;
-      rc = client->Get<JsonObject>(kDefaultTimeoutMs, "deviceidentification", data);
-      if (Core::ERROR_NONE == rc) {
-        chipset = data.Get("chipset").Value();
-        firmware_version = data.Get("firmwareversion").Value();
+#ifdef HAS_SECURITY_AGENT
+  static Core::OptionalType<std::string> getToken() {
+    if (getenv("THUNDER_SECURITY_OFF") != nullptr)
+      return { };
+
+    const uint32_t kMaxBufferSize = 2 * 1024;
+    const std::string payload = "https://www.youtube.com";
+
+    Core::OptionalType<std::string> token;
+    std::vector<uint8_t> buffer;
+    buffer.resize(kMaxBufferSize);
+
+    for(int i = 0; i < 5; ++i) {
+      uint32_t inputLen = std::min(kMaxBufferSize, payload.length());
+      ::memcpy (buffer.data(), payload.c_str(), inputLen);
+
+      int outputLen = GetToken(kMaxBufferSize, inputLen, buffer.data());
+      SB_DCHECK(outputLen != 0);
+
+      if (outputLen > 0) {
+        token = std::string(reinterpret_cast<const char*>(buffer.data()), outputLen);
+        break;
       }
+      else if (outputLen < 0) {
+        uint32_t rc = -outputLen;
+        if (rc == Core::ERROR_TIMEDOUT && i < 5) {
+          SB_LOG(ERROR) << "Failed to get token, trying again. rc = " << rc << " ( " << Core::ErrorToString(rc) << " )";
+          continue;
+        }
+        SB_LOG(ERROR) << "Failed to get token, give up. rc = " << rc << " ( " << Core::ErrorToString(rc) << " )";
+      }
+      break;
+    }
+    return token;
+  }
+#endif
+
+  static std::string buildQuery() {
+    std::string query;
+#ifdef HAS_SECURITY_AGENT
+    static const auto token = getToken();
+    if (token.IsSet() && !token.Value().empty())
+      query = "token=" + token.Value();
+#endif
+    return query;
+  }
+
+  static bool enableEnvOverrides() {
+    static bool enable_env_overrides = ([]() {
+      std::string envValue;
+      if ((Core::SystemInfo::GetEnvironment("COBALT_ENABLE_OVERRIDES", envValue) == true) && (envValue.empty() == false)) {
+        return envValue.compare("1") == 0 || envValue.compare("true") == 0;
+      }
+      return false;
+    })();
+    return enable_env_overrides;
+  }
+
+public:
+  ServiceLink(const std::string callsign) : callsign_(callsign) {
+    if (getenv("THUNDER_ACCESS") != nullptr)
+      link_.reset(new JSONRPC::LinkType<Core::JSON::IElement>(callsign, nullptr, false, buildQuery()));
+  }
+
+  template <typename PARAMETERS>
+  uint32_t Get(const uint32_t waitTime, const string& method, PARAMETERS& sendObject) {
+    if (enableEnvOverrides()) {
+      std::string envValue;
+      std::string envName = Core::JSONRPC::Message::Callsign(callsign_) + "_" + method;
+      envName.erase(std::remove(envName.begin(), envName.end(), '.'), envName.end());
+      if (Core::SystemInfo::GetEnvironment(envName, envValue) == true) {
+        return sendObject.FromString(envValue) ? Core::ERROR_NONE : Core::ERROR_GENERAL;
+      }
+    }
+    if (!link_)
+      return Core::ERROR_UNAVAILABLE;
+    return link_->template Get<PARAMETERS>(waitTime, method, sendObject);
+  }
+
+  template <typename INBOUND, typename METHOD, typename REALOBJECT>
+  uint32_t Subscribe(const uint32_t waitTime, const string& eventName, const METHOD& method, REALOBJECT* objectPtr) {
+    if (!link_)
+      return enableEnvOverrides() ? Core::ERROR_NONE : Core::ERROR_UNAVAILABLE;
+    return link_->template Subscribe<INBOUND, METHOD, REALOBJECT>(waitTime, eventName, method, objectPtr);
+  }
+
+  void Unsubscribe(const uint32_t waitTime, const string& eventName) {
+    if (!link_)
+      return;
+    return link_->Unsubscribe(waitTime, eventName);
+  }
+};
+
+struct DeviceIdImpl {
+  DeviceIdImpl() {
+    JsonData::DeviceIdentification::DeviceidentificationData data;
+    uint32_t rc = ServiceLink(kDeviceIdentificationCallsign)
+      .Get(kDefaultTimeoutMs, "deviceidentification", data);
+    if (Core::ERROR_NONE == rc) {
+      chipset = data.Chipset.Value();
+      firmware_version = data.Firmwareversion.Value();
+      std::replace(chipset.begin(), chipset.end(), ' ', '-');
     }
     if (Core::ERROR_NONE != rc) {
       #if defined(SB_PLATFORM_CHIPSET_MODEL_NUMBER_STRING)
@@ -72,7 +173,7 @@ SB_ONCE_INITIALIZE_FUNCTION(DeviceIdImpl, GetDeviceIdImpl);
 
 }  // namespace
 
-struct DisplayInfo::Impl final {
+struct DisplayInfo::Impl {
   Impl();
   ~Impl();
   ResolutionInfo GetResolution() {
@@ -87,23 +188,22 @@ private:
   void Refresh();
   void OnUpdated(const Core::JSON::String&);
 
-  ::starboard::scoped_ptr<ClientType> client_;
+  ServiceLink display_info_;
   ResolutionInfo resolution_info_ { };
   bool has_hdr_support_ { false };
   ::starboard::atomic_bool needs_refresh_ { true };
 };
 
 DisplayInfo::Impl::Impl()
-  : client_(makeClient(kDisplayInfoCallsign)) {
+  : display_info_(kDisplayInfoCallsign) {
 
-  uint32_t rc = Core::ERROR_UNAVAILABLE;
-
-  if (client_)
-    rc = client_->Subscribe<Core::JSON::String>(kDefaultTimeoutMs, "updated", &DisplayInfo::Impl::OnUpdated, this);
-
+  uint32_t rc;
+  rc = display_info_.Subscribe<Core::JSON::String>(kDefaultTimeoutMs, "updated", &DisplayInfo::Impl::OnUpdated, this);
   if (Core::ERROR_NONE != rc) {
     needs_refresh_.store(false);
-    SB_LOG(ERROR) << "Failed to subscribe to '" << kDisplayInfoCallsign << ".updated' event, rc=" << rc;
+    SB_LOG(ERROR) << "Failed to subscribe to '" << kDisplayInfoCallsign
+                  << ".updated' event, rc=" << rc
+                  << " ( " << Core::ErrorToString(rc) << " )";
   }
   else {
     Refresh();
@@ -111,30 +211,42 @@ DisplayInfo::Impl::Impl()
 }
 
 DisplayInfo::Impl::~Impl() {
-  if (client_)
-    client_->Unsubscribe(kDefaultTimeoutMs, "updated");
+  display_info_.Unsubscribe(kDefaultTimeoutMs, "updated");
 }
 
 void DisplayInfo::Impl::Refresh() {
-  if (!needs_refresh_.load() || !client_)
+  if (!needs_refresh_.load())
     return;
 
-  JsonObject data;
   uint32_t rc;
 
-  rc = client_->Get<JsonObject>(kDefaultTimeoutMs, "displayinfo", data);
-
+  Core::JSON::EnumType<Exchange::IPlayerProperties::PlaybackResolution> resolution;
+  rc = ServiceLink(kPlayerInfoCallsign).Get(kDefaultTimeoutMs, "resolution", resolution);
   if (Core::ERROR_NONE == rc) {
-    resolution_info_.Width = data.Get("width").Number();
-    resolution_info_.Height = data.Get("height").Number();
-    Core::JSON::String hdrtype = data.Get("hdrtype");
-    has_hdr_support_ = !hdrtype.IsNull() && !hdrtype.Value().empty() && hdrtype.Value().compare("HDROff") != 0;
-
-    // FIXME: for some reason device info returns inverted values on Amlogic(see AMLOGIC-629)
-    if (resolution_info_.Height > resolution_info_.Width)
-        std::swap(resolution_info_.Height, resolution_info_.Width);
+    switch(resolution) {
+      case Exchange::IPlayerProperties::RESOLUTION_2160P30:
+      case Exchange::IPlayerProperties::RESOLUTION_2160P60:
+        resolution_info_ = ResolutionInfo { 3840 , 2160 };
+        break;
+      case Exchange::IPlayerProperties::RESOLUTION_1080I:
+      case Exchange::IPlayerProperties::RESOLUTION_1080P:
+      case Exchange::IPlayerProperties::RESOLUTION_UNKNOWN:
+        resolution_info_ = ResolutionInfo { 1920 , 1080 };
+        break;
+      default:
+        resolution_info_ = ResolutionInfo { 1280 , 720 };
+        break;
+    }
   } else {
-    SB_LOG(ERROR) << "Failed to get 'displayinfo', rc=" << rc;
+    SB_LOG(ERROR) << "Failed to get 'resolution', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
+  }
+
+  Core::JSON::EnumType<Exchange::IHDRProperties::HDRType> hdrsetting;
+  rc = display_info_.Get(kDefaultTimeoutMs, "hdrsetting", hdrsetting);
+  if (Core::ERROR_NONE == rc) {
+    has_hdr_support_ = Exchange::IHDRProperties::HDR_OFF != hdrsetting;
+  } else {
+    SB_LOG(ERROR) << "Failed to get 'hdrsetting', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
   }
 
   needs_refresh_.store(false);
@@ -158,15 +270,20 @@ bool DisplayInfo::HasHDRSupport() const {
   return impl_->HasHDRSupport();
 }
 
-DeviceIdentification::DeviceIdentification() = default;
-DeviceIdentification::~DeviceIdentification() = default;
-
 std::string DeviceIdentification::GetChipset() const {
   return GetDeviceIdImpl()->chipset;
 }
 
 std::string DeviceIdentification::GetFirmwareVersion() const {
   return GetDeviceIdImpl()->firmware_version;
+}
+
+bool NetworkInfo::IsConnectionTypeWireless() const {
+  JsonObject data;
+  uint32_t rc = ServiceLink(kNetworkCallsign).Get(kDefaultTimeoutMs, "getDefaultInterface", data);
+  if (Core::ERROR_NONE == rc)
+    return (0 == data.Get("interface").Value().compare("WIFI"));
+  return false;
 }
 
 }  // namespace shared

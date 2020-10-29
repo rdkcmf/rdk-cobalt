@@ -18,6 +18,10 @@
           "url": {
             "type": "string",
             "description": "The URL that is loaded upon starting the browser"
+          },
+          "language": {
+            "type": "string",
+            "description": "POSIX-style Language(Locale) ID. Example: 'en_US'"
           }
         }
       }

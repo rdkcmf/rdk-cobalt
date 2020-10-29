@@ -315,7 +315,6 @@
         '<(DEPTH)/starboard/shared/starboard/system_supports_resume.cc',
 
         # STUB
-        '<(DEPTH)/starboard/shared/stub/system_get_extensions.cc',
         '<(DEPTH)/starboard/shared/stub/system_get_total_gpu_memory.cc',
         '<(DEPTH)/starboard/shared/stub/system_get_used_gpu_memory.cc',
         '<(DEPTH)/starboard/shared/stub/system_hide_splash_screen.cc',
@@ -333,6 +332,7 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_get_path.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_get_property.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_has_capability.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/system/system_get_extensions.cc',
     ],
 
     'time_sources': [
@@ -419,6 +419,7 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:essos',
         '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:gstreamer',
         '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:wpeframework',
+        '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:securityagent',
     ],
 
     'sources': [
@@ -486,6 +487,8 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/main_rdk.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/libcobalt.h',
         '<(DEPTH)/third_party/starboard/rdk/shared/libcobalt.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/configuration.h',
+        '<(DEPTH)/third_party/starboard/rdk/shared/configuration.cc',
     ],
     'conditions': [
       ['<(has_ocdm)==1', {
