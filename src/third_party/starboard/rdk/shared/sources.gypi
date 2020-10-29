@@ -392,6 +392,7 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:essos',
         '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:gstreamer',
         '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:wpeframework',
+        '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:securityagent',
     ],
 
     'sources': [

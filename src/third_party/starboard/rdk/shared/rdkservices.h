@@ -27,6 +27,9 @@ namespace rdk {
 namespace shared {
 
 struct ResolutionInfo {
+  ResolutionInfo() {}
+  ResolutionInfo(uint32_t w, uint32_t h)
+    : Width(w), Height(h) {}
   uint32_t Width { 1920 };
   uint32_t Height { 1080 };
 };

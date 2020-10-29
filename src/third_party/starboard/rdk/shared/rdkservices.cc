@@ -21,6 +21,13 @@
 
 #include <websocket/JSONRPCLink.h>
 
+#include <interfaces/json/JsonData_HDRProperties.h>
+#include <interfaces/json/JsonData_PlayerProperties.h>
+
+#ifdef HAS_SECURITY_AGENT
+#include <securityagent/securityagent.h>
+#endif
+
 #include "starboard/atomic.h"
 #include "starboard/common/log.h"
 #include "starboard/once.h"
@@ -36,14 +43,59 @@ namespace {
 
 const uint32_t kDefaultTimeoutMs = 100;
 const char kDisplayInfoCallsign[] = "DisplayInfo.1";
+const char kPlayerInfoCallsign[] = "PlayerInfo.1";
 const char kDeviceIdentificationCalllsign[] = "DeviceIdentification.1";
 
 using ClientType = JSONRPC::LinkType<Core::JSON::IElement>;
+
+#ifdef HAS_SECURITY_AGENT
+Core::OptionalType<std::string> getToken() {
+  if (getenv("COBALT_NO_TOKEN"))
+    return { };
+
+  const uint32_t kMaxBufferSize = 2 * 1024;
+  const std::string payload = "https://www.youtube.com";
+
+  Core::OptionalType<std::string> token;
+  std::vector<uint8_t> buffer;
+  buffer.resize(kMaxBufferSize);
+
+  for(int i = 0; i < 5; ++i) {
+    uint32_t inputLen = std::min(kMaxBufferSize, payload.length());
+    ::memcpy (buffer.data(), payload.c_str(), inputLen);
+
+    int outputLen = GetToken(kMaxBufferSize, inputLen, buffer.data());
+    SB_DCHECK(outputLen != 0);
+
+    if (outputLen > 0) {
+      token = std::string(reinterpret_cast<const char*>(buffer.data()), outputLen);
+      break;
+    }
+    else if (outputLen < 0) {
+      uint32_t rc = -outputLen;
+      if (rc == Core::ERROR_TIMEDOUT && i < 5) {
+        SB_LOG(ERROR) << "Failed to get token, trying again. rc = " << rc << " ( " << Core::ErrorToString(rc) << " )";
+        continue;
+      }
+      SB_LOG(ERROR) << "Failed to get token, give up. rc = " << rc << " ( " << Core::ErrorToString(rc) << " )";
+    }
+    break;
+  }
+  return token;
+}
+#endif
+
 auto makeClient(const std::string& callsign) -> ::starboard::scoped_ptr<ClientType> {
-  return ::starboard::scoped_ptr<ClientType>(new ClientType(callsign));
+   std::string query;    
+#ifdef HAS_SECURITY_AGENT
+  static const auto token = getToken();
+  if (token.IsSet() && !token.Value().empty())
+    query = "token=" + token.Value();
+#endif
+  return ::starboard::scoped_ptr<ClientType>(new ClientType(callsign, nullptr, false, query));
 }
 
-struct DeviceIdImpl final {
+struct DeviceIdImpl {
   DeviceIdImpl() {
     uint32_t rc = Core::ERROR_UNAVAILABLE;
     auto client = makeClient(kDeviceIdentificationCalllsign);
@@ -72,7 +124,7 @@ SB_ONCE_INITIALIZE_FUNCTION(DeviceIdImpl, GetDeviceIdImpl);
 
 }  // namespace
 
-struct DisplayInfo::Impl final {
+struct DisplayInfo::Impl {
   Impl();
   ~Impl();
   ResolutionInfo GetResolution() {
@@ -119,22 +171,38 @@ void DisplayInfo::Impl::Refresh() {
   if (!needs_refresh_.load() || !client_)
     return;
 
-  JsonObject data;
-  uint32_t rc;
+  auto player_info = makeClient(kPlayerInfoCallsign);
+  if (!player_info)
+      return;
 
-  rc = client_->Get<JsonObject>(kDefaultTimeoutMs, "displayinfo", data);
+  uint32_t rc = Core::ERROR_UNAVAILABLE;
+  Core::JSON::EnumType<Exchange::IPlayerProperties::PlaybackResolution> resolution;
+  rc = player_info->Get(kDefaultTimeoutMs, "resolution", resolution);
+  if (Core::ERROR_NONE == rc) {
+    switch(resolution) {
+      case Exchange::IPlayerProperties::RESOLUTION_2160P30:
+      case Exchange::IPlayerProperties::RESOLUTION_2160P60:
+        resolution_info_ = ResolutionInfo { 3840 , 2160 };
+      break;
+      case Exchange::IPlayerProperties::RESOLUTION_1080I:
+      case Exchange::IPlayerProperties::RESOLUTION_1080P:
+        resolution_info_ = ResolutionInfo { 1920 , 1080 };
+        break;
+      default:
+        resolution_info_ = ResolutionInfo { 1280 , 720 };
+        break;
+    }
+  } else {
+    SB_LOG(ERROR) << "Failed to get 'resolution', rc=" << rc;
+  }
+
+  Core::JSON::EnumType<Exchange::IHDRProperties::HDRType> hdrsetting;      
+  rc = client_->Get(kDefaultTimeoutMs, "hdrsetting", hdrsetting);
 
   if (Core::ERROR_NONE == rc) {
-    resolution_info_.Width = data.Get("width").Number();
-    resolution_info_.Height = data.Get("height").Number();
-    Core::JSON::String hdrtype = data.Get("hdrtype");
-    has_hdr_support_ = !hdrtype.IsNull() && !hdrtype.Value().empty() && hdrtype.Value().compare("HDROff") != 0;
-
-    // FIXME: for some reason device info returns inverted values on Amlogic(see AMLOGIC-629)
-    if (resolution_info_.Height > resolution_info_.Width)
-        std::swap(resolution_info_.Height, resolution_info_.Width);
+    has_hdr_support_ = Exchange::IHDRProperties::HDR_OFF != hdrsetting;
   } else {
-    SB_LOG(ERROR) << "Failed to get 'displayinfo', rc=" << rc;
+    SB_LOG(ERROR) << "Failed to get 'hdrsetting', rc=" << rc;
   }
 
   needs_refresh_.store(false);
