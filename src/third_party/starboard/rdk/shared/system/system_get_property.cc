@@ -143,14 +143,14 @@ bool GetManufacturerName(char* out_value, int value_length) {
 
 bool GetChipsetModelNumber(char* out_value, int value_length) {
   std::string chipset =
-    third_party::starboard::rdk::shared::DeviceIdentification{}.GetChipset();
+    third_party::starboard::rdk::shared::DeviceIdentification::GetChipset();
   return CopyStringAndTestIfSuccess(
     out_value, value_length, chipset.c_str());
 }
 
 bool GetFirmwareVersion(char* out_value, int value_length) {
   std::string firmware_version =
-    third_party::starboard::rdk::shared::DeviceIdentification{}.GetFirmwareVersion();
+    third_party::starboard::rdk::shared::DeviceIdentification::GetFirmwareVersion();
   return CopyStringAndTestIfSuccess(
     out_value, value_length, firmware_version.c_str());
 }

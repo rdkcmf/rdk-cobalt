@@ -48,12 +48,14 @@ static void SetThunderAccessPointIfNeeded() {
   if (!file.Open(true))
     return;
 
-  JsonObject config;
+  Core::JSON::DecUInt16 port;
+  Core::JSON::String binding;
+  Core::JSON::Container config;
+  config.Add("port", &port);
+  config.Add("binding", &binding);
   if (config.IElement::FromFile(file)) {
-    Core::JSON::String port = config.Get("port");
-    Core::JSON::String binding = config.Get("binding");
-    envVal = binding.Value() + ":" + port.Value();
-    Core::SystemInfo::SetEnvironment(envName, envVal);
+    envVal = binding.Value() + ":" + std::to_string(port.Value());
+    Core::SystemInfo::SetEnvironment("THUNDER_ACCESS", envVal);
   }
   file.Close();
 }
