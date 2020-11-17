@@ -49,13 +49,20 @@ private:
 
 class DeviceIdentification {
 public:
-  std::string GetChipset() const;
-  std::string GetFirmwareVersion() const;
+  static std::string GetChipset();
+  static std::string GetFirmwareVersion();
 };
 
 class NetworkInfo {
 public:
-  bool IsConnectionTypeWireless() const;
+  static bool IsConnectionTypeWireless();
+};
+
+class TextToSpeech {
+public:
+  static bool IsEnabled();
+  static void Speak(const std::string& text);
+  static void Cancel();
 };
 
 }  // namespace shared

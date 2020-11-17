@@ -32,6 +32,7 @@
 
 #include "starboard/common/log.h"
 #include "starboard/event.h"
+#include "starboard/speech_synthesis.h"
 #include "starboard/shared/starboard/audio_sink/audio_sink_internal.h"
 
 #include "third_party/starboard/rdk/shared/window/window_internal.h"
@@ -153,6 +154,7 @@ void Application::Inject(Event* e) {
 }
 
 void Application::OnSuspend() {
+  SbSpeechSynthesisCancel();
   DestroyNativeWindow();
 }
 

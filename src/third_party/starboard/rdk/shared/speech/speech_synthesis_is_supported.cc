@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Copyright 2016 The Cobalt Authors. All Rights Reserved.
+// Copyright 2019 The Cobalt Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,14 +28,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "starboard/system.h"
+#include "starboard/speech_synthesis.h"
 
-#include "third_party/starboard/rdk/shared/rdkservices.h"
+#if SB_API_VERSION >= 12
 
-SbSystemConnectionType SbSystemGetConnectionType() {
-  if (third_party::starboard::rdk::shared::NetworkInfo::IsConnectionTypeWireless()) {
-    return kSbSystemConnectionTypeWireless;
-  } else {
-    return kSbSystemConnectionTypeWired;
-  }
+bool SbSpeechSynthesisIsSupported() {
+  return true;
 }
+
+#endif
