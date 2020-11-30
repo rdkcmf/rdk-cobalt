@@ -74,7 +74,7 @@ private:
       , Url()
       , ClientIdentifier()
       , Language()
-      , ContentDir(kDefaultContentDir) {
+      , ContentDir() {
       Add(_T("url"), &Url);
       Add(_T("clientidentifier"), &ClientIdentifier);
       Add(_T("language"), &Language);
@@ -196,9 +196,11 @@ private:
         Core::SystemInfo::SetEnvironment(_T("LANG"), lang);
       }
 
-      if (config.ContentDir.IsSet() == true && config.ContentDir.Value().empty() == false) {
+      if (config.ContentDir.IsSet() == true) {
         string contentdir = config.ContentDir.Value();
         Core::SystemInfo::SetEnvironment(_T("COBALT_CONTENT_DIR"), contentdir);
+      } else {
+        Core::SystemInfo::SetEnvironment(_T("COBALT_CONTENT_DIR"), kDefaultContentDir);
       }
 
       Run();
