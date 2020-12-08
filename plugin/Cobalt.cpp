@@ -77,8 +77,8 @@ const string Cobalt::Initialize(PluginHost::IShell *service) {
   if (_cobalt == nullptr) {
     message = _T("Cobalt could not be instantiated.");
     _service->Unregister(&_notification);
-    _service = nullptr;
     ConnectionTermination(_connectionId);
+    _service = nullptr;
   }
 
   return message;
