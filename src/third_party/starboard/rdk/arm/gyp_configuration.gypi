@@ -84,6 +84,8 @@
       # matters: Wall implies Wunused-parameter and Wno-unused-parameter
       # has no effect if specified before Wall.
       '-Wno-unused-parameter',
+      '-Wno-expansion-to-defined',
+      '-Wno-implicit-fallthrough',
 
       # Specify the sysroot with all your include dependencies.
       '--sysroot=<(sysroot)',
@@ -174,6 +176,10 @@
     'cflags_cc': [
       '-std=gnu++11',
       '-Wno-literal-suffix',
+      '-Wno-deprecated-copy',
+      '-Wno-invalid-offsetof',
+      '-Wno-ignored-qualifiers',
+      '-Wno-pessimizing-move',
     ],
     'default_configuration': 'rdk-arm',
     'configurations': {

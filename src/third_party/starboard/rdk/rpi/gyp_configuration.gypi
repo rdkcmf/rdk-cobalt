@@ -84,6 +84,9 @@
       # matters: Wall implies Wunused-parameter and Wno-unused-parameter
       # has no effect if specified before Wall.
       '-Wno-unused-parameter',
+      # gcc 9.x throws #if macros definitions as error (warnings as errors)
+      '-Wno-expansion-to-defined',
+      '-Wno-implicit-fallthrough',
 
       # Specify the sysroot with all your include dependencies.
       '--sysroot=<(sysroot)',
@@ -174,6 +177,10 @@
     'cflags_cc': [
       '-std=gnu++11',
       '-Wno-literal-suffix',
+      '-Wno-deprecated-copy',
+      '-Wno-invalid-offsetof',
+      '-Wno-ignored-qualifiers',
+      '-Wno-pessimizing-move',
     ],
     'default_configuration': 'rdk-rpi_qa',
     'configurations': {
