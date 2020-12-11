@@ -390,16 +390,54 @@ void DisplayInfo::Impl::Refresh() {
         break;
     }
   } else {
+    resolution_info_ = ResolutionInfo { 1920 , 1080 };
     SB_LOG(ERROR) << "Failed to get 'resolution', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
   }
 
-  Core::JSON::EnumType<Exchange::IHDRProperties::HDRType> hdrsetting;
-  rc = display_info_.Get(kDefaultTimeoutMs, "hdrsetting", hdrsetting);
-  if (Core::ERROR_NONE == rc) {
-    has_hdr_support_ = Exchange::IHDRProperties::HDR_OFF != hdrsetting;
-  } else {
-    SB_LOG(ERROR) << "Failed to get 'hdrsetting', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
-  }
+  auto detectHdr10Support = [&]()
+  {
+    using Caps = Core::JSON::ArrayType<Core::JSON::EnumType<Exchange::IHDRProperties::HDRType>>;
+
+    Caps tvcapabilities;
+    rc = display_info_.Get(kDefaultTimeoutMs, "tvcapabilities", tvcapabilities);
+    if (Core::ERROR_NONE != rc) {
+      SB_LOG(ERROR) << "Failed to get 'tvcapabilities', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
+      return false;
+    }
+
+    bool tvHasHDR10 = false;
+    {
+      Caps::Iterator index(tvcapabilities.Elements());
+      while (index.Next() && !tvHasHDR10)
+        tvHasHDR10 = (index.Current() == Exchange::IHDRProperties::HDR_10);
+    }
+    if (false == tvHasHDR10) {
+      SB_LOG(INFO) << "No HDR10 in TV caps";
+      return false;
+    }
+
+    Caps stbcapabilities;
+    rc = display_info_.Get(kDefaultTimeoutMs, "stbcapabilities", stbcapabilities);
+    if (Core::ERROR_NONE != rc) {
+      SB_LOG(ERROR) << "Failed to get 'stbcapabilities', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
+      return false;
+    }
+
+    bool stbHasHDR10 = false;
+    {
+      Caps::Iterator index(stbcapabilities.Elements());
+      while (index.Next() == true && stbHasHDR10 == false)
+        stbHasHDR10 = (index.Current() == Exchange::IHDRProperties::HDR_10);
+    }
+    if (false == stbHasHDR10) {
+      SB_LOG(INFO) << "No HDR10 in STB caps";
+      return false;
+    }
+
+    return stbHasHDR10;
+  };
+
+  has_hdr_support_ = detectHdr10Support();
 
   needs_refresh_.store(false);
 }
