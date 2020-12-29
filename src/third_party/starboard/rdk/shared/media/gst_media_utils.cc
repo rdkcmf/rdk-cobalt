@@ -162,7 +162,7 @@ std::vector<std::string> CodecToGstCaps(SbMediaVideoCodec codec) {
       return {{"video/x-vc1"}};
 
     case kSbMediaVideoCodecAv1:
-      return {};
+      return {{"video/x-av1"}};
 
     case kSbMediaVideoCodecVp8:
       return {{"video/x-vp8"}};
