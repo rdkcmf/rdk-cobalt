@@ -37,6 +37,13 @@
 
 #include "third_party/starboard/rdk/shared/window/window_internal.h"
 
+#include <fcntl.h>
+#include <poll.h>
+#include <string.h>
+#include <sys/eventfd.h>
+#include <sys/timerfd.h>
+#include <unistd.h>
+
 namespace third_party {
 namespace starboard {
 namespace rdk {
@@ -58,7 +65,7 @@ EssKeyListener Application::keyListener = {
   // keyReleased
   [](void* data, unsigned int key) { reinterpret_cast<Application*>(data)->OnKeyReleased(key); },
   // keyRepeat
-  nullptr
+  [](void* data, unsigned int key) { reinterpret_cast<Application*>(data)->OnKeyPressed(key); }
 };
 
 EssSettingsListener Application::settingsListener = {
@@ -67,6 +74,20 @@ EssSettingsListener Application::settingsListener = {
   // displaySafeArea
   nullptr
 };
+
+const SbTime kEssRunLoopPeriod = 16666;  // microseconds
+
+static void setTimerInterval(int fd, SbTime time) {
+  struct itimerspec timeout;
+  timeout.it_value.tv_sec = time / kSbTimeSecond;
+  timeout.it_value.tv_nsec = ( time % kSbTimeSecond ) * kSbTimeNanosecondsPerMicrosecond;
+  timeout.it_interval.tv_sec = timeout.it_value.tv_sec;
+  timeout.it_interval.tv_nsec = timeout.it_value.tv_nsec;
+  int rc = timerfd_settime(fd, 0, &timeout, NULL);
+  if (rc == -1) {
+    SB_LOG(ERROR) << "Failed to set timer interval, error: " << errno << " ("<< strerror(errno) << ')';
+  }
+}
 
 Application::Application()
   : input_handler_(new EssInput)
@@ -98,6 +119,18 @@ Application::~Application() {
 }
 
 void Application::Initialize() {
+  wakeup_fd_ = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+  if ( wakeup_fd_ == -1 ) {
+    SB_LOG(ERROR) << "Failed to create eventfd, error: " << errno << " (" << strerror(errno) << ')';
+  }
+
+  ess_timer_fd_ = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
+  if ( ess_timer_fd_ == -1 ) {
+    SB_LOG(ERROR) << "Failed to create timerfd, error: " << errno << " (" << strerror(errno) << ')';
+  } else {
+    setTimerInterval(ess_timer_fd_, kEssRunLoopPeriod);
+  }
+
   SbAudioSinkPrivate::Initialize();
   libcobalt_api::Initialize();
 }
@@ -105,6 +138,10 @@ void Application::Initialize() {
 void Application::Teardown() {
   SbAudioSinkPrivate::TearDown();
   libcobalt_api::Teardown();
+
+  close(ess_timer_fd_);
+  close(wakeup_fd_);
+  ess_timer_fd_ = wakeup_fd_ = -1;
 }
 
 bool Application::MayHaveSystemEvents() {
@@ -113,16 +150,57 @@ bool Application::MayHaveSystemEvents() {
 
 ::starboard::shared::starboard::Application::Event*
 Application::PollNextSystemEvent() {
-  EssContextRunEventLoopOnce( ctx_ );
+  SbTime now = SbTimeGetMonotonicNow();
+  if ((now - ess_loop_last_ts_) > kEssRunLoopPeriod) {
+    ess_loop_last_ts_ = now;
+    EssContextRunEventLoopOnce( ctx_ );
+  }
   return NULL;
 }
 
 ::starboard::shared::starboard::Application::Event*
 Application::WaitForSystemEventWithTimeout(SbTime time) {
+  struct timespec timeout;
+  struct pollfd fds[2];
+  int fds_sz = 0;
+  int rc = 0;
+
+  if ( !(ess_timer_fd_ < 0) ) {
+    fds[fds_sz].fd = ess_timer_fd_;
+    fds[fds_sz].events = POLLIN;
+    fds[fds_sz].revents = 0;
+    ++fds_sz;
+  }
+
+  if ( !(wakeup_fd_ < 0) ) {
+    fds[fds_sz].fd = wakeup_fd_;
+    fds[fds_sz].events = POLLIN;
+    fds[fds_sz].revents = 0;
+    ++fds_sz;
+  }
+
+  if ( fds_sz != 0 ) {
+    timeout.tv_sec = time / kSbTimeSecond;
+    timeout.tv_nsec = (time % kSbTimeSecond) * kSbTimeNanosecondsPerMicrosecond;
+    rc = ppoll(fds, fds_sz, &timeout, NULL);
+  }
+
+  if ( rc > 0 ) {
+    for (int i = 0; i < fds_sz; ++i) {
+      if ( (fds[i].revents & POLLIN) != POLLIN )
+        continue;
+      // Ack timer or wakeup event
+      uint64_t tmp;
+      read(fds[i].fd, &tmp, sizeof(uint64_t));
+    }
+  }
+
   return NULL;
 }
 
 void Application::WakeSystemEventWait() {
+  uint64_t u = 1;
+  write(wakeup_fd_, &u, sizeof(uint64_t));
 }
 
 SbWindow Application::CreateSbWindow(const SbWindowOptions* options) {
@@ -156,9 +234,11 @@ void Application::Inject(Event* e) {
 void Application::OnSuspend() {
   SbSpeechSynthesisCancel();
   DestroyNativeWindow();
+  setTimerInterval(ess_timer_fd_, kSbTimeSecond);
 }
 
 void Application::OnResume() {
+  setTimerInterval(ess_timer_fd_, kEssRunLoopPeriod);
   MaterializeNativeWindow();
 }
 

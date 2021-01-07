@@ -110,6 +110,10 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   int window_height_ { 0 };
   bool resize_pending_ { false };
 
+  SbTime ess_loop_last_ts_ { 0 };
+  int ess_timer_fd_ { -1 };
+  int wakeup_fd_ { -1 };
+
   std::unique_ptr<DisplayInfo> display_info_ { nullptr };
 };
 
