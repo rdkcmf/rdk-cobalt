@@ -25,6 +25,7 @@
 #include "starboard/configuration_constants.h"
 #include "starboard/common/log.h"
 #include "third_party/starboard/rdk/shared/media/gst_media_utils.h"
+#include "third_party/starboard/rdk/shared/log_override.h"
 
 namespace third_party {
 namespace starboard {

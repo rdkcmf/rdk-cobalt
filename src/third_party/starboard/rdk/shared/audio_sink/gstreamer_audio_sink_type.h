@@ -34,6 +34,7 @@
 
 #include "starboard/common/log.h"
 #include "starboard/shared/starboard/audio_sink/audio_sink_internal.h"
+#include "third_party/starboard/rdk/shared/log_override.h"
 
 namespace third_party {
 namespace starboard {
