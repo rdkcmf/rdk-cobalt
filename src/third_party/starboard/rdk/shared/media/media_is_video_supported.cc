@@ -37,6 +37,7 @@
 #include "starboard/shared/starboard/media/media_util.h"
 #include "third_party/starboard/rdk/shared/media/gst_media_utils.h"
 #include "third_party/starboard/rdk/shared/application_rdk.h"
+#include "third_party/starboard/rdk/shared/log_override.h"
 
 using starboard::shared::starboard::media::IsSDRVideo;
 using third_party::starboard::rdk::shared::Application;

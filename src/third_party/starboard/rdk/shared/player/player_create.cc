@@ -32,6 +32,7 @@
 #include "starboard/player.h"
 #include "third_party/starboard/rdk/shared/player/player_internal.h"
 #include "third_party/starboard/rdk/shared/media/gst_media_utils.h"
+#include "third_party/starboard/rdk/shared/log_override.h"
 
 SB_EXPORT SbPlayer
 SbPlayerCreate(SbWindow window,

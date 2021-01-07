@@ -31,10 +31,11 @@
 #endif
 
 #include "starboard/atomic.h"
-#include "starboard/common/log.h"
 #include "starboard/once.h"
 #include "starboard/common/condition_variable.h"
 #include "starboard/common/mutex.h"
+
+#include "third_party/starboard/rdk/shared/log_override.h"
 
 using namespace  WPEFramework;
 
@@ -439,6 +440,12 @@ void DisplayInfo::Impl::Refresh() {
 
   has_hdr_support_ = detectHdr10Support();
 
+  SB_LOG(INFO) << "Display info updated, resolution: "
+               << resolution_info_.Width
+               << 'x'
+               << resolution_info_.Height
+               << ", has hdr: "
+               << (has_hdr_support_ ? "yes" : "no");
   needs_refresh_.store(false);
 }
 
