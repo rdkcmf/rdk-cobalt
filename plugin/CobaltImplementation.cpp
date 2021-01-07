@@ -79,6 +79,7 @@ private:
       Add(_T("clientidentifier"), &ClientIdentifier);
       Add(_T("language"), &Language);
       Add(_T("contentdir"), &ContentDir);
+      Add(_T("gstdebug"), &GstDebug);
     }
     ~Config() {
     }
@@ -88,6 +89,7 @@ private:
     Core::JSON::String ClientIdentifier;
     Core::JSON::String Language;
     Core::JSON::String ContentDir;
+    Core::JSON::String GstDebug;
   };
 
   class NotificationSink: public Core::Thread {
@@ -201,6 +203,12 @@ private:
         Core::SystemInfo::SetEnvironment(_T("COBALT_CONTENT_DIR"), contentdir);
       } else {
         Core::SystemInfo::SetEnvironment(_T("COBALT_CONTENT_DIR"), kDefaultContentDir);
+      }
+
+      if (config.GstDebug.IsSet() == true) {
+        Core::SystemInfo::SetEnvironment(_T("GST_DEBUG"), config.GstDebug.Value());
+      } else {
+        Core::SystemInfo::SetEnvironment(_T("GST_DEBUG"), "gstplayer:4,2");
       }
 
       Run();
