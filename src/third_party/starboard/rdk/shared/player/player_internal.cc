@@ -340,7 +340,7 @@ void gst_cobalt_src_setup_and_add_app_src(GstElement* element,
     gst_caps_unref(gst_caps);
   }
 
-  g_object_set(appsrc, "format", GST_FORMAT_TIME, "stream-type",
+  g_object_set(appsrc, "block", FALSE, "format", GST_FORMAT_TIME, "stream-type",
                GST_APP_STREAM_TYPE_SEEKABLE, nullptr);
   gst_app_src_set_callbacks(GST_APP_SRC(appsrc), callbacks, user_data, nullptr);
   gst_app_src_set_max_bytes(GST_APP_SRC(appsrc), 16 * 1024 * 1024);
@@ -1023,8 +1023,8 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   int frame_width_{0};
   int frame_height_{0};
   State state_{State::kNull};
-  SamplesPendingKey pending_;
-  mutable gint64 cached_position_ns_{0};
+  SamplesPendingKey pending_samples_;
+  mutable gint64 cached_position_ns_{kSbTimeMax};
   mutable SbTime position_update_time_us_{0};
   PendingBounds pending_bounds_;
   SbMediaColorMetadata color_metadata_{};
@@ -1239,10 +1239,10 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
           }
 
           if (is_rate_pending) {
-            GST_INFO("Sending pending SetRate(%lf)", rate);
+            GST_INFO("Sending pending SetRate(rate=%lf)", rate);
             self->SetRate(rate);
           } else if (is_seek_pending) {
-            GST_INFO("Sending pending Seek(%" PRId64 ")", pending_seek_pos);
+            GST_INFO("Sending pending Seek(position=%" PRId64 ", ticket=%d)", pending_seek_pos, ticket);
             self->Seek(pending_seek_pos, ticket);
           }
         }
@@ -1581,12 +1581,12 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
                 "Adjust impl. to handle more samples after changing samples"
                 "count");
   SB_DCHECK(number_of_sample_infos == kMaxNumberOfSamplesPerWrite);
+  GstClockTime timestamp = sample_infos[0].timestamp * kSbTimeNanosecondsPerMicrosecond;
   GstBuffer* buffer =
       gst_buffer_new_allocate(nullptr, sample_infos[0].buffer_size, nullptr);
   gst_buffer_fill(buffer, 0, sample_infos[0].buffer,
                   sample_infos[0].buffer_size);
-  GST_BUFFER_TIMESTAMP(buffer) =
-      sample_infos[0].timestamp * kSbTimeNanosecondsPerMicrosecond;
+  GST_BUFFER_TIMESTAMP(buffer) = timestamp;
   sample_deallocate_func_(player_, context_, sample_infos[0].buffer);
 
   GstBuffer* subsamples = nullptr;
@@ -1613,8 +1613,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
     }
   }
 
-  RecordTimestamp(sample_type,
-                  sample_infos[0].timestamp * kSbTimeNanosecondsPerMicrosecond);
+  RecordTimestamp(sample_type, timestamp);
 
   if (MinTimestamp(nullptr) == GST_BUFFER_TIMESTAMP(buffer) &&
       GST_STATE(pipeline_) <= GST_STATE_PAUSED &&
@@ -1685,21 +1684,21 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
           reinterpret_cast<const char*>(sample_infos[0].drm_info->identifier),
           sample_infos[0].drm_info->identifier_size};
       ::starboard::ScopedLock lock(mutex_);
-      pending_[key_str].emplace_back(std::move(sample));
+      pending_samples_[key_str].emplace_back(std::move(sample));
       if (session_id.empty())
         return;
     }
   } else {
     GST_TRACE("Encounterd clear sample");
     if (keep_samples) {
-      ::starboard::ScopedLock lock(mutex_);
       GST_INFO("Pending flushing operation. Storing sample");
       GST_INFO("SampleType:%d %" GST_TIME_FORMAT " b:%p, s:%p, iv:%p, k:%p",
                sample_type, GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(buffer)), buffer,
                subsamples, iv, key);
+      ::starboard::ScopedLock lock(mutex_);
       PendingSample sample(sample_type, buffer, nullptr, nullptr, 0, nullptr);
       key_str = {kClearSamplesKey};
-      pending_[key_str].emplace_back(std::move(sample));
+      pending_samples_[key_str].emplace_back(std::move(sample));
     }
   }
 
@@ -1707,7 +1706,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
     PendingSamples local_samples;
     {
       ::starboard::ScopedLock lock(mutex_);
-      local_samples.swap(pending_[key_str]);
+      local_samples.swap(pending_samples_[key_str]);
     }
 
     auto& sample = local_samples.back();
@@ -1720,7 +1719,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
     {
       ::starboard::ScopedLock lock(mutex_);
       std::move(local_samples.begin(), local_samples.end(),
-                std::back_inserter(pending_[key_str]));
+                std::back_inserter(pending_samples_[key_str]));
     }
   } else {
     WriteSample(sample_type, buffer, session_id, subsamples, subsamples_count,
@@ -1742,12 +1741,23 @@ void PlayerImpl::SetVolume(double volume) {
 }
 
 void PlayerImpl::Seek(SbTime seek_to_timestamp, int ticket) {
-  GST_DEBUG_OBJECT(pipeline_, "===> time %" PRId64 " TID: %d state %d",
-                   seek_to_timestamp, SbThreadGetId(),
+  gint64 current_pos_ns = GetPosition();
+  GST_INFO_OBJECT(pipeline_, "===> time %" PRId64 " (target=%" GST_TIME_FORMAT ", curr=%" GST_TIME_FORMAT ") TID: %d state %d",
+                   seek_to_timestamp,
+                   GST_TIME_ARGS(seek_to_timestamp * kSbTimeNanosecondsPerMicrosecond),
+                   GST_TIME_ARGS(current_pos_ns),
+                   SbThreadGetId(),
                    static_cast<int>(state_));
   double rate = 1.;
   {
     ::starboard::ScopedLock lock(mutex_);
+
+    if (ticket_ != ticket) {
+      pending_samples_.clear();
+      max_sample_timestamps_[kVideoIndex] = 0;
+      max_sample_timestamps_[kAudioIndex] = 0;
+      min_sample_timestamp_ = kSbTimeMax;
+    }
 
     ticket_ = ticket;
     seek_position_ = seek_to_timestamp;
@@ -1823,7 +1833,6 @@ bool PlayerImpl::SetRate(double rate) {
     decoder_state_data_ = 0;
     eos_data_ = 0;
   }
-  GetPosition();  // Update cached
   if (rate == .0) {
     ChangePipelineState(GST_STATE_PAUSED);
   } else if (rate == 1. && (current_rate == 1. || current_rate == .0)) {
@@ -1978,6 +1987,14 @@ gint64 PlayerImpl::GetPosition() const {
     }
   }
 
+  if (cached_position_ns_ != kSbTimeMax &&
+      std::abs(position - cached_position_ns_) > GST_SECOND) {
+    GST_WARNING("Unexpected position! More than 1 second jump detected: "
+                "%" GST_TIME_FORMAT " --> %" GST_TIME_FORMAT "",
+                GST_TIME_ARGS(cached_position_ns_),
+                GST_TIME_ARGS(position));
+  }
+
   MediaType origin = MediaType::kNone;
   constexpr SbTime kMarginNs =
       350 * kSbTimeMillisecond * kSbTimeNanosecondsPerMicrosecond;
@@ -1993,38 +2010,7 @@ gint64 PlayerImpl::GetPosition() const {
                 " sample:%" GST_TIME_FORMAT,
                 GST_TIME_ARGS(position), GST_TIME_ARGS(min_ts + kMarginNs));
     ChangePipelineState(GST_STATE_PAUSED);
-    cached_position_ns_ = position;
   }
-
-#if 0
-  constexpr int kPositionUpdateMinIntervalMs = 250 * kSbTimeMillisecond;
-  if (position_update_time_us_ - last_update <= kPositionUpdateMinIntervalMs &&
-      cached_position_ns_ != kSbTimeMax) {
-    if (rate == .0 || GST_STATE(pipeline_) == GST_STATE_PAUSED ||
-        (GST_STATE_PENDING(pipeline_) == GST_STATE_PAUSED &&
-         GST_STATE_NEXT(pipeline_) == GST_STATE_PAUSED &&
-         GST_STATE_TARGET(pipeline_) == GST_STATE_PAUSED)) {
-      GST_TRACE("Checking position after %" PRId64
-                " ms. Using cached %" GST_TIME_FORMAT " PAUSED.",
-                (position_update_time_us_ - last_update) / kSbTimeMillisecond,
-                GST_TIME_ARGS(cached_position_ns_));
-      return cached_position_ns_;
-    }
-
-    SbTime max_ts = std::max(max_sample_timestamps_[kVideoIndex],
-                             max_sample_timestamps_[kAudioIndex]);
-    if (max_ts == kSbTimeMax || cached_position_ns_ < max_ts +  kMarginNs) {
-      cached_position_ns_ =
-        cached_position_ns_ + (position_update_time_us_ - last_update) * rate *
-                                  kSbTimeNanosecondsPerMicrosecond;
-    }
-    GST_TRACE("Checking position after %" PRId64
-              " ms. Using cached %" GST_TIME_FORMAT,
-              (position_update_time_us_ - last_update) / kSbTimeMillisecond,
-              GST_TIME_ARGS(cached_position_ns_));
-    return cached_position_ns_;
-  }
-#endif
 
   cached_position_ns_ = position;
   return position;
@@ -2032,25 +2018,25 @@ gint64 PlayerImpl::GetPosition() const {
 
 void PlayerImpl::OnKeyReady(const uint8_t* key, size_t key_len) {
   std::string key_str(reinterpret_cast<const char*>(key), key_len);
-  SamplesPendingKey::iterator iter;
+  PendingSamples local_samples;
   bool keep_samples = false;
+  int ticket = -1;
   {
     ::starboard::ScopedLock lock(mutex_);
-    iter = pending_.find(key_str);
+    SamplesPendingKey::iterator iter;
+    iter = pending_samples_.find(key_str);
     keep_samples = is_seek_pending_ || pending_rate_ != 0.;
+    ticket = ticket_;
+    if (iter != pending_samples_.end()) {
+      local_samples.swap(iter->second);
+    }
   }
 
-  if (iter != pending_.end()) {
+  if (!local_samples.empty()) {
     std::string session_id;
     if (drm_system_) {
       session_id = drm_system_->SessionIdByKeyId(key, key_len);
       SB_DCHECK(!session_id.empty());
-    }
-
-    PendingSamples local_samples;
-    {
-      ::starboard::ScopedLock lock(mutex_);
-      local_samples.swap(iter->second);
     }
 
     std::sort(local_samples.begin(), local_samples.end(),
@@ -2058,13 +2044,14 @@ void PlayerImpl::OnKeyReady(const uint8_t* key, size_t key_len) {
                 return GST_BUFFER_TIMESTAMP(lhs.Buffer()) <
                        GST_BUFFER_TIMESTAMP(rhs.Buffer());
               });
-    GstClockTime prev_ts = -1;
+    GstClockTime prev_timestamps[kMediaNumber] = {-1, -1};
     for (auto& sample : local_samples) {
       GST_INFO("Writing pending: SampleType:%d %" GST_TIME_FORMAT
                " b:%p, s:%p, iv:%p, k:%p",
                sample.Type(),
                GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(sample.Buffer())),
                sample.Buffer(), sample.Subsamples(), sample.Iv(), sample.Key());
+      auto &prev_ts = prev_timestamps[sample.Type() == kSbMediaTypeVideo ? kVideoIndex : kAudioIndex];
       if (prev_ts == GST_BUFFER_TIMESTAMP(sample.Buffer())) {
         GST_WARNING("Skipping %" GST_TIME_FORMAT ". Already written.",
                     GST_TIME_ARGS(prev_ts));
@@ -2080,10 +2067,20 @@ void PlayerImpl::OnKeyReady(const uint8_t* key, size_t key_len) {
     }
 
     if (keep_samples) {
-      GST_INFO("Storing sample again.");
-      ::starboard::ScopedLock lock(mutex_);
-      std::move(local_samples.begin(), local_samples.end(),
-                std::back_inserter(pending_[key_str]));
+      {
+        ::starboard::ScopedLock lock(mutex_);
+        if (ticket_ == ticket) {
+          std::move(local_samples.begin(), local_samples.end(),
+                    std::back_inserter(pending_samples_[key_str]));
+        } else {
+          keep_samples = false;
+        }
+      }
+      if (keep_samples) {
+        GST_INFO("Stored samples again.");
+      } else {
+        GST_INFO("Seek ticket changed (%d -> %d), dropped local samples.", ticket, ticket_);
+      }
     }
   }
 }
