@@ -23,6 +23,8 @@
 #include "opencdm/open_cdm.h"
 #include "opencdm/open_cdm_adapter.h"
 
+#include "third_party/starboard/rdk/shared/log_override.h"
+
 namespace third_party {
 namespace starboard {
 namespace rdk {
