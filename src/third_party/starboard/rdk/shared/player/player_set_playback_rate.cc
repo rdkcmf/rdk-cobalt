@@ -34,5 +34,11 @@
 #include "third_party/starboard/rdk/shared/player/player_internal.h"
 
 bool SbPlayerSetPlaybackRate(SbPlayer player, double playback_rate) {
+  // FIXME: remove after seemless rate change is supported
+  if (playback_rate > 0.0 && playback_rate != 1.0)
+    playback_rate = 1.0;
+  else if (playback_rate < 0.0)
+    playback_rate = 0.0;
+
   return player->player_->SetRate(playback_rate);
 }

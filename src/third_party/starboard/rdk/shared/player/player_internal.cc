@@ -1974,7 +1974,7 @@ gint64 PlayerImpl::GetPosition() const {
         return seek_pos_ns;
       }
 
-      cached_position_ns_ = kSbTimeMax;
+      cached_position_ns_ = seek_pos_ns;
       seek_position_ = kSbTimeMax;
     }
   }
