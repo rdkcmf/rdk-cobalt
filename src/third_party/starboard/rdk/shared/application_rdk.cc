@@ -234,7 +234,7 @@ void Application::Inject(Event* e) {
 
 void Application::OnSuspend() {
   SbSpeechSynthesisCancel();
-  DestroyNativeWindow();
+//  DestroyNativeWindow();
   setTimerInterval(ess_timer_fd_, kSbTimeSecond);
 }
 
