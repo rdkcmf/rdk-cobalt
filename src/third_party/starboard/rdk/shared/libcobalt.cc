@@ -26,6 +26,14 @@
 
 using namespace third_party::starboard::rdk::shared;
 
+namespace third_party {
+namespace starboard {
+namespace rdk {
+namespace shared {
+namespace player {
+void ForceStop();
+}}}}}
+
 namespace
 {
 
@@ -60,6 +68,7 @@ struct APIContext
     starboard::ScopedLock lock(mutex_);
     WaitForApp(lock);
     starboard::Semaphore sem;
+    player::ForceStop();
     Application::Get()->Suspend(
       &sem,
       [](void* ctx) {

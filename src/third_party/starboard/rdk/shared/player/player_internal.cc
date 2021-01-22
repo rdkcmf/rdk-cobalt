@@ -54,6 +54,14 @@ void SetResumeTime(SbTime time) {
   sResumeTimestamp = time;
 }
 
+static GstElement* sPipeline = 0;
+void ForceStop() {
+  if (sPipeline) {
+      GstStructure* structure = gst_structure_new_empty("force-stop");
+      gst_element_post_message(sPipeline, gst_message_new_application(GST_OBJECT(sPipeline), structure));
+  }
+}
+
 using third_party::starboard::rdk::shared::drm::DrmSystemOcdm;
 using third_party::starboard::rdk::shared::media::CodecToGstCaps;
 
@@ -1123,9 +1131,11 @@ PlayerImpl::PlayerImpl(SbPlayer player,
     while(!g_main_loop_is_running(main_loop_))
       g_usleep(1);
   }
+  sPipeline = pipeline_;
 }
 
 PlayerImpl::~PlayerImpl() {
+  sPipeline = 0;
   GST_DEBUG_OBJECT(pipeline_, "Destroying player");
   {
     ::starboard::ScopedLock lock(source_setup_mutex_);
@@ -1163,6 +1173,15 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
   GST_TRACE("%d", SbThreadGetId());
 
   switch (GST_MESSAGE_TYPE(message)) {
+    case GST_MESSAGE_APPLICATION: {
+      const GstStructure* structure = gst_message_get_structure(message);
+      if (gst_structure_has_name(structure, "force-stop")) {
+         GST_INFO("Received Force STOP!!!");
+         self->ChangePipelineState(GST_STATE_NULL);
+      }
+      break;
+    }
+
     case GST_MESSAGE_EOS:
       if (GST_MESSAGE_SRC(message) == GST_OBJECT(self->pipeline_)) {
         GST_INFO("EOS");
@@ -1484,8 +1503,10 @@ void PlayerImpl::SetupSource(GstElement* pipeline,
   static constexpr int kAsyncSourceFinishTimeMs = 50;
   int timeout = kAsyncSourceFinishTimeMs;
   SbTime diff = SbTimeGetMonotonicNow()- sResumeTimestamp;
-  if (diff < kSbTimeSecond)
+  if (diff < kSbTimeSecond) {
      timeout = std::max(timeout, int((kSbTimeSecond - diff) / kSbTimeMillisecond));
+     GST_INFO("Adjusted timeout = %d", timeout);
+  }
   GSource* src = g_timeout_source_new(timeout);
   g_source_set_callback(src, &PlayerImpl::FinishSourceSetup, self, nullptr);
   self->source_setup_id_ = g_source_attach(src, self->main_loop_context_);
