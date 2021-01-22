@@ -1041,6 +1041,7 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   mutable SbTime position_update_time_us_{0};
   PendingBounds pending_bounds_;
   SbMediaColorMetadata color_metadata_{};
+  bool force_stop_ { false };
 };
 
 PlayerImpl::PlayerImpl(SbPlayer player,
@@ -1177,7 +1178,14 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
       const GstStructure* structure = gst_message_get_structure(message);
       if (gst_structure_has_name(structure, "force-stop")) {
          GST_INFO("Received Force STOP!!!");
-         self->ChangePipelineState(GST_STATE_NULL);
+         self->force_stop_ = true;
+         self->ChangePipelineState(GST_STATE_READY);
+         g_signal_handlers_disconnect_by_func(self->pipeline_, reinterpret_cast<gpointer>(&PlayerImpl::SetupSource), self);
+         ::starboard::ScopedLock lock(self->source_setup_mutex_);
+         if (self->source_setup_id_ > -1) {
+           GSource* src = g_main_context_find_source_by_id(self->main_loop_context_, self->source_setup_id_);
+           g_source_destroy(src);
+         }
       }
       break;
     }
@@ -1968,6 +1976,10 @@ void PlayerImpl::SetBounds(int zindex, int x, int y, int w, int h) {
 }
 
 bool PlayerImpl::ChangePipelineState(GstState state) const {
+  if (force_stop_ && state > GST_STATE_READY) {
+    GST_INFO_OBJECT(pipeline_, "Ignore state change due to forced stop");
+    return false;
+  }
   GST_DEBUG_OBJECT(pipeline_, "Changing state to %s",
                    gst_element_state_get_name(state));
   return gst_element_set_state(pipeline_, state) != GST_STATE_CHANGE_FAILURE;
