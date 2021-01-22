@@ -49,6 +49,11 @@ int Player::MaxNumberOfSamplesPerWrite() {
   return kMaxNumberOfSamplesPerWrite;
 }
 
+static SbTime sResumeTimestamp = 0;
+void SetResumeTime(SbTime time) {
+  sResumeTimestamp = time;
+}
+
 using third_party::starboard::rdk::shared::drm::DrmSystemOcdm;
 using third_party::starboard::rdk::shared::media::CodecToGstCaps;
 
@@ -1477,7 +1482,11 @@ void PlayerImpl::SetupSource(GstElement* pipeline,
   SB_DCHECK(!self->source_);
   self->source_ = source;
   static constexpr int kAsyncSourceFinishTimeMs = 50;
-  GSource* src = g_timeout_source_new(kAsyncSourceFinishTimeMs);
+  int timeout = kAsyncSourceFinishTimeMs;
+  SbTime diff = SbTimeGetMonotonicNow()- sResumeTimestamp;
+  if (diff < kSbTimeSecond)
+     timeout = std::max(timeout, int((kSbTimeSecond - diff) / kSbTimeMillisecond));
+  GSource* src = g_timeout_source_new(timeout);
   g_source_set_callback(src, &PlayerImpl::FinishSourceSetup, self, nullptr);
   self->source_setup_id_ = g_source_attach(src, self->main_loop_context_);
   g_source_unref(src);

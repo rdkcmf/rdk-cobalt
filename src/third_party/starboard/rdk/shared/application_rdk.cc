@@ -55,6 +55,10 @@ void Initialize();
 void Teardown();
 }
 
+namespace player {
+void SetResumeTime(SbTime);
+}
+
 EssTerminateListener Application::terminateListener = {
   //terminated
   [](void* data) { reinterpret_cast<Application*>(data)->OnTerminated(); }
@@ -241,6 +245,7 @@ void Application::OnSuspend() {
 void Application::OnResume() {
   setTimerInterval(ess_timer_fd_, kEssRunLoopPeriod);
   MaterializeNativeWindow();
+  player::SetResumeTime(SbTimeGetMonotonicNow());
 }
 
 void Application::OnTerminated() {
