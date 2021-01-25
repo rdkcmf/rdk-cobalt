@@ -29,6 +29,7 @@
 #include <map>
 #include <string>
 
+#include "starboard/once.h"
 #include "starboard/common/mutex.h"
 #include "starboard/thread.h"
 #include "starboard/time.h"
@@ -815,6 +816,8 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   // DrmSystemOcdm::Observer
   void OnKeyReady(const uint8_t* key, size_t key_len) override;
 
+  GstElement* GetPipeline() const { return pipeline_;  }
+
  private:
   enum class State {
     kNull,
@@ -1028,7 +1031,47 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   mutable SbTime position_update_time_us_{0};
   PendingBounds pending_bounds_;
   SbMediaColorMetadata color_metadata_{};
+  bool force_stop_ { false };
 };
+
+struct PlayerRegistry
+{
+  ::starboard::Mutex mutex_;
+  std::vector<PlayerImpl*> players_;
+
+  void Add(PlayerImpl *p) {
+    ::starboard::ScopedLock lock(mutex_);
+    auto it = std::find(players_.begin(), players_.end(), p);
+    if (it == players_.end()) {
+      players_.push_back(p);
+    }
+  }
+
+  void Remove(PlayerImpl *p) {
+    ::starboard::ScopedLock lock(mutex_);
+    players_.erase(std::remove(players_.begin(), players_.end(), p), players_.end());
+  }
+
+  void ForceStop() {
+    std::vector<GstElement*> pipelines;
+    {
+      ::starboard::ScopedLock lock(mutex_);
+      for(const auto& p: players_) {
+        GstElement* pipeline = p->GetPipeline();
+        if (pipeline) {
+          gst_object_ref(pipeline);
+          pipelines.push_back(pipeline);
+        }
+      }
+    }
+    for (GstElement* pipeline : pipelines) {
+      GstStructure* structure = gst_structure_new_empty("force-stop");
+      gst_element_post_message(pipeline, gst_message_new_application(GST_OBJECT(pipeline), structure));
+      gst_object_unref(pipeline);
+    }
+  }
+};
+SB_ONCE_INITIALIZE_FUNCTION(PlayerRegistry, GetPlayerRegistry);
 
 PlayerImpl::PlayerImpl(SbPlayer player,
                        SbWindow window,
@@ -1118,9 +1161,12 @@ PlayerImpl::PlayerImpl(SbPlayer player,
     while(!g_main_loop_is_running(main_loop_))
       g_usleep(1);
   }
+  GetPlayerRegistry()->Add(this);
 }
 
 PlayerImpl::~PlayerImpl() {
+  GetPlayerRegistry()->Remove(this);
+
   GST_DEBUG_OBJECT(pipeline_, "Destroying player");
   {
     ::starboard::ScopedLock lock(source_setup_mutex_);
@@ -1158,6 +1204,23 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
   GST_TRACE("%d", SbThreadGetId());
 
   switch (GST_MESSAGE_TYPE(message)) {
+    case GST_MESSAGE_APPLICATION: {
+      const GstStructure* structure = gst_message_get_structure(message);
+      if (gst_structure_has_name(structure, "force-stop") && !self->force_stop_) {
+         GST_INFO("Received force STOP, pipeline = %p!!!", self->pipeline_);
+         self->force_stop_ = true;
+         self->ChangePipelineState(GST_STATE_READY);
+         g_signal_handlers_disconnect_by_func(self->pipeline_, reinterpret_cast<gpointer>(&PlayerImpl::SetupSource), self);
+         ::starboard::ScopedLock lock(self->source_setup_mutex_);
+         if (self->source_setup_id_ > -1) {
+           GSource* src = g_main_context_find_source_by_id(self->main_loop_context_, self->source_setup_id_);
+           g_source_destroy(src);
+           self->source_setup_id_ = -1;
+         }
+      }
+      break;
+    }
+
     case GST_MESSAGE_EOS:
       if (GST_MESSAGE_SRC(message) == GST_OBJECT(self->pipeline_)) {
         GST_INFO("EOS");
@@ -1938,6 +2001,10 @@ void PlayerImpl::SetBounds(int zindex, int x, int y, int w, int h) {
 }
 
 bool PlayerImpl::ChangePipelineState(GstState state) const {
+  if (force_stop_ && state > GST_STATE_READY) {
+    GST_INFO_OBJECT(pipeline_, "Ignore state change due to forced stop");
+    return false;
+  }
   GST_DEBUG_OBJECT(pipeline_, "Changing state to %s",
                    gst_element_state_get_name(state));
   return gst_element_set_state(pipeline_, state) != GST_STATE_CHANGE_FAILURE;
@@ -2131,6 +2198,12 @@ SbTime PlayerImpl::MinTimestamp(MediaType* origin) const {
 }
 
 }  // namespace
+
+void ForceStop() {
+  using third_party::starboard::rdk::shared::player::GetPlayerRegistry;
+  GetPlayerRegistry()->ForceStop();
+}
+
 }  // namespace player
 }  // namespace shared
 }  // namespace rdk
