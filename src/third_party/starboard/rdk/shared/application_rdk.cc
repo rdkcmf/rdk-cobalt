@@ -55,6 +55,10 @@ void Initialize();
 void Teardown();
 }
 
+namespace player {
+void ForceStop();
+}  // namespace player
+
 EssTerminateListener Application::terminateListener = {
   //terminated
   [](void* data) { reinterpret_cast<Application*>(data)->OnTerminated(); }
@@ -229,6 +233,10 @@ void Application::InjectInputEvent(SbInputData* data) {
 }
 
 void Application::Inject(Event* e) {
+  if (e && e->event && e->event->type == kSbEventTypeSuspend) {
+    player::ForceStop();
+  }
+
   QueueApplication::Inject(e);
 }
 
