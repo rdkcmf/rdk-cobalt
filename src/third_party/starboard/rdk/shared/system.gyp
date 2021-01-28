@@ -46,6 +46,7 @@
       'WPEFrameworkPlugins',
     ],
     'has_securityagent%' : '<!(pkg-config securityagent && echo 1 || echo 0)',
+    'has_cryptography%'  : '<!(make -C <(DEPTH)/third_party/starboard/rdk/shared/config.tests/cryptography >/dev/null 2>&1 && echo 1 || echo 0)'
   },
   'targets': [
     {
@@ -140,6 +141,34 @@
           'target_name': 'securityagent',
           'type': 'none',
         }, # securityagent
+      ],
+    }],
+    ['<(has_cryptography)==1', {
+     'targets': [
+        {
+          'target_name': 'cryptography',
+          'type': 'none',
+          'direct_dependent_settings': {
+            'cflags': [
+              '<!@(<(pkg-config) --cflags WPEFrameworkCryptography) -DHAS_CRYPTOGRAPHY=1',
+            ],
+          },
+          'link_settings': {
+            'ldflags': [
+              '<!@(<(pkg-config) --libs-only-L --libs-only-other WPEFrameworkCryptography)',
+            ],
+            'libraries': [
+              '<!@(<(pkg-config) --libs-only-l WPEFrameworkCryptography)',
+            ],
+          },
+        }, # cryptography
+      ],
+    }, {
+     'targets': [
+        {
+          'target_name': 'cryptography',
+          'type': 'none',
+        }, # cryptography
       ],
     }]
   ],

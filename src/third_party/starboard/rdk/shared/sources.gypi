@@ -319,7 +319,6 @@
         '<(DEPTH)/starboard/shared/stub/system_get_used_gpu_memory.cc',
         '<(DEPTH)/starboard/shared/stub/system_hide_splash_screen.cc',
         '<(DEPTH)/starboard/shared/stub/system_raise_platform_error.cc',
-        '<(DEPTH)/starboard/shared/stub/system_sign_with_certification_secret_key.cc',
 
         # GFX
         '<(DEPTH)/starboard/shared/egl/system_egl.cc',
@@ -333,6 +332,7 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_get_property.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_has_capability.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_get_extensions.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/system/system_sign_with_certification_secret_key.cc',
     ],
 
     'time_sources': [
@@ -420,6 +420,7 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:gstreamer',
         '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:wpeframework',
         '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:securityagent',
+        '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:cryptography',
     ],
 
     'sources': [
