@@ -155,6 +155,11 @@ bool GetFirmwareVersion(char* out_value, int value_length) {
     out_value, value_length, firmware_version.c_str());
 }
 
+bool GetCertificationScope(char* out_value, int value_length) {
+  const char* env = std::getenv("COBALT_CERT_SCOPE");
+  return env && CopyStringAndTestIfSuccess(out_value, value_length, env);
+}
+
 }  // namespace
 
 bool SbSystemGetProperty(SbSystemPropertyId property_id,
@@ -198,10 +203,11 @@ bool SbSystemGetProperty(SbSystemPropertyId property_id,
     case kSbSystemPropertyPlatformName:
       return CopyStringAndTestIfSuccess(out_value, value_length, kPlatformName);
 
-#if SB_API_VERSION >= 11
     case kSbSystemPropertyCertificationScope:
+      return GetCertificationScope(out_value, value_length);
+
     case kSbSystemPropertyBase64EncodedCertificationSecret:
-#endif  // SB_API_VERSION >= 11
+      return false;
 
     default:
       SB_DLOG(WARNING) << __FUNCTION__
