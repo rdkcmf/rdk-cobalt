@@ -323,6 +323,22 @@ bool Application::DisplayHasHDRSupport() const {
   return display_info_->HasHDRSupport();
 }
 
+float Application::GetDisplayDiagonalSizeInInches() const {
+  return display_info_->GetDiagonalSizeInInches();
+}
+
+void Application::DisplayInfoChanged() {
+  if (state() != kStateStarted)
+    return;
+
+  SbWindowSize window_size;
+  SbWindowGetSize(window_, &window_size);
+  auto *data = new SbEventWindowSizeChangedData();
+  data->size = window_size;
+  data->window = window_;
+  WindowSizeChanged(data, &Application::DeleteDestructor<SbEventWindowSizeChangedData>);
+}
+
 }  // namespace shared
 }  // namespace rdk
 }  // namespace starboard

@@ -70,6 +70,8 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   int GetWindowHeight() const { return window_height_; }
   ResolutionInfo GetDisplayResolution() const;
   bool DisplayHasHDRSupport() const;
+  float GetDisplayDiagonalSizeInInches() const;
+  void DisplayInfoChanged();
 
   bool IsStartImmediate() override { return !HasPreloadSwitch(); }
   bool IsPreloadImmediate() override { return HasPreloadSwitch(); }

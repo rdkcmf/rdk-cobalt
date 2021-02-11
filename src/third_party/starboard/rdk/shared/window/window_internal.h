@@ -46,6 +46,7 @@ struct SbWindowPrivate {
   int Height() const;
   void* Native() const;
   float VideoPixelRatio() const;
+  float DiagonalSizeInInches() const;
 };
 
 #endif  // THIRD_PARTY_STARBOARD_RDK_SHARED_WINDOW_INTERNAL_H_

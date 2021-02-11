@@ -41,6 +41,7 @@ public:
   DisplayInfo();
   ~DisplayInfo();
   ResolutionInfo GetResolution() const;
+  float GetDiagonalSizeInInches() const;
   bool HasHDRSupport() const;
 private:
   struct Impl;

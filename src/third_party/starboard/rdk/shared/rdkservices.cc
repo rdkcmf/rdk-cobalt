@@ -31,11 +31,13 @@
 #endif
 
 #include "starboard/atomic.h"
+#include "starboard/event.h"
 #include "starboard/once.h"
 #include "starboard/common/condition_variable.h"
 #include "starboard/common/mutex.h"
 
 #include "third_party/starboard/rdk/shared/log_override.h"
+#include "third_party/starboard/rdk/shared/application_rdk.h"
 
 using namespace  WPEFramework;
 
@@ -337,6 +339,10 @@ struct DisplayInfo::Impl {
     Refresh();
     return has_hdr_support_;
   }
+  float GetDiagonalSizeInInches() {
+    Refresh();
+    return diagonal_size_in_inches_;
+  }
 private:
   void Refresh();
   void OnUpdated(const Core::JSON::String&);
@@ -344,6 +350,7 @@ private:
   ServiceLink display_info_;
   ResolutionInfo resolution_info_ { };
   bool has_hdr_support_ { false };
+  float diagonal_size_in_inches_ { 0.f };
   ::starboard::atomic_bool needs_refresh_ { true };
 };
 
@@ -370,6 +377,7 @@ DisplayInfo::Impl::~Impl() {
 void DisplayInfo::Impl::Refresh() {
   if (!needs_refresh_.load())
     return;
+  needs_refresh_.store(false);
 
   uint32_t rc;
 
@@ -393,6 +401,25 @@ void DisplayInfo::Impl::Refresh() {
   } else {
     resolution_info_ = ResolutionInfo { 1920 , 1080 };
     SB_LOG(ERROR) << "Failed to get 'resolution', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
+  }
+
+  Core::JSON::DecUInt16 widthincentimeters, heightincentimeters;
+  rc = display_info_.Get(kDefaultTimeoutMs, "widthincentimeters", widthincentimeters);
+  if (Core::ERROR_NONE != rc) {
+    widthincentimeters.Clear();
+    SB_LOG(ERROR) << "Failed to get 'DisplayInfo.widthincentimeters', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
+  }
+
+  rc = display_info_.Get(kDefaultTimeoutMs, "heightincentimeters", heightincentimeters);
+  if (Core::ERROR_NONE != rc) {
+    heightincentimeters.Clear();
+    SB_LOG(ERROR) << "Failed to get 'DisplayInfo.heightincentimeters', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
+  }
+
+  if (widthincentimeters && heightincentimeters) {
+    diagonal_size_in_inches_ = sqrtf(powf(widthincentimeters, 2) + powf(heightincentimeters, 2)) / 2.54f;
+  } else {
+    diagonal_size_in_inches_ = 0.f;
   }
 
   auto detectHdr10Support = [&]()
@@ -445,12 +472,18 @@ void DisplayInfo::Impl::Refresh() {
                << 'x'
                << resolution_info_.Height
                << ", has hdr: "
-               << (has_hdr_support_ ? "yes" : "no");
-  needs_refresh_.store(false);
+               << (has_hdr_support_ ? "yes" : "no")
+               << ", diagonal size in inches: "
+               << diagonal_size_in_inches_;
 }
 
 void DisplayInfo::Impl::OnUpdated(const Core::JSON::String&) {
-  needs_refresh_.store(true);
+  if (needs_refresh_.load() == false) {
+    needs_refresh_.store(true);
+    SbEventSchedule([](void* data) {
+      Application::Get()->DisplayInfoChanged();
+    }, nullptr, 0);
+  }
 }
 
 DisplayInfo::DisplayInfo() : impl_(new Impl) {
@@ -461,6 +494,10 @@ DisplayInfo::~DisplayInfo() {
 
 ResolutionInfo DisplayInfo::GetResolution() const {
   return impl_->GetResolution();
+}
+
+float DisplayInfo::GetDiagonalSizeInInches() const {
+  return impl_->GetDiagonalSizeInInches();
 }
 
 bool DisplayInfo::HasHDRSupport() const {
