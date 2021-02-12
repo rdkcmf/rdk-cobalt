@@ -873,6 +873,8 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
       other.subsamples_count_ = 0;
       key_ = other.key_;
       other.key_ = nullptr;
+      serial_ = other.serial_;
+      other.serial_ = 0;
       return *this;
     }
 
@@ -883,13 +885,15 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
                   GstBuffer* iv,
                   GstBuffer* subsamples,
                   int32_t subsamples_count,
-                  GstBuffer* key)
+                  GstBuffer* key,
+                  uint64_t serial)
         : type_(type),
           buffer_(buffer),
           iv_(iv),
           subsamples_(subsamples),
           subsamples_count_(subsamples_count),
-          key_(key) {
+          key_(key),
+          serial_(serial) {
       SB_DCHECK(gst_buffer_is_writable(buffer));
       buffer_copy_ = gst_buffer_copy_deep(buffer);
     }
@@ -915,6 +919,7 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
     GstBuffer* Subsamples() const { return subsamples_; }
     int32_t SubsamplesCount() const { return subsamples_count_; }
     GstBuffer* Key() const { return key_; }
+    uint64_t SerialID() const { return serial_; }
 
    private:
     SbMediaType type_;
@@ -924,6 +929,7 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
     GstBuffer* subsamples_;
     int32_t subsamples_count_;
     GstBuffer* key_;
+    uint64_t serial_;
   };
 
   struct PendingBounds {
@@ -984,6 +990,9 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
       kSbPlayerDecoderStateNeedsData, media));
   }
 
+  void HandleApplicationMessage(GstBus* bus, GstMessage* message);
+  void WritePendingSamples(const uint8_t* key, size_t key_len);
+
   SbPlayer player_;
   SbWindow window_;
   SbMediaVideoCodec video_codec_;
@@ -1032,6 +1041,7 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   PendingBounds pending_bounds_;
   SbMediaColorMetadata color_metadata_{};
   bool force_stop_ { false };
+  uint64_t samples_serial_ { 0 };
 };
 
 struct PlayerRegistry
@@ -1179,6 +1189,9 @@ PlayerImpl::~PlayerImpl() {
     GSource* src = g_main_context_find_source_by_id(main_loop_context_, bus_watch_id_);
     g_source_destroy(src);
   }
+  if (drm_system_) {
+    drm_system_->RemoveObserver(this);
+  }
   ChangePipelineState(GST_STATE_NULL);
   GstBus* bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline_));
   gst_bus_set_sync_handler(bus, nullptr, nullptr, nullptr);
@@ -1189,8 +1202,6 @@ PlayerImpl::~PlayerImpl() {
   g_main_loop_unref(main_loop_);
   g_main_context_unref(main_loop_context_);
   g_object_unref(pipeline_);
-  if (drm_system_)
-    drm_system_->RemoveObserver(this);
   GST_DEBUG("BYE BYE player");
 }
 
@@ -1205,19 +1216,7 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
 
   switch (GST_MESSAGE_TYPE(message)) {
     case GST_MESSAGE_APPLICATION: {
-      const GstStructure* structure = gst_message_get_structure(message);
-      if (gst_structure_has_name(structure, "force-stop") && !self->force_stop_) {
-         GST_INFO("Received force STOP, pipeline = %p!!!", self->pipeline_);
-         self->force_stop_ = true;
-         self->ChangePipelineState(GST_STATE_READY);
-         g_signal_handlers_disconnect_by_func(self->pipeline_, reinterpret_cast<gpointer>(&PlayerImpl::SetupSource), self);
-         ::starboard::ScopedLock lock(self->source_setup_mutex_);
-         if (self->source_setup_id_ > -1) {
-           GSource* src = g_main_context_find_source_by_id(self->main_loop_context_, self->source_setup_id_);
-           g_source_destroy(src);
-           self->source_setup_id_ = -1;
-         }
-      }
+      self->HandleApplicationMessage(bus, message);
       break;
     }
 
@@ -1338,13 +1337,13 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
               self->has_enough_data_ = static_cast<int>(MediaType::kBoth);
             }
             GST_INFO("===> Writing pending samples");
-            self->OnKeyReady(reinterpret_cast<const uint8_t*>(kClearSamplesKey),
-                             strlen(kClearSamplesKey));
+            self->WritePendingSamples(reinterpret_cast<const uint8_t*>(kClearSamplesKey),
+                                      strlen(kClearSamplesKey));
             if (self->drm_system_) {
               auto ready_keys = self->drm_system_->GetReadyKeys();
               for (auto& key : ready_keys) {
-                self->OnKeyReady(reinterpret_cast<const uint8_t*>(key.c_str()),
-                                 key.size());
+                self->WritePendingSamples(reinterpret_cast<const uint8_t*>(key.c_str()),
+                                          key.size());
               }
             }
             {
@@ -1688,11 +1687,13 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
     ChangePipelineState(GST_STATE_PLAYING);
   }
 
+  uint64_t serial = 0;
   std::string key_str;
   bool keep_samples = false;
   {
     ::starboard::ScopedLock lock(mutex_);
     keep_samples = is_seek_pending_ || pending_rate_ != .0;
+    serial = ++samples_serial_;
   }
   if (sample_infos[0].drm_info) {
     GST_LOG("Encounterd encrypted %s sample",
@@ -1737,12 +1738,27 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
         sample_infos[0].drm_info->identifier,
         sample_infos[0].drm_info->identifier_size);
     if (session_id.empty() || keep_samples) {
+      gchar *md5sum = 0;
+
+      #ifndef GST_DISABLE_GST_DEBUG
+      if (gst_debug_category_get_threshold(GST_CAT_DEFAULT) >= GST_LEVEL_INFO) {
+        md5sum = g_compute_checksum_for_data(
+          G_CHECKSUM_MD5,
+          sample_infos[0].drm_info->identifier,
+          sample_infos[0].drm_info->identifier_size);
+      }
+      #endif
+
       GST_INFO("No session/pending flushing operation. Storing sample");
-      GST_INFO("SampleType:%d %" GST_TIME_FORMAT " b:%p, s:%p, iv:%p, k:%p",
+      GST_INFO("SampleType:%d %" GST_TIME_FORMAT " b:%p, s:%p, iv:%p, k:%p(%s)",
                sample_type, GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(buffer)), buffer,
-               subsamples, iv, key);
+               subsamples, iv, key, md5sum);
+
+      if (md5sum)
+        g_free(md5sum);
+
       PendingSample sample(sample_type, buffer, iv, subsamples,
-                           subsamples_count, key);
+                           subsamples_count, key, serial);
       key_str = {
           reinterpret_cast<const char*>(sample_infos[0].drm_info->identifier),
           sample_infos[0].drm_info->identifier_size};
@@ -1759,7 +1775,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
                sample_type, GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(buffer)), buffer,
                subsamples, iv, key);
       ::starboard::ScopedLock lock(mutex_);
-      PendingSample sample(sample_type, buffer, nullptr, nullptr, 0, nullptr);
+      PendingSample sample(sample_type, buffer, nullptr, nullptr, 0, nullptr, serial);
       key_str = {kClearSamplesKey};
       pending_samples_[key_str].emplace_back(std::move(sample));
     }
@@ -2084,6 +2100,16 @@ gint64 PlayerImpl::GetPosition() const {
 }
 
 void PlayerImpl::OnKeyReady(const uint8_t* key, size_t key_len) {
+  GstBuffer* kid_buf = gst_buffer_new_allocate(nullptr, key_len, nullptr);
+  gst_buffer_fill(kid_buf, 0, key, key_len);
+
+  GstStructure* structure = gst_structure_new("key-ready", "kid", GST_TYPE_BUFFER, kid_buf, nullptr);
+  gst_element_post_message(
+    pipeline_, gst_message_new_application(GST_OBJECT(pipeline_), structure));
+  gst_buffer_unref (kid_buf);
+}
+
+void PlayerImpl::WritePendingSamples(const uint8_t* key, size_t key_len) {
   std::string key_str(reinterpret_cast<const char*>(key), key_len);
   PendingSamples local_samples;
   bool keep_samples = false;
@@ -2106,11 +2132,11 @@ void PlayerImpl::OnKeyReady(const uint8_t* key, size_t key_len) {
       SB_DCHECK(!session_id.empty());
     }
 
-    std::sort(local_samples.begin(), local_samples.end(),
-              [](const PendingSample& lhs, const PendingSample& rhs) -> bool {
-                return GST_BUFFER_TIMESTAMP(lhs.Buffer()) <
-                       GST_BUFFER_TIMESTAMP(rhs.Buffer());
-              });
+    std::sort(
+      local_samples.begin(), local_samples.end(),
+      [](const PendingSample& lhs, const PendingSample& rhs) -> bool {
+        return lhs.SerialID() < rhs.SerialID();
+      });
     GstClockTime prev_timestamps[kMediaNumber] = {-1, -1};
     for (auto& sample : local_samples) {
       GST_INFO("Writing pending: SampleType:%d %" GST_TIME_FORMAT
@@ -2195,6 +2221,48 @@ SbTime PlayerImpl::MinTimestamp(MediaType* origin) const {
   if (origin)
     *origin = min_sample_timestamp_origin_;
   return min_sample_timestamp_;
+}
+
+void PlayerImpl::HandleApplicationMessage(GstBus* bus, GstMessage* message) {
+  const GstStructure* structure = gst_message_get_structure(message);
+  if (gst_structure_has_name(structure, "force-stop") && !force_stop_) {
+    GST_INFO("Received force STOP, pipeline = %p!!!", pipeline_);
+    force_stop_ = true;
+    ChangePipelineState(GST_STATE_READY);
+    g_signal_handlers_disconnect_by_func(pipeline_, reinterpret_cast<gpointer>(&PlayerImpl::SetupSource), this);
+    ::starboard::ScopedLock lock(source_setup_mutex_);
+    if (source_setup_id_ > -1) {
+      GSource* src = g_main_context_find_source_by_id(main_loop_context_, source_setup_id_);
+      g_source_destroy(src);
+      source_setup_id_ = -1;
+    }
+  }
+  else if (gst_structure_has_name(structure, "key-ready")) {
+    const GValue* value = gst_structure_get_value(structure, "kid");
+    if (!value) {
+      GST_ERROR("No kid value");
+      return;
+    }
+    GstMapInfo info;
+    GstBuffer* kid_buf = gst_value_get_buffer(value);
+    if (!kid_buf) {
+      GST_ERROR("No kid buffer");
+      return;
+    }
+    if (FALSE == gst_buffer_map(kid_buf, &info, GST_MAP_READ)) {
+      GST_ERROR("Failed to map kid buffer");
+      return;
+    }
+    #ifndef GST_DISABLE_GST_DEBUG
+    if (gst_debug_category_get_threshold(GST_CAT_DEFAULT) >= GST_LEVEL_INFO) {
+      gchar *md5sum = g_compute_checksum_for_data(G_CHECKSUM_MD5, info.data, info.size);
+      GST_INFO("Key ready: %s", md5sum);
+      g_free(md5sum);
+    }
+    #endif
+    WritePendingSamples(static_cast<const uint8_t*>(info.data), static_cast<size_t>(info.size));
+    gst_buffer_unmap(kid_buf, &info);
+  }
 }
 
 }  // namespace
