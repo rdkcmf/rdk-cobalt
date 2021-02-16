@@ -421,6 +421,7 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:wpeframework',
         '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:securityagent',
         '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:cryptography',
+        '<(DEPTH)/third_party/starboard/rdk/shared/system.gyp:rfcapi',
     ],
 
     'sources': [

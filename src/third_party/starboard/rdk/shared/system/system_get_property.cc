@@ -37,8 +37,10 @@
 #include "starboard/common/log.h"
 #include "starboard/common/string.h"
 #include "starboard/character.h"
+#include "starboard/file.h"
 
 #include "third_party/starboard/rdk/shared/rdkservices.h"
+#include "third_party/starboard/rdk/shared/log_override.h"
 
 namespace {
 
@@ -156,8 +158,34 @@ bool GetFirmwareVersion(char* out_value, int value_length) {
 }
 
 bool GetCertificationScope(char* out_value, int value_length) {
-  const char* env = std::getenv("COBALT_CERT_SCOPE");
-  return env && CopyStringAndTestIfSuccess(out_value, value_length, env);
+  const char *cert_scope_file_name = std::getenv("COBALT_CERT_SCOPE_FILE_NAME");
+  if ( cert_scope_file_name == nullptr )
+    cert_scope_file_name = "/opt/drm/0681000006810001.bin";
+
+  ::starboard::ScopedFile file(cert_scope_file_name, kSbFileOpenOnly | kSbFileRead);
+  if ( !file.IsValid() ) {
+    SB_LOG(INFO) << "Cannot open cert scope file '" << cert_scope_file_name << "'";
+    return false;
+  }
+
+  auto sz = file.GetSize();
+  if ( (sz < 0) || (sz + 1 > value_length) ) {
+    SB_LOG(ERROR) << "Cannot read cert scope contents of size: " << sz
+                  << " from: '" << cert_scope_file_name << "'";
+    return false;
+  }
+
+  std::vector<char> buf;
+  buf.resize(sz + 1);
+  if ( file.ReadAll(buf.data(), sz) != sz ) {
+    SB_LOG(ERROR) << "Failed to read cert scope contents of size: " << sz
+                  << " from: '" << cert_scope_file_name << "'";
+    return false;
+  }
+  buf[sz] = 0;
+
+  SB_LOG(INFO) << "Device cert scope: '" << buf.data() << "'";
+  return SbStringCopy(out_value, buf.data(), value_length);
 }
 
 }  // namespace
