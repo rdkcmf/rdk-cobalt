@@ -32,29 +32,17 @@
 #include <vector>
 
 #include "starboard/system.h"
+#include "starboard/string.h"
+#include "starboard/memory.h"
+
 #include "third_party/starboard/rdk/shared/log_override.h"
 
 #if defined(HAS_CRYPTOGRAPHY)
 #include <cryptography/cryptography.h>
+#include <rfcapi.h>
 #endif
 
 namespace {
-
-bool ReadFile(const char* filename, std::vector<uint8_t> &buf) {
-  long sz = -1;
-  FILE* f = filename ? fopen(filename, "r") : nullptr;
-  if ( f ) {
-    fseek(f, 0, SEEK_END);
-    sz =  ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if ( sz > 0 ) {
-      buf.resize(sz);
-      fread(buf.data(), 1, buf.size(), f);
-    }
-    fclose(f);
-  }
-  return sz > 0;
-}
 
 template<typename T>
 struct RefDeleter {
@@ -75,10 +63,30 @@ bool SbSystemSignWithCertificationSecretKey(const uint8_t* message,
 #if defined(HAS_CRYPTOGRAPHY)
   using namespace WPEFramework::Cryptography;
 
-  const char *key_name = std::getenv("COBALT_CERT_KEY_NAME");
-  const char *key_file = std::getenv("COBALT_CERT_KEY_FILE");
-  if ( key_name == nullptr && key_file == nullptr )
-    return false;
+  const char kDefaultKeyName[] = "0381000003810001.key";
+  const char kRFCParamName[] = "Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Cobalt.DeviceAuth.CertKeyName";
+
+  std::string key_name;
+  const char *env = std::getenv("COBALT_CERT_KEY_NAME");
+  if ( env != nullptr ) {
+    key_name = env;
+    SB_LOG(INFO) << "Using ENV set key name: '" << key_name << "'";
+  } else {
+    char *callerId = SbStringDuplicate("Cobalt");
+    RFC_ParamData_t param;
+    SbMemorySet(&param, 0, sizeof (param));
+    WDMP_STATUS status = getRFCParameter(callerId, kRFCParamName, &param);
+    if ( status == WDMP_SUCCESS && param.type == WDMP_STRING ) {
+      key_name = param.value;
+      SB_LOG(INFO) << "Using RFC provided key name: '" << key_name << "'";
+    }
+    SbMemoryDeallocate(callerId);
+  }
+
+  if ( key_name.empty() ) {
+    key_name = kDefaultKeyName;
+    SB_LOG(INFO) << "Using default key name: '" << key_name << "'";
+  }
 
   ScopedRef<ICryptography> icrypto;
   ScopedRef<IVault> vault;
@@ -96,22 +104,8 @@ bool SbSystemSignWithCertificationSecretKey(const uint8_t* message,
     return false;
   }
 
-  auto ImportKey = [](IVault *vault, const char* key_name, const char* key_file) -> uint32_t
-  {
-    if ( key_name )
-      return vault->ImportNamedKey(key_name);
-
-    std::vector<uint8_t> key_buf;
-    if ( !ReadFile( key_file, key_buf ) ) {
-      SB_LOG(ERROR) << "Failed to read key file: " << key_file;
-      return 0u;
-    }
-    return vault->Import(key_buf.size(), key_buf.data());
-  };
-
   uint32_t key_id, rc;
-
-  if ( (key_id = ImportKey( vault.get(), key_name, key_file )) == 0 ) {
+  if ( (key_id = vault->Import(key_name.size(), reinterpret_cast<const uint8_t*>(key_name.c_str()), true)) == 0 ) {
     SB_LOG(ERROR) << "Failed to import key";
     return false;
   } else {

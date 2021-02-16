@@ -92,6 +92,20 @@
         ],
       },
     }, # wpeframework
+    {
+      'target_name': 'rfcapi',
+      'type': 'none',
+      'direct_dependent_settings': {
+        'cflags': [
+          '-I=/usr/include/wdmp-c',
+        ],
+      },
+      'link_settings': {
+        'libraries': [
+          '-lrfcapi',
+        ],
+      },
+    }, # rfcapi
   ],
   'conditions': [
     ['<(has_ocdm)==1', {
