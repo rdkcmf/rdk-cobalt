@@ -80,9 +80,16 @@ SbPlayerCreate(SbWindow window,
     return kSbPlayerInvalid;
   }
 
-  return new SbPlayerPrivate(
+  std::unique_ptr<SbPlayerPrivate> player { new SbPlayerPrivate(
       window, video_codec, audio_codec, drm_system, creation_param->audio_sample_info,
       max_video_capabilities,
       sample_deallocate_func, decoder_status_func, player_status_func,
-      player_error_func, context, output_mode, provider);
+      player_error_func, context, output_mode, provider) };
+
+  if (!player->player_) {
+    SB_LOG(ERROR) << "Failed to create player";
+    return kSbPlayerInvalid;
+  }
+
+  return player.release();
 }
