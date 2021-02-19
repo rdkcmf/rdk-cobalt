@@ -817,6 +817,7 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   void OnKeyReady(const uint8_t* key, size_t key_len) override;
 
   GstElement* GetPipeline() const { return pipeline_;  }
+  bool IsValid() const { return SbThreadIsValid(playback_thread_); }
 
  private:
   enum class State {
@@ -1166,7 +1167,6 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   playback_thread_ =
       SbThreadCreate(0, kSbThreadPriorityRealTime, kSbThreadNoAffinity, true,
                      "playback_thread", &PlayerImpl::ThreadEntryPoint, this);
-  SB_DCHECK(SbThreadIsValid(playback_thread_));
   if (SbThreadIsValid(playback_thread_)) {
     while(!g_main_loop_is_running(main_loop_))
       g_usleep(1);
@@ -1196,9 +1196,11 @@ PlayerImpl::~PlayerImpl() {
   GstBus* bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline_));
   gst_bus_set_sync_handler(bus, nullptr, nullptr, nullptr);
   gst_object_unref(bus);
-  DispatchOnWorkerThread(new PlayerDestroyedTask(
+  if (SbThreadIsValid(playback_thread_)) {
+    DispatchOnWorkerThread(new PlayerDestroyedTask(
       player_status_func_, player_, ticket_, context_, main_loop_));
-  SbThreadJoin(playback_thread_, nullptr);
+    SbThreadJoin(playback_thread_, nullptr);
+  }
   g_main_loop_unref(main_loop_);
   g_main_context_unref(main_loop_context_);
   g_object_unref(pipeline_);
@@ -1430,10 +1432,12 @@ void PlayerImpl::DispatchOnWorkerThread(Task* task) const {
                           GST_TRACE("%d", SbThreadGetId());
                           data->task()->PrintInfo();
                           data->task()->Do();
-                          delete data;
                           return G_SOURCE_REMOVE;
                         },
-                        data, nullptr);
+                        data,
+                        [](gpointer userData) {
+                          delete static_cast<DispatchData*>(userData);
+                        });
   g_source_attach(src, main_loop_context_);
 }
 
@@ -2129,7 +2133,6 @@ void PlayerImpl::WritePendingSamples(const uint8_t* key, size_t key_len) {
     std::string session_id;
     if (drm_system_) {
       session_id = drm_system_->SessionIdByKeyId(key, key_len);
-      SB_DCHECK(!session_id.empty());
     }
 
     std::sort(
@@ -2308,4 +2311,6 @@ SbPlayerPrivate::SbPlayerPrivate(
                              context,
                              output_mode,
                              provider)) {
+  if (  !static_cast<PlayerImpl&>(*player_).IsValid() )
+    player_.reset(nullptr);
 }
