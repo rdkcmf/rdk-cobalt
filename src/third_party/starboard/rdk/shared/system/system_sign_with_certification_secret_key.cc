@@ -64,7 +64,7 @@ bool SbSystemSignWithCertificationSecretKey(const uint8_t* message,
   using namespace WPEFramework::Cryptography;
 
   const char kDefaultKeyName[] = "0381000003810001.key";
-  const char kRFCParamName[] = "Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Cobalt.DeviceAuth.CertKeyName";
+  const char kRFCParamName[] = "Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.Cobalt.AuthCertKeyName";
 
   std::string key_name;
   const char *env = std::getenv("COBALT_CERT_KEY_NAME");
