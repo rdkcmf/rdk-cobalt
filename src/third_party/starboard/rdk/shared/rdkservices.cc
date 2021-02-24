@@ -53,6 +53,8 @@ const char kDeviceIdentificationCallsign[] = "DeviceIdentification.1";
 const char kNetworkCallsign[] = "org.rdk.Network.1";
 const char kTTSCallsign[] = "org.rdk.TextToSpeech.1";
 
+const uint32_t kPriviligedRequestErrorCode = -32604U;
+
 class ServiceLink {
   ::starboard::scoped_ptr<JSONRPC::LinkType<Core::JSON::IElement>> link_;
   std::string callsign_;
@@ -168,7 +170,7 @@ struct DeviceIdImpl {
   DeviceIdImpl() {
     JsonData::DeviceIdentification::DeviceidentificationData data;
     uint32_t rc = ServiceLink(kDeviceIdentificationCallsign)
-      .Get(kDefaultTimeoutMs, "deviceidentification", data);
+      .Get(2000, "deviceidentification", data);
     if (Core::ERROR_NONE == rc) {
       chipset = data.Chipset.Value();
       firmware_version = data.Firmwareversion.Value();
@@ -345,22 +347,12 @@ private:
   ResolutionInfo resolution_info_ { };
   bool has_hdr_support_ { false };
   ::starboard::atomic_bool needs_refresh_ { true };
+  ::starboard::atomic_bool did_subscribe_ { false };
 };
 
 DisplayInfo::Impl::Impl()
   : display_info_(kDisplayInfoCallsign) {
-
-  uint32_t rc;
-  rc = display_info_.Subscribe<Core::JSON::String>(kDefaultTimeoutMs, "updated", &DisplayInfo::Impl::OnUpdated, this);
-  if (Core::ERROR_NONE != rc) {
-    needs_refresh_.store(false);
-    SB_LOG(ERROR) << "Failed to subscribe to '" << kDisplayInfoCallsign
-                  << ".updated' event, rc=" << rc
-                  << " ( " << Core::ErrorToString(rc) << " )";
-  }
-  else {
-    Refresh();
-  }
+  Refresh();
 }
 
 DisplayInfo::Impl::~Impl() {
@@ -372,6 +364,30 @@ void DisplayInfo::Impl::Refresh() {
     return;
 
   uint32_t rc;
+
+  if (!did_subscribe_.load()) {
+    bool old_val = did_subscribe_.exchange(true);
+    if (old_val == false) {
+      rc = display_info_.Subscribe<Core::JSON::String>(kDefaultTimeoutMs, "updated", &DisplayInfo::Impl::OnUpdated, this);
+      if (Core::ERROR_UNAVAILABLE == rc || kPriviligedRequestErrorCode == rc) {
+        needs_refresh_.store(false);
+        SB_LOG(ERROR) << "Failed to subscribe to '" << kDisplayInfoCallsign
+                      << ".updated' event, rc=" << rc
+                      << " ( " << Core::ErrorToString(rc) << " )";
+        return;
+      }
+      if (Core::ERROR_NONE != rc) {
+        did_subscribe_.store(false);
+        SB_LOG(ERROR) << "Failed to subscribe to '" << kDisplayInfoCallsign
+                      << ".updated' event, rc=" << rc
+                      << " ( " << Core::ErrorToString(rc) << " )."
+                      << " Going to try again next time.";
+        return;
+      }
+    }
+  }
+
+  needs_refresh_.store(false);
 
   Core::JSON::EnumType<Exchange::IPlayerProperties::PlaybackResolution> resolution;
   rc = ServiceLink(kPlayerInfoCallsign).Get(kDefaultTimeoutMs, "resolution", resolution);
