@@ -41,12 +41,11 @@ class RDKPlatformConfig(platform_configuration.PlatformConfiguration):
   def __init__(self, platform):
     super(RDKPlatformConfig, self).__init__(platform)
 
-    self.enable_webdriver = os.environ.get('COBALT_ENABLE_WEBDRIVER', '0')
-    self.enable_debugger = os.environ.get('COBALT_ENABLE_DEBUGGER', '0')
     self.has_ocdm = os.environ.get('COBALT_HAS_OCDM', '0')
     self.sabi_json_path = 'starboard/sabi/arm/%s/sabi-v12.json' % (os.environ.get('COBALT_ARM_CALLCONVENTION', 'hardfp'))
     self.sysroot = os.path.realpath(os.environ.get('PKG_CONFIG_SYSROOT_DIR', '/'))
     self.AppendApplicationConfigurationPath(os.path.dirname(__file__))
+    self.AppendApplicationConfigurationPath(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "shared")))
 
   def GetBuildFormat(self):
     """Returns the desired build format."""
@@ -65,8 +64,6 @@ class RDKPlatformConfig(platform_configuration.PlatformConfiguration):
     variables.update({
         'cobalt_font_package': 'limited',
         'javascript_engine': 'v8',
-        'enable_debugger': self.enable_debugger,
-        'enable_webdriver': self.enable_webdriver,
     })
     return variables
 
