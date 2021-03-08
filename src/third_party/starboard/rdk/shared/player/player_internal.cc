@@ -37,6 +37,7 @@
 #include "starboard/memory.h"
 #include "third_party/starboard/rdk/shared/drm/drm_system_ocdm.h"
 #include "third_party/starboard/rdk/shared/media/gst_media_utils.h"
+#include "third_party/starboard/rdk/shared/hang_detector.h"
 
 namespace third_party {
 namespace starboard {
@@ -1092,6 +1093,9 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
 
   bool has_oob_write_pending_{false};
   ::starboard::ConditionVariable pending_oob_write_condition_ { mutex_ };
+
+  int hang_monitor_source_id_ { -1 };
+  HangMonitor hang_monitor_ { "Player" };
 };
 
 struct PlayerRegistry
@@ -1169,6 +1173,23 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   g_main_context_push_thread_default(main_loop_context_);
   main_loop_ = g_main_loop_new(main_loop_context_, FALSE);
 
+  GSource* src = g_timeout_source_new(hang_monitor_.GetResetInterval() / kSbTimeMillisecond);
+  g_source_set_callback(src, [] (gpointer data) ->gboolean {
+    PlayerImpl& player = *static_cast<PlayerImpl*>(data);
+    GstState state, pending;
+    GstStateChangeReturn result = gst_element_get_state(player.pipeline_, &state, &pending, GST_CLOCK_TIME_NONE);
+    gint64 position = player.GetPosition();
+    GST_INFO("Player state: %s (pending: %s, result: %s), position: %" GST_TIME_FORMAT "",
+             gst_element_state_get_name(state),
+             gst_element_state_get_name(pending),
+             gst_element_state_change_return_get_name(result),
+             GST_TIME_ARGS(position));
+    player.hang_monitor_.Reset();
+    return G_SOURCE_CONTINUE;
+  }, this, nullptr);
+  hang_monitor_source_id_ = g_source_attach(src, main_loop_context_);
+  g_source_unref(src);
+
   if (drm_system_)
     drm_system_->AddObserver(this);
 
@@ -1242,6 +1263,10 @@ PlayerImpl::~PlayerImpl() {
   }
   if (bus_watch_id_ > -1) {
     GSource* src = g_main_context_find_source_by_id(main_loop_context_, bus_watch_id_);
+    g_source_destroy(src);
+  }
+  if (hang_monitor_source_id_ > -1) {
+    GSource* src = g_main_context_find_source_by_id(main_loop_context_, hang_monitor_source_id_);
     g_source_destroy(src);
   }
   if (drm_system_) {

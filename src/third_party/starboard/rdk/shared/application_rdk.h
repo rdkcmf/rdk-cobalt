@@ -41,6 +41,7 @@
 
 #include "third_party/starboard/rdk/shared/ess_input.h"
 #include "third_party/starboard/rdk/shared/rdkservices.h"
+#include "third_party/starboard/rdk/shared/hang_detector.h"
 
 #include <memory>
 #include <essos-app.h>
@@ -115,8 +116,10 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   SbTime ess_loop_last_ts_ { 0 };
   int ess_timer_fd_ { -1 };
   int wakeup_fd_ { -1 };
+  int monitor_timer_fd_ { -1 };
 
   std::unique_ptr<DisplayInfo> display_info_ { nullptr };
+  std::unique_ptr<HangMonitor> hang_monitor_ { nullptr };
 };
 
 }  // namespace shared

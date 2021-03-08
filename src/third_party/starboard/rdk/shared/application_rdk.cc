@@ -96,7 +96,8 @@ static void setTimerInterval(int fd, SbTime time) {
 
 Application::Application()
   : input_handler_(new EssInput)
-  , display_info_ (new DisplayInfo) {
+  , display_info_ (new DisplayInfo)
+  , hang_monitor_(new HangMonitor("Application")) {
   bool error = false;
   ctx_ = EssContextCreate();
 
@@ -136,6 +137,14 @@ void Application::Initialize() {
     setTimerInterval(ess_timer_fd_, kEssRunLoopPeriod);
   }
 
+  monitor_timer_fd_ = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
+  if ( monitor_timer_fd_ == -1 ) {
+    SB_LOG(ERROR) << "Failed to create timerfd, error: " << errno << " (" << strerror(errno) << ')';
+    hang_monitor_.reset();
+  } else {
+    setTimerInterval(monitor_timer_fd_, hang_monitor_->GetResetInterval());
+  }
+
   SbAudioSinkPrivate::Initialize();
   libcobalt_api::Initialize();
 }
@@ -146,7 +155,8 @@ void Application::Teardown() {
 
   close(ess_timer_fd_);
   close(wakeup_fd_);
-  ess_timer_fd_ = wakeup_fd_ = -1;
+  close(monitor_timer_fd_);
+  ess_timer_fd_ = wakeup_fd_ = monitor_timer_fd_ = -1;
 }
 
 bool Application::MayHaveSystemEvents() {
@@ -166,7 +176,7 @@ Application::PollNextSystemEvent() {
 ::starboard::shared::starboard::Application::Event*
 Application::WaitForSystemEventWithTimeout(SbTime time) {
   struct timespec timeout;
-  struct pollfd fds[2];
+  struct pollfd fds[3];
   int fds_sz = 0;
   int rc = 0;
 
@@ -179,6 +189,13 @@ Application::WaitForSystemEventWithTimeout(SbTime time) {
 
   if ( !(wakeup_fd_ < 0) ) {
     fds[fds_sz].fd = wakeup_fd_;
+    fds[fds_sz].events = POLLIN;
+    fds[fds_sz].revents = 0;
+    ++fds_sz;
+  }
+
+  if ( !(monitor_timer_fd_ < 0) ) {
+    fds[fds_sz].fd = monitor_timer_fd_;
     fds[fds_sz].events = POLLIN;
     fds[fds_sz].revents = 0;
     ++fds_sz;
@@ -197,6 +214,10 @@ Application::WaitForSystemEventWithTimeout(SbTime time) {
       // Ack timer or wakeup event
       uint64_t tmp;
       read(fds[i].fd, &tmp, sizeof(uint64_t));
+
+      if ( fds[i].fd == monitor_timer_fd_ ) {
+        hang_monitor_->Reset();
+      }
     }
   }
 
