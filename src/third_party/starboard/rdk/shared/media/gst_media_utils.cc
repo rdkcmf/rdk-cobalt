@@ -66,8 +66,8 @@ bool GstRegistryHasElementForCodec(C codec) {
       GST_ELEMENT_FACTORY_TYPE_PARSER | type, GST_RANK_MARGINAL)};
   UniqueFeatureList decoder_factories{gst_element_factory_list_get_elements(
       GST_ELEMENT_FACTORY_TYPE_DECODER | type, GST_RANK_MARGINAL)};
-  UniqueFeatureList demuxer_factories{gst_element_factory_list_get_elements(
-      GST_ELEMENT_FACTORY_TYPE_DEMUXER, GST_RANK_MARGINAL)};
+  // UniqueFeatureList demuxer_factories{gst_element_factory_list_get_elements(
+  //     GST_ELEMENT_FACTORY_TYPE_DEMUXER, GST_RANK_MARGINAL)};
 
   UniqueFeatureList elements;
   std::vector<std::string> caps;
