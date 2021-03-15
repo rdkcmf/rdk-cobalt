@@ -35,6 +35,7 @@
 #include "starboard/string.h"
 #include "starboard/memory.h"
 
+#include "third_party/starboard/rdk/shared/hang_detector.h"
 #include "third_party/starboard/rdk/shared/log_override.h"
 
 #if defined(HAS_CRYPTOGRAPHY)
@@ -65,6 +66,8 @@ bool SbSystemSignWithCertificationSecretKey(const uint8_t* message,
 
   const char kDefaultKeyName[] = "0381000003810001.key";
   const char kRFCParamName[] = "Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.Cobalt.AuthCertKeyName";
+
+  third_party::starboard::rdk::shared::HangMonitor hang_monitor(__func__);
 
   std::string key_name;
   const char *env = std::getenv("COBALT_CERT_KEY_NAME");
