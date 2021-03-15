@@ -124,6 +124,7 @@
             ],
             'libraries': [
               '<!@(<(pkg-config) --libs-only-l ocdm)',
+              '-ldl',
             ],
           },
         }, # ocdm
