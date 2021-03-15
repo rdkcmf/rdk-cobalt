@@ -17,6 +17,10 @@
 #if defined(HAS_OCDM)
 #include "third_party/starboard/rdk/shared/drm/drm_system_ocdm.h"
 
+#include <dlfcn.h>
+#include <mutex>
+#include <gst/gst.h>
+
 #include "starboard/common/mutex.h"
 #include "starboard/shared/starboard/thread_checker.h"
 
@@ -39,6 +43,11 @@ struct OcdmSessionDeleter {
 };
 
 using ScopedOcdmSession = std::unique_ptr<OpenCDMSession, OcdmSessionDeleter>;
+
+using OcdmGstSessionDecryptExFn =
+  OpenCDMError(*)(struct OpenCDMSession*, GstBuffer*, GstBuffer*, const uint32_t, GstBuffer*, GstBuffer*, uint32_t, GstCaps*);
+
+static OcdmGstSessionDecryptExFn g_ocdmGstSessionDecryptEx { nullptr };
 
 }  // namespace
 
@@ -417,6 +426,16 @@ DrmSystemOcdm::DrmSystemOcdm(
       session_closed_callback_(session_closed_callback) {
   SB_LOG(INFO) << "Create DRM system ";
   ocdm_system_ = opencdm_create_system(key_system_.c_str());
+
+  static std::once_flag flag;
+  std::call_once(flag, [](){
+    g_ocdmGstSessionDecryptEx = (OcdmGstSessionDecryptExFn)dlsym(RTLD_DEFAULT, "opencdm_gstreamer_session_decrypt_ex");
+    if (g_ocdmGstSessionDecryptEx) {
+      SB_LOG(INFO) << "Has opencdm_gstreamer_session_decrypt_ex";
+    } else {
+      SB_LOG(INFO) << "No opencdm_gstreamer_session_decrypt_ex. Fallback to opencdm_gstreamer_session_decrypt.";
+    }
+  });
 }
 
 DrmSystemOcdm::~DrmSystemOcdm() {
@@ -598,9 +617,15 @@ bool DrmSystemOcdm::Decrypt(const std::string& id,
                             _GstBuffer* sub_sample,
                             uint32_t sub_sample_count,
                             _GstBuffer* iv,
-                            _GstBuffer* key) {
+                            _GstBuffer* key,
+                            _GstCaps* caps) {
   session::Session* session = GetSessionById(id);
   SB_DCHECK(session);
+  if (g_ocdmGstSessionDecryptEx != nullptr) {
+    return g_ocdmGstSessionDecryptEx(session->OcdmSession(), buffer,
+                                     sub_sample, sub_sample_count, iv,
+                                     key, 0, caps) == ERROR_NONE;
+  }
   return opencdm_gstreamer_session_decrypt(session->OcdmSession(), buffer,
                                            sub_sample, sub_sample_count, iv,
                                            key, 0) == ERROR_NONE;
@@ -728,7 +753,8 @@ bool DrmSystemOcdm::Decrypt(const std::string& id,
                             _GstBuffer* sub_sample,
                             uint32_t sub_sample_count,
                             _GstBuffer* iv,
-                            _GstBuffer* key) {
+                            _GstBuffer* key,
+                            _GstCaps* caps) {
   return false;
 }
 
