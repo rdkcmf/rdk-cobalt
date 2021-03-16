@@ -334,13 +334,11 @@ void gst_cobalt_src_handle_message(GstBin* bin, GstMessage* message) {
 
 void gst_cobalt_src_setup_and_add_app_src(GstElement* element,
                                           GstElement* appsrc,
-                                          const char* caps,
+                                          GstCaps* caps,
                                           GstAppSrcCallbacks* callbacks,
                                           gpointer user_data) {
   if (caps) {
-    GstCaps* gst_caps = gst_caps_from_string(caps);
-    gst_app_src_set_caps(GST_APP_SRC(appsrc), gst_caps);
-    gst_caps_unref(gst_caps);
+    gst_app_src_set_caps(GST_APP_SRC(appsrc), caps);
   }
 
   g_object_set(appsrc, "block", FALSE, "format", GST_FORMAT_TIME, "stream-type",
@@ -1096,6 +1094,8 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
 
   int hang_monitor_source_id_ { -1 };
   HangMonitor hang_monitor_ { "Player" };
+  GstCaps* audio_caps_ { nullptr };
+  GstCaps* video_caps_ { nullptr };
 };
 
 struct PlayerRegistry
@@ -1168,6 +1168,15 @@ PlayerImpl::PlayerImpl(SbPlayer player,
     has_enough_data_ &= ~static_cast<int>(MediaType::kAudio);
   if (video_codec_ == kSbMediaVideoCodecNone)
     has_enough_data_ &= ~static_cast<int>(MediaType::kVideo);
+
+  if (audio_codec_ != kSbMediaAudioCodecNone) {
+    auto caps = CodecToGstCaps(audio_codec_, &audio_sample_info_);
+    if (!caps.empty() && caps[0].c_str()) {
+      GstCaps* gst_caps = gst_caps_from_string(caps[0].c_str());
+      gst_caps_replace(&audio_caps_, gst_caps);
+      gst_caps_unref(gst_caps);
+    }
+  }
 
   main_loop_context_ = g_main_context_new ();
   g_main_context_push_thread_default(main_loop_context_);
@@ -1280,6 +1289,12 @@ PlayerImpl::~PlayerImpl() {
     DispatchOnWorkerThread(new PlayerDestroyedTask(
       player_status_func_, player_, ticket_, context_, main_loop_));
     SbThreadJoin(playback_thread_, nullptr);
+  }
+  if (audio_caps_) {
+    gst_caps_unref(audio_caps_);
+  }
+  if (video_caps_) {
+    gst_caps_unref(video_caps_);
   }
   g_main_loop_unref(main_loop_);
   g_main_context_unref(main_loop_context_);
@@ -1537,10 +1552,9 @@ gboolean PlayerImpl::FinishSourceSetup(gpointer user_data) {
   GstAppSrcCallbacks callbacks = {&PlayerImpl::AppSrcNeedData,
                                   &PlayerImpl::AppSrcEnoughData,
                                   &PlayerImpl::AppSrcSeekData, nullptr};
-  auto caps = CodecToGstCaps(self->audio_codec_, &self->audio_sample_info_);
   if (self->audio_codec_ != kSbMediaAudioCodecNone) {
     gst_cobalt_src_setup_and_add_app_src(
-        source, self->audio_appsrc_, !caps.empty() ? caps[0].c_str() : nullptr,
+        source, self->audio_appsrc_, self->audio_caps_,
         &callbacks, self);
   }
   if (self->video_codec_ != kSbMediaVideoCodecNone) {
@@ -1698,8 +1712,12 @@ bool PlayerImpl::WriteSample(SbMediaType sample_type,
   if (!session_id.empty()) {
     GST_LOG_OBJECT(src, "Decrypting using %s...", session_id.c_str());
     SB_DCHECK(drm_system_ && subsample && subsample_count && iv && key);
+
+    GstCaps* caps = gst_caps_ref((sample_type == kSbMediaTypeVideo) ? video_caps_ : audio_caps_);
     decrypted = drm_system_->Decrypt(session_id, buffer, subsample,
-                                     subsample_count, iv, key);
+                                     subsample_count, iv, key, caps);
+    gst_caps_unref(caps);
+
     if (!decrypted)
       GST_ERROR_OBJECT(src, "Failed decrypting");
   }
@@ -1776,6 +1794,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
         GstCaps* gst_caps = gst_caps_from_string(caps[0].c_str());
         AddVideoInfoToGstCaps(info, gst_caps);
         gst_app_src_set_caps(GST_APP_SRC(video_appsrc_), gst_caps);
+        gst_caps_replace(&video_caps_, gst_caps);
         gst_caps_unref(gst_caps);
       }
     }

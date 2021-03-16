@@ -27,6 +27,7 @@
 #include "starboard/event.h"
 #include "starboard/shared/starboard/drm/drm_system_internal.h"
 
+struct _GstCaps;
 struct _GstBuffer;
 struct OpenCDMSystem;
 
@@ -100,7 +101,8 @@ class DrmSystemOcdm : public SbDrmSystemPrivate {
                _GstBuffer* sub_sample,
                uint32_t sub_sample_count,
                _GstBuffer* iv,
-               _GstBuffer* key_id);
+               _GstBuffer* key_id,
+               _GstCaps* caps);
   std::set<std::string> GetReadyKeys() const;
   KeysWithStatus GetSessionKeys(const std::string& session_id) const;
 
