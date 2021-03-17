@@ -40,6 +40,10 @@ namespace shared {
 
 namespace {
 
+bool CobaltEnableQuic() {
+  return false;
+}
+
 const CobaltExtensionConfigurationApi kConfigurationApi = {
     kCobaltExtensionConfigurationName,
     2,
@@ -47,7 +51,7 @@ const CobaltExtensionConfigurationApi kConfigurationApi = {
     &::starboard::common::CobaltRenderDirtyRegionOnlyDefault,
     &::starboard::common::CobaltEglSwapIntervalDefault,
     &::starboard::common::CobaltFallbackSplashScreenUrlDefault,
-    &::starboard::common::CobaltEnableQuicDefault,
+    &CobaltEnableQuic,
     &::starboard::common::CobaltSkiaCacheSizeInBytesDefault,
     &::starboard::common::CobaltOffscreenTargetCacheSizeInBytesDefault,
     &::starboard::common::CobaltEncodedImageCacheSizeInBytesDefault,
