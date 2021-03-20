@@ -23,12 +23,12 @@ Cobalt plugin for Thunder framework.
 <a name="head.Scope"></a>
 ## Scope
 
-This document describes purpose and functionality of the Cobalt plugin. It includes detailed specification of its configuration, methods and properties provided, as well as notifications sent.
+This document describes purpose and functionality of the Cobalt plugin. It includes detailed specification about its configuration, methods and properties provided, as well as notifications sent.
 
 <a name="head.Case_Sensitivity"></a>
 ## Case Sensitivity
 
-All identifiers on the interfaces described in this document are case-sensitive. Thus, unless stated otherwise, all keywords, entities, properties, relations and actions should be treated as such.
+All identifiers of the interfaces described in this document are case-sensitive. Thus, unless stated otherwise, all keywords, entities, properties, relations and actions should be treated as such.
 
 <a name="head.Acronyms,_Abbreviations_and_Terms"></a>
 ## Acronyms, Abbreviations and Terms
@@ -75,10 +75,12 @@ The table below lists configuration options of the plugin.
 | callsign | string | Plugin instance name (default: *Cobalt*) |
 | classname | string | Class name: *Cobalt* |
 | locator | string | Library name: *libWPEFrameworkCobalt.so* |
-| autostart | boolean | Determines if the plugin is to be started automatically along with the framework |
+| autostart | boolean | Determines if the plugin shall be started automatically along with the framework |
 | configuration | object | <sup>*(optional)*</sup>  |
 | configuration?.url | string | <sup>*(optional)*</sup> The URL that is loaded upon starting the browser |
 | configuration?.language | string | <sup>*(optional)*</sup> POSIX-style Language(Locale) ID. Example: 'en_US' |
+| configuration?.preload | boolean | <sup>*(optional)*</sup> Enable pre-loading of application |
+| configuration?.autosuspenddelay | number | <sup>*(optional)*</sup> Applicable when pre-loading. Number of seconds to wait before suspending the app |
 
 <a name="head.Methods"></a>
 # Methods
@@ -90,6 +92,7 @@ Cobalt interface methods:
 | Method | Description |
 | :-------- | :-------- |
 | [deeplink](#method.deeplink) | Send a deep link to the application |
+
 
 <a name="method.deeplink"></a>
 ## *deeplink <sup>method</sup>*
@@ -120,6 +123,7 @@ Send a deep link to the application.
     "params": ""
 }
 ```
+
 #### Response
 
 ```json
@@ -129,17 +133,18 @@ Send a deep link to the application.
     "result": null
 }
 ```
+
 <a name="head.Properties"></a>
 # Properties
 
 The following properties are provided by the Cobalt plugin:
-
 
 StateControl interface properties:
 
 | Property | Description |
 | :-------- | :-------- |
 | [state](#property.state) | Running state of the service |
+
 
 <a name="property.state"></a>
 ## *state <sup>property</sup>*
@@ -165,6 +170,7 @@ Also see: [statechange](#event.statechange)
     "method": "Cobalt.1.state"
 }
 ```
+
 #### Get Response
 
 ```json
@@ -174,6 +180,7 @@ Also see: [statechange](#event.statechange)
     "result": "resumed"
 }
 ```
+
 #### Set Request
 
 ```json
@@ -184,6 +191,7 @@ Also see: [statechange](#event.statechange)
     "params": "resumed"
 }
 ```
+
 #### Set Response
 
 ```json
@@ -193,6 +201,7 @@ Also see: [statechange](#event.statechange)
     "result": "null"
 }
 ```
+
 <a name="head.Notifications"></a>
 # Notifications
 
@@ -200,12 +209,12 @@ Notifications are autonomous events, triggered by the internals of the implement
 
 The following events are provided by the Cobalt plugin:
 
-
 StateControl interface events:
 
 | Event | Description |
 | :-------- | :-------- |
 | [statechange](#event.statechange) | Signals a state change of the service |
+
 
 <a name="event.statechange"></a>
 ## *statechange <sup>event</sup>*
@@ -230,3 +239,4 @@ Signals a state change of the service.
     }
 }
 ```
+

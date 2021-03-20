@@ -22,6 +22,14 @@
           "language": {
             "type": "string",
             "description": "POSIX-style Language(Locale) ID. Example: 'en_US'"
+          },
+          "preload": {
+            "type": "boolean",
+            "description": "Enable pre-loading of application"
+          },
+          "autosuspenddelay": {
+            "type": "number",
+            "description": "Applicable when pre-loading. Number of seconds to wait before suspending the app"
           }
         }
       }

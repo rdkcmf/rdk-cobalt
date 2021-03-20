@@ -74,12 +74,16 @@ private:
       , Url()
       , ClientIdentifier()
       , Language()
-      , ContentDir() {
+      , ContentDir()
+      , PreloadEnabled()
+      , AutoSuspendDelay() {
       Add(_T("url"), &Url);
       Add(_T("clientidentifier"), &ClientIdentifier);
       Add(_T("language"), &Language);
       Add(_T("contentdir"), &ContentDir);
       Add(_T("gstdebug"), &GstDebug);
+      Add(_T("preload"), &PreloadEnabled);
+      Add(_T("autosuspenddelay"), &AutoSuspendDelay);
     }
     ~Config() {
     }
@@ -90,6 +94,8 @@ private:
     Core::JSON::String Language;
     Core::JSON::String ContentDir;
     Core::JSON::String GstDebug;
+    Core::JSON::Boolean PreloadEnabled;
+    Core::JSON::DecUInt16 AutoSuspendDelay;
   };
 
   class NotificationSink: public Core::Thread {
@@ -100,7 +106,7 @@ private:
 
   public:
     NotificationSink(CobaltImplementation &parent) :
-      _parent(parent), _waitTime(0), _command(
+      _parent(parent), _command(
         PluginHost::IStateControl::SUSPEND) {
     }
     virtual ~NotificationSink() {
@@ -145,9 +151,53 @@ private:
 
   private:
     CobaltImplementation &_parent;
-    uint32_t _waitTime;
     PluginHost::IStateControl::command _command;
     mutable Core::CriticalSection _lock;
+  };
+
+  class DelayedSuspend
+  {
+  private:
+    DelayedSuspend() = delete;
+    DelayedSuspend(const DelayedSuspend&) = delete;
+    DelayedSuspend& operator=(const DelayedSuspend&) = delete;
+
+  private:
+    bool _scheduled;
+    CobaltImplementation &_parent;
+
+    friend Core::ThreadPool::JobType<DelayedSuspend&>;
+    Core::WorkerPool::JobType<DelayedSuspend&> _worker;
+
+    void Dispatch()
+    {
+      _parent.RequestDelayedSuspend();
+      _scheduled = false;
+    }
+
+  public:
+    DelayedSuspend(CobaltImplementation &parent)
+      : _scheduled(false)
+      , _parent(parent)
+      , _worker(*this)
+    {
+    }
+
+    bool IsScheduled() const
+    {
+      return _scheduled;
+    }
+
+    void Schedule(const Core::Time& time)
+    {
+      _scheduled = _worker.Schedule(time);
+    }
+
+    void Cancel()
+    {
+      _worker.Revoke();
+      _scheduled = false;
+    }
   };
 
   class CobaltWindow : public Core::Thread {
@@ -171,6 +221,9 @@ private:
     }
 
     uint32_t Configure(PluginHost::IShell* service) {
+      if (IsRunning() == true)
+        return Core::ERROR_ILLEGAL_STATE;
+
       uint32_t result = Core::ERROR_NONE;
 
       Config config;
@@ -211,6 +264,14 @@ private:
         Core::SystemInfo::SetEnvironment(_T("GST_DEBUG"), "gstplayer:4,2");
       }
 
+      if (config.PreloadEnabled.IsSet() == true) {
+        _preloadEnabled = config.PreloadEnabled.Value();
+      }
+
+      if (config.AutoSuspendDelay.IsSet() == true) {
+        _autoSuspendDelayInSeconds = config.AutoSuspendDelay.Value();
+      }
+
       Run();
       return result;
     }
@@ -228,6 +289,10 @@ private:
 
     string Url() const { return _url; }
 
+    bool IsPreloadEnabled() const { return _preloadEnabled; }
+
+    uint16_t AutoSuspendDelayInSeconds() const { return _autoSuspendDelayInSeconds; }
+
   private:
     bool Initialize() override
     {
@@ -242,9 +307,16 @@ private:
     uint32_t Worker() override
     {
       const std::string cmdURL = "--url=" + _url;
-      const char* argv[] = {"Cobalt", cmdURL.c_str()};
+      std::vector<const char*> argv;
+
+      argv.push_back("Cobalt");
+      if (!_url.empty())
+        argv.push_back(cmdURL.c_str());
+      if (IsPreloadEnabled())
+        argv.push_back("--preload");
+
       if (IsRunning() == true)
-          _exitCode = StarboardMain(2, const_cast<char**>(argv));
+          _exitCode = StarboardMain(argv.size(), const_cast<char**>(argv.data()));
       if (IsRunning() == true) // app initiated exit
           _parent.StateChange(PluginHost::IStateControl::EXITED);
       Block();
@@ -254,6 +326,8 @@ private:
     int _exitCode { 0 };
     string _url;
     CobaltImplementation &_parent;
+    bool _preloadEnabled { false };
+    uint16_t _autoSuspendDelayInSeconds { 30 };
   };
 
 private:
@@ -268,7 +342,8 @@ public:
     _statePending(PluginHost::IStateControl::UNINITIALIZED),
     _cobaltClients(),
     _stateControlClients(),
-    _sink(*this) {
+    _sink(*this),
+    _delayedSuspend(*this) {
   }
 
   virtual ~CobaltImplementation() {
@@ -276,7 +351,13 @@ public:
 
   virtual uint32_t Configure(PluginHost::IShell *service) {
     uint32_t result = _window.Configure(service);
-    _state = PluginHost::IStateControl::RESUMED;
+    if (_window.IsPreloadEnabled()) {
+      _state = PluginHost::IStateControl::SUSPENDED;
+      _statePending = PluginHost::IStateControl::SUSPENDED;
+      _delayedSuspend.Schedule(Core::Time::Now().Add(_window.AutoSuspendDelayInSeconds() * 1000));
+    } else {
+      _state = PluginHost::IStateControl::RESUMED;
+    }
     return (result);
   }
 
@@ -393,6 +474,9 @@ public:
               PluginHost::IStateControl::RESUME);
             result = Core::ERROR_NONE;
           }
+          if (_delayedSuspend.IsScheduled()) {
+            _delayedSuspend.Cancel();
+          }
           break;
         default:
           break;
@@ -437,12 +521,20 @@ public:
     }
   }
 
+  void RequestDelayedSuspend() {
+    _adminLock.Lock();
+    if (_state == PluginHost::IStateControl::SUSPENDED && _statePending == PluginHost::IStateControl::SUSPENDED) {
+      _sink.RequestForStateChange(PluginHost::IStateControl::SUSPEND);
+    }
+    _adminLock.Unlock();
+  }
+
   BEGIN_INTERFACE_MAP (CobaltImplementation)
   INTERFACE_ENTRY (Exchange::IBrowser)
   INTERFACE_ENTRY (PluginHost::IStateControl)
   END_INTERFACE_MAP
 
-  private:
+private:
   inline bool RequestForStateChange(
     const PluginHost::IStateControl::command command) {
     bool result = false;
@@ -492,6 +584,7 @@ private:
   std::list<Exchange::IBrowser::INotification*> _cobaltClients;
   std::list<PluginHost::IStateControl::INotification*> _stateControlClients;
   NotificationSink _sink;
+  DelayedSuspend _delayedSuspend;
 };
 
 SERVICE_REGISTRATION(CobaltImplementation, 1, 0);
