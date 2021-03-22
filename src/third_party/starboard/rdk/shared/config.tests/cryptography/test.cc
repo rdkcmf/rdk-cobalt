@@ -24,18 +24,21 @@ int main()
   ICryptography *cg;
   IHash   *hashImpl;
   IVault  *vault;
+  IPersistent *persistent;
   uint32_t keyId;
   uint8_t  output [128] = { 0 };
   uint8_t  data [128] = { 0 };
-  const uint8_t blob[] = "xxxxxxxxxxxxxxxxxxxx";
 
   cg = ICryptography::Instance("");
   vault = cg->Vault(cryptographyvault::CRYPTOGRAPHY_VAULT_DEFAULT);
-  keyId = vault->Import(sizeof(blob), blob, true);
+  persistent = vault->QueryInterface<WPEFramework::Cryptography::IPersistent>();
+  persistent->Load("xxxxxxxxxxxxxxxxxxxx", keyId);
   hashImpl = vault->HMAC(hashtype::SHA256, keyId);
   hashImpl->Ingest(sizeof(data), data);
   hashImpl->Calculate(sizeof(output), output);
   hashImpl->Release();
+  persistent->Flush();
+  persistent->Release();
   vault->Release();
   cg->Release();
 
