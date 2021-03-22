@@ -93,6 +93,7 @@ bool SbSystemSignWithCertificationSecretKey(const uint8_t* message,
 
   ScopedRef<ICryptography> icrypto;
   ScopedRef<IVault> vault;
+  ScopedRef<IPersistent> persistent;
   ScopedRef<IHash> hash;
 
   icrypto.reset( ICryptography::Instance(EMPTY_STRING) );
@@ -107,11 +108,19 @@ bool SbSystemSignWithCertificationSecretKey(const uint8_t* message,
     return false;
   }
 
-  uint32_t key_id, rc;
-  if ( (key_id = vault->Import(key_name.size(), reinterpret_cast<const uint8_t*>(key_name.c_str()), true)) == 0 ) {
-    SB_LOG(ERROR) << "Failed to import key";
+  persistent.reset( vault->QueryInterface<WPEFramework::Cryptography::IPersistent>() );
+  if ( !persistent ) {
+    SB_LOG(ERROR) << "IPersistent is not implemented";
+    return false;
+  }
+
+  uint32_t rc, key_id = 0;
+  if ( (rc = persistent->Load(key_name, key_id)) != WPEFramework::Core::ERROR_NONE ) {
+    SB_LOG(ERROR) << "Failed to load key: '" << key_name << "' rc: " << rc;
+    persistent->Flush();
     return false;
   } else {
+    SB_LOG(INFO) << "Loaded key id: 0x" << std::hex << key_id;
     hash.reset( vault->HMAC(hashtype::SHA256, key_id) );
   }
 
@@ -125,7 +134,14 @@ bool SbSystemSignWithCertificationSecretKey(const uint8_t* message,
     SB_LOG(ERROR) << "HMAC 'Calculate' failed, rc: " << rc << " digest size: " << digest_size_in_bytes;
   }
   else {
+    SB_LOG(INFO) << "Successfully signed cert scope message";
     result = true;
+  }
+
+  hash.reset();
+
+  if ( (rc = persistent->Flush()) != WPEFramework::Core::ERROR_NONE ) {
+    SB_LOG(ERROR) << "Failed to flush persistent vault, rc: " << rc;
   }
 #endif
 
