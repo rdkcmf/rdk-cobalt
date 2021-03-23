@@ -17,6 +17,8 @@
 */
 #include <interfaces/json/JsonData_Browser.h>
 #include <interfaces/json/JsonData_StateControl.h>
+#include <interfaces/IDictionary.h>
+
 #include "Cobalt.h"
 #include "Module.h"
 
@@ -34,10 +36,13 @@ void Cobalt::RegisterAll() {
   // Property < Core::JSON::DecUInt32 > (_T("fps"), &Cobalt::get_fps, nullptr, this); /* Browser */
   Register<Core::JSON::String,void>(_T("deeplink"), &Cobalt::endpoint_deeplink, this);
   Property < Core::JSON::EnumType < StateType >> (_T("state"), &Cobalt::get_state, &Cobalt::set_state, this); /* StateControl */
+  Property < JsonObject >(_T("accessibility"), &Cobalt::get_accessibility, &Cobalt::set_accessibility, this);
 }
 
 void Cobalt::UnregisterAll() {
+  Unregister(_T("deeplink"));
   Unregister(_T("state"));
+  Unregister(_T("accessibility"));
   // Unregister(_T("fps"));
   // Unregister(_T("visibility"));
   // Unregister(_T("url"));
@@ -161,6 +166,67 @@ uint32_t Cobalt::set_state(const Core::JSON::EnumType<StateType> &param) /* Stat
       stateControl->Release();
     }
     result = Core::ERROR_NONE;
+  }
+  return result;
+}
+
+// Property: accessibility - Accessibility settings
+// Return codes:
+//  - ERROR_NONE: Success
+//  - ERROR_GENERAL: Failed to get settings
+uint32_t Cobalt::get_accessibility(JsonObject &response) const
+{
+  ASSERT(_cobalt != nullptr);
+  uint32_t result = Core::ERROR_GENERAL;
+
+  Exchange::IDictionary *dict(
+    _cobalt->QueryInterface<Exchange::IDictionary>());
+  if (dict == nullptr) {
+    SYSLOG(Trace::Error, (_T("IDictionary is not implemented")));
+  } else {
+    std::string json;
+    if (!dict->Get("settings", "accessibility", json)) {
+      SYSLOG(Trace::Error, (_T("Cannot get 'accessibility' setting")));
+    }
+    else if (!response.FromString(json)) {
+      SYSLOG(Trace::Error, (_T("Cannot convert to JSON object")));
+    }
+    else {
+      result = Core::ERROR_NONE;
+    }
+  }
+
+  return result;
+}
+
+// Property: accessibility - Accessibility settings
+// Return codes:
+//  - ERROR_NONE: Success
+//  - ERROR_BAD_REQUEST: Param is not set
+//  - ERROR_GENERAL: Failed to set settings
+uint32_t Cobalt::set_accessibility(const JsonObject &param)
+{
+  ASSERT(_cobalt != nullptr);
+  uint32_t result = Core::ERROR_BAD_REQUEST;
+
+  if (param.IsSet()) {
+    result = Core::ERROR_GENERAL;
+    Exchange::IDictionary *dict(
+      _cobalt->QueryInterface<Exchange::IDictionary>());
+    if (dict == nullptr) {
+      SYSLOG(Trace::Error, (_T("IDictionary is not implemented")));
+    } else {
+      std::string json;
+      if (!param.ToString(json)) {
+        SYSLOG(Trace::Error, (_T("Cannot convert to string")));
+      }
+      else if (!dict->Set("settings", "accessibility", json)) {
+        SYSLOG(Trace::Error, (_T("Cannot set 'accessibility' setting")));
+      }
+      else {
+        result = Core::ERROR_NONE;
+      }
+    }
   }
   return result;
 }
