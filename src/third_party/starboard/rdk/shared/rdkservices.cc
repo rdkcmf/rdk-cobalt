@@ -35,7 +35,9 @@
 #include "starboard/once.h"
 #include "starboard/common/condition_variable.h"
 #include "starboard/common/mutex.h"
+#include "starboard/accessibility.h"
 
+#include "third_party/starboard/rdk/shared/accessibility_data.h"
 #include "third_party/starboard/rdk/shared/log_override.h"
 #include "third_party/starboard/rdk/shared/application_rdk.h"
 
@@ -108,6 +110,7 @@ class ServiceLink {
     return query;
   }
 
+public:
   static bool enableEnvOverrides() {
     static bool enable_env_overrides = ([]() {
       std::string envValue;
@@ -119,7 +122,6 @@ class ServiceLink {
     return enable_env_overrides;
   }
 
-public:
   ServiceLink(const std::string callsign) : callsign_(callsign) {
     if (getenv("THUNDER_ACCESS") != nullptr)
       link_.reset(new JSONRPC::LinkType<Core::JSON::IElement>(callsign, nullptr, false, buildQuery()));
@@ -321,12 +323,162 @@ public:
     tts_link_.Dispatch(kDefaultTimeoutMs, "cancel", params, &TextToSpeechImpl::OnCancelResult, this);
   }
 
-  bool IsEnabled() {
+  bool IsEnabled() const {
     return is_enabled_.load();
   }
 };
 
 SB_ONCE_INITIALIZE_FUNCTION(TextToSpeechImpl, GetTextToSpeech);
+
+struct AccessibilityImpl {
+private:
+  ::starboard::Mutex mutex_;
+  SbAccessibilityDisplaySettings display_settings_ { };
+  SbAccessibilityCaptionSettings caption_settings_ { };
+
+public:
+  AccessibilityImpl() {
+    SbMemorySet(&display_settings_, 0, sizeof(display_settings_));
+    SbMemorySet(&caption_settings_, 0, sizeof(caption_settings_));
+
+    if (ServiceLink::enableEnvOverrides()) {
+      std::string envValue;
+      if (Core::SystemInfo::GetEnvironment("AccessibilitySettings_json", envValue) == true) {
+        SetSettings(envValue);
+
+        std::string test;
+        bool r = GetSettings(test);
+        SB_LOG(INFO) << "Initialized from 'AccessibilitySettings_json',"
+                     << " env variable json: '" << envValue << "',"
+                     << " conversion result: " << r << ","
+                     << " accessibility setting json: '" << test << "'";
+      }
+    }
+  }
+
+  void SetSettings(const std::string& json) {
+
+    SB_LOG(INFO) << "Updating accessibility settings: " << json;
+
+    JsonData::Accessibility::AccessibilityData settings;
+    Core::OptionalType<Core::JSON::Error> error;
+    if ( !settings.FromString(json, error) ) {
+      SB_LOG(ERROR) << "Failed to parse accessibility settings, error: "
+                    << (error.IsSet() ? Core::JSON::ErrorDisplayMessage(error.Value()): "Unknown");
+      return;
+    }
+
+    ::starboard::ScopedLock lock(mutex_);
+
+    SbMemorySet(&display_settings_, 0, sizeof(display_settings_));
+    SbMemorySet(&caption_settings_, 0, sizeof(caption_settings_));
+
+    const auto& cc = settings.ClosedCaptions;
+
+    caption_settings_.supports_is_enabled = true;
+    caption_settings_.supports_set_enabled = false;
+    caption_settings_.is_enabled = cc.IsEnabled.Value();
+
+    if (cc.BackgroundColor.IsSet()) {
+      caption_settings_.background_color = cc.BackgroundColor.Value();
+      caption_settings_.background_color_state = kSbAccessibilityCaptionStateSet;
+    }
+    if (cc.BackgroundOpacity.IsSet()) {
+      caption_settings_.background_opacity = cc.BackgroundOpacity.Value();
+      caption_settings_.background_opacity_state = kSbAccessibilityCaptionStateSet;
+    }
+    if (cc.CharacterEdgeStyle.IsSet()) {
+      caption_settings_.character_edge_style = cc.CharacterEdgeStyle.Value();
+      caption_settings_.character_edge_style_state = kSbAccessibilityCaptionStateSet;
+    }
+    if (cc.FontColor.IsSet()) {
+      caption_settings_.font_color = cc.FontColor.Value();
+      caption_settings_.font_color_state = kSbAccessibilityCaptionStateSet;
+    }
+    if (cc.FontFamily.IsSet()) {
+      caption_settings_.font_family = cc.FontFamily.Value();
+      caption_settings_.font_family_state = kSbAccessibilityCaptionStateSet;
+    }
+    if (cc.FontOpacity.IsSet()) {
+      caption_settings_.font_opacity = cc.FontOpacity.Value();
+      caption_settings_.font_opacity_state = kSbAccessibilityCaptionStateSet;
+    }
+    if (cc.FontSize.IsSet()) {
+      caption_settings_.font_size = cc.FontSize.Value();
+      caption_settings_.font_size_state = kSbAccessibilityCaptionStateSet;
+    }
+    if (cc.WindowColor.IsSet()) {
+      caption_settings_.window_color = cc.WindowColor.Value();
+      caption_settings_.window_color_state = kSbAccessibilityCaptionStateSet;
+    }
+    if (cc.WindowOpacity.IsSet()) {
+      caption_settings_.window_opacity = cc.WindowOpacity.Value();
+      caption_settings_.window_opacity_state = kSbAccessibilityCaptionStateSet;
+    }
+
+    if (settings.TextDisplay.IsHighContrastTextEnabled.IsSet()) {
+      display_settings_.has_high_contrast_text_setting = true;
+      display_settings_.is_high_contrast_text_enabled =
+        settings.TextDisplay.IsHighContrastTextEnabled.Value();
+    }
+  }
+
+  bool GetSettings(std::string& out_json) {
+    JsonData::Accessibility::AccessibilityData settings;
+
+    {
+      ::starboard::ScopedLock lock(mutex_);
+      if (caption_settings_.supports_is_enabled) {
+        auto& cc = settings.ClosedCaptions;
+        cc.IsEnabled = caption_settings_.is_enabled;
+        if (caption_settings_.background_color_state)
+          cc.BackgroundColor = caption_settings_.background_color;
+        if (caption_settings_.background_opacity_state)
+          cc.BackgroundOpacity = caption_settings_.background_opacity;
+        if (caption_settings_.character_edge_style_state)
+          cc.CharacterEdgeStyle = caption_settings_.character_edge_style;
+        if (caption_settings_.font_color_state)
+          cc.FontColor = caption_settings_.font_color;
+        if (caption_settings_.font_family_state)
+          cc.FontFamily = caption_settings_.font_family;
+        if (caption_settings_.font_opacity_state)
+          cc.FontOpacity = caption_settings_.font_opacity;
+        if (caption_settings_.font_size_state)
+          cc.FontSize = caption_settings_.font_size;
+        if (caption_settings_.window_color_state)
+          cc.WindowColor = caption_settings_.window_color;
+        if (caption_settings_.window_opacity_state)
+          cc.WindowOpacity = caption_settings_.window_opacity;
+      }
+
+      if (display_settings_.has_high_contrast_text_setting)
+        settings.TextDisplay.IsHighContrastTextEnabled = display_settings_.is_high_contrast_text_enabled;
+    }
+
+    return settings.ToString(out_json);
+  }
+
+  bool GetCaptionSettings(SbAccessibilityCaptionSettings* out) const {
+    if (out) {
+      ::starboard::ScopedLock lock(mutex_);
+      SbMemoryCopy(out, &caption_settings_,  sizeof(caption_settings_));
+      return true;
+    }
+    return false;
+  }
+
+  bool GetDisplaySettings(SbAccessibilityDisplaySettings* out) const {
+    if (out) {
+      ::starboard::ScopedLock lock(mutex_);
+      SbMemoryCopy(out, &display_settings_,  sizeof(display_settings_));
+      return true;
+    }
+    return false;
+  }
+
+};
+
+SB_ONCE_INITIALIZE_FUNCTION(AccessibilityImpl, GetAccessibility);
 
 }  // namespace
 
@@ -530,8 +682,12 @@ std::string DeviceIdentification::GetFirmwareVersion() {
 bool NetworkInfo::IsConnectionTypeWireless() {
   JsonObject data;
   uint32_t rc = ServiceLink(kNetworkCallsign).Get(kDefaultTimeoutMs, "getDefaultInterface", data);
-  if (Core::ERROR_NONE == rc)
-    return (0 == data.Get("interface").Value().compare("WIFI"));
+  if (Core::ERROR_NONE == rc) {
+    std::string connection_type = data.Get("interface").Value();
+    SB_LOG(INFO) << "ConnectionType: " << connection_type;
+    return (0 == connection_type.compare("WIFI"));
+  }
+  SB_LOG(INFO) << "Failed to get default interface, rc: " << rc;
   return false;
 }
 
@@ -545,6 +701,22 @@ bool TextToSpeech::IsEnabled() {
 
 void TextToSpeech::Cancel() {
   GetTextToSpeech()->Cancel();
+}
+
+bool Accessibility::GetCaptionSettings(SbAccessibilityCaptionSettings* out) {
+  return GetAccessibility()->GetCaptionSettings(out);
+}
+
+bool Accessibility::GetDisplaySettings(SbAccessibilityDisplaySettings* out) {
+  return GetAccessibility()->GetDisplaySettings(out);
+}
+
+void Accessibility::SetSettings(const std::string& json) {
+  GetAccessibility()->SetSettings(json);
+}
+
+bool Accessibility::GetSettings(std::string& out_json) {
+  return GetAccessibility()->GetSettings(out_json);
 }
 
 }  // namespace shared

@@ -173,6 +173,9 @@ private:
   void event_visibilitychange(const bool &hidden); // Browser
   void event_statechange(const bool &suspended); // StateControl
 
+  uint32_t get_accessibility(JsonObject &response) const;
+  uint32_t set_accessibility(const JsonObject &param);
+
 private:
   uint8_t _skipURL;
   uint32_t _connectionId;

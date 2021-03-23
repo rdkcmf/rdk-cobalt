@@ -145,6 +145,12 @@ StateControl interface properties:
 | :-------- | :-------- |
 | [state](#property.state) | Running state of the service |
 
+Accessibility interface properties:
+
+| Property | Description |
+| :-------- | :-------- |
+| [accessibility](#property.accessibility) | Accessibility settings |
+
 
 <a name="property.state"></a>
 ## *state <sup>property</sup>*
@@ -189,6 +195,105 @@ Also see: [statechange](#event.statechange)
     "id": 1234567890,
     "method": "Cobalt.1.state",
     "params": "resumed"
+}
+```
+
+#### Set Response
+
+```json
+{
+    "jsonrpc": "2.0",
+    "id": 1234567890,
+    "result": "null"
+}
+```
+
+<a name="property.accessibility"></a>
+## *accessibility <sup>property</sup>*
+
+Provides access to the accessibility settings.
+
+### Value
+
+| Name | Type | Description |
+| :-------- | :-------- | :-------- |
+| (property) | object | Accessibility settings |
+| (property)?.closedcaptions | object | <sup>*(optional)*</sup> Platform's settings for closed captions |
+| (property)?.closedcaptions.isenabled | boolean | Determines if the user has chosen to enable closed captions on their system |
+| (property)?.closedcaptions?.backgroundcolor | string | <sup>*(optional)*</sup> Enum for possible closed captioning colors. (must be one of the following: *Blue*, *Black*, *Cyan*, *Green*, *Magenta*, *Red*, *White*, *Yellow*) |
+| (property)?.closedcaptions?.backgroundopacity | string | <sup>*(optional)*</sup> Enum for possible closed captioning opacity percentages. (must be one of the following: *0*, *25*, *50*, *75*, *100*) |
+| (property)?.closedcaptions?.characteredgestyle | string | <sup>*(optional)*</sup> Enum for possible closed captioning character edge styles. (must be one of the following: *None*, *Raised*, *Depressed*, *Uniform*, *DropShadow*) |
+| (property)?.closedcaptions?.fontcolor | string | <sup>*(optional)*</sup> Enum for possible closed captioning colors. (must be one of the following: *Blue*, *Black*, *Cyan*, *Green*, *Magenta*, *Red*, *White*, *Yellow*) |
+| (property)?.closedcaptions?.fontfamily | string | <sup>*(optional)*</sup> Enum for possible closed captioning font families. (must be one of the following: *Casual*, *Cursive*, *MonospaceSansSerif*, *MonospaceSerif*, *ProportionalSansSerif*, *ProportionalSerif*, *SmallCapitals*) |
+| (property)?.closedcaptions?.fontopacity | string | <sup>*(optional)*</sup> Enum for possible closed captioning opacity percentages. (must be one of the following: *0*, *25*, *50*, *75*, *100*) |
+| (property)?.closedcaptions?.fontsize | string | <sup>*(optional)*</sup> Enum for possible closed captioning font size percentages. (must be one of the following: *25*, *50*, *75*, *100*, *125*, *150*, *175*, *200*, *225*, *250*, *275*, *300*) |
+| (property)?.closedcaptions?.windowcolor | string | <sup>*(optional)*</sup> Enum for possible closed captioning colors. (must be one of the following: *Blue*, *Black*, *Cyan*, *Green*, *Magenta*, *Red*, *White*, *Yellow*) |
+| (property)?.closedcaptions?.windowopacity | string | <sup>*(optional)*</sup> Enum for possible closed captioning opacity percentages. (must be one of the following: *0*, *25*, *50*, *75*, *100*) |
+| (property)?.textdisplay | object | <sup>*(optional)*</sup> Text display settings |
+| (property)?.textdisplay.ishighcontrasttextenabled | boolean | Whether the high contrast text setting is enabled or not |
+
+### Example
+
+#### Get Request
+
+```json
+{
+    "jsonrpc": "2.0",
+    "id": 1234567890,
+    "method": "Cobalt.1.accessibility"
+}
+```
+
+#### Get Response
+
+```json
+{
+    "jsonrpc": "2.0",
+    "id": 1234567890,
+    "result": {
+        "closedcaptions": {
+            "isenabled": false,
+            "backgroundcolor": "Blue",
+            "backgroundopacity": "0",
+            "characteredgestyle": "None",
+            "fontcolor": "Blue",
+            "fontfamily": "Casual",
+            "fontopacity": "0",
+            "fontsize": "25",
+            "windowcolor": "Blue",
+            "windowopacity": "0"
+        },
+        "textdisplay": {
+            "ishighcontrasttextenabled": false
+        }
+    }
+}
+```
+
+#### Set Request
+
+```json
+{
+    "jsonrpc": "2.0",
+    "id": 1234567890,
+    "method": "Cobalt.1.accessibility",
+    "params": {
+        "closedcaptions": {
+            "isenabled": false,
+            "backgroundcolor": "Blue",
+            "backgroundopacity": "0",
+            "characteredgestyle": "None",
+            "fontcolor": "Blue",
+            "fontfamily": "Casual",
+            "fontopacity": "0",
+            "fontsize": "25",
+            "windowcolor": "Blue",
+            "windowopacity": "0"
+        },
+        "textdisplay": {
+            "ishighcontrasttextenabled": false
+        }
+    }
 }
 ```
 

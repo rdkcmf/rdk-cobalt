@@ -21,7 +21,10 @@
 #include "starboard/common/mutex.h"
 #include "starboard/common/semaphore.h"
 #include "starboard/once.h"
+#include "starboard/memory.h"
+#include "starboard/string.h"
 
+#include "third_party/starboard/rdk/shared/rdkservices.h"
 #include "third_party/starboard/rdk/shared/application_rdk.h"
 
 using namespace third_party::starboard::rdk::shared;
@@ -141,6 +144,27 @@ void SbRdkResume() {
 
 void SbRdkQuit() {
   GetContext()->RequestStop();
+}
+
+void SbRdkSetSetting(const char* key, const char* json) {
+  if (key && SbStringCompareAll(key, "accessibility") == 0)
+    Accessibility::SetSettings(json);
+}
+
+int SbRdkGetSetting(const char* key, char** out_json) {
+  if (key && SbStringCompareAll(key, "accessibility") == 0) {
+    if (out_json) {
+      std::string tmp;
+      if (Accessibility::GetSettings(tmp)) {
+        char *out = (char*)malloc(tmp.size() + 1);
+        SbMemoryCopy(out, tmp.c_str(), tmp.size());
+        out[tmp.size()] = '\0';
+        *out_json = out;
+        return 0;
+      }
+    }
+  }
+  return -1;
 }
 
 }  // extern "C"

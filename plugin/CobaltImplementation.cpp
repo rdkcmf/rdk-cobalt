@@ -18,6 +18,7 @@
 #include "Module.h"
 #include <interfaces/IMemory.h>
 #include <interfaces/IBrowser.h>
+#include <interfaces/IDictionary.h>
 
 extern "C" {
 
@@ -26,6 +27,8 @@ void SbRdkHandleDeepLink(const char* link);
 void SbRdkSuspend();
 void SbRdkResume();
 void SbRdkQuit();
+void SbRdkSetSetting(const char* key, const char* json);
+int  SbRdkGetSetting(const char* key, char** out_json);
 
 }  // extern "C"
 
@@ -62,7 +65,8 @@ static void SetThunderAccessPointIfNeeded() {
 
 class CobaltImplementation:
     public Exchange::IBrowser,
-    public PluginHost::IStateControl {
+    public PluginHost::IStateControl,
+    public Exchange::IDictionary {
 private:
   class Config: public Core::JSON::Container {
   private:
@@ -529,9 +533,37 @@ public:
     _adminLock.Unlock();
   }
 
+  // IDictionary iface
+  void Register(const string& nameSpace, struct IDictionary::INotification* sink) override  {  }
+  void Unregister(const string& nameSpace, struct IDictionary::INotification* sink) override  {  }
+  IIterator* Get(const string& nameSpace) const override { return nullptr; }
+  bool Get(const string& nameSpace, const string& key, string& value /* @out */) const override {
+    if (nameSpace == "settings") {
+      if (key == "accessibility") {
+        char* json = nullptr;
+        if (SbRdkGetSetting(key.c_str(), &json) == 0) {
+          value.assign(json);
+          free(json);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  bool Set(const string& nameSpace, const string& key, const string& value) override {
+    if (nameSpace == "settings") {
+      if (key == "accessibility") {
+        SbRdkSetSetting(key.c_str(), value.c_str());
+        return true;
+      }
+    }
+    return false;
+  }
+
   BEGIN_INTERFACE_MAP (CobaltImplementation)
   INTERFACE_ENTRY (Exchange::IBrowser)
   INTERFACE_ENTRY (PluginHost::IStateControl)
+  INTERFACE_ENTRY (Exchange::IDictionary)
   END_INTERFACE_MAP
 
 private:
