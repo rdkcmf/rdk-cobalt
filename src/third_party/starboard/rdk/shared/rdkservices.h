@@ -23,6 +23,9 @@
 
 #include <string>
 
+struct SbAccessibilityCaptionSettings;
+struct SbAccessibilityDisplaySettings;
+
 namespace third_party {
 namespace starboard {
 namespace rdk {
@@ -64,6 +67,14 @@ public:
   static bool IsEnabled();
   static void Speak(const std::string& text);
   static void Cancel();
+};
+
+class Accessibility {
+public:
+  static bool GetCaptionSettings(SbAccessibilityCaptionSettings* out);
+  static bool GetDisplaySettings(SbAccessibilityDisplaySettings* out);
+  static void SetSettings(const std::string& json);
+  static bool GetSettings(std::string& out_json);
 };
 
 }  // namespace shared

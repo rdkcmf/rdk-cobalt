@@ -12,6 +12,9 @@
   "include": {
     "statecontrol": {
       "$ref": "StateControl.json#"
+    },
+    "accessibility": {
+      "$ref": "Accessibility.json#"
     }
   },
   "methods": {
