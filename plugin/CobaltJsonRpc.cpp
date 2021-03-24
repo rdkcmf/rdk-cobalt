@@ -194,6 +194,7 @@ uint32_t Cobalt::get_accessibility(JsonObject &response) const
     else {
       result = Core::ERROR_NONE;
     }
+    dict->Release();
   }
 
   return result;
@@ -226,6 +227,7 @@ uint32_t Cobalt::set_accessibility(const JsonObject &param)
       else {
         result = Core::ERROR_NONE;
       }
+      dict->Release();
     }
   }
   return result;
