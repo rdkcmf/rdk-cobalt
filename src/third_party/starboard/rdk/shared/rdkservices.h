@@ -71,10 +71,23 @@ public:
 
 class Accessibility {
 public:
-  static bool GetCaptionSettings(SbAccessibilityCaptionSettings* out);
-  static bool GetDisplaySettings(SbAccessibilityDisplaySettings* out);
   static void SetSettings(const std::string& json);
   static bool GetSettings(std::string& out_json);
+  static bool GetCaptionSettings(SbAccessibilityCaptionSettings* out);
+  static bool GetDisplaySettings(SbAccessibilityDisplaySettings* out);
+};
+
+class SystemProperties {
+public:
+  static void SetSettings(const std::string& json);
+  static bool GetSettings(std::string& out_json);
+  static bool GetChipset(std::string &out);
+  static bool GetFirmwareVersion(std::string &out);
+  static bool GetIntegratorName(std::string &out);
+  static bool GetBrandName(std::string &out);
+  static bool GetModelName(std::string &out);
+  static bool GetModelYear(std::string &out);
+  static bool GetFriendlyName(std::string &out);
 };
 
 }  // namespace shared

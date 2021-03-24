@@ -42,6 +42,8 @@
 #include "third_party/starboard/rdk/shared/rdkservices.h"
 #include "third_party/starboard/rdk/shared/log_override.h"
 
+using namespace third_party::starboard::rdk::shared;
+
 namespace {
 
 const char kPlatformName[] = "Linux";
@@ -89,10 +91,37 @@ bool TryReadFromPropertiesFile(const char* prefix, size_t prefix_len, char* out_
   return result;
 }
 
+bool GetFriendlyName(char* out_value, int value_length) {
+  std::string prop;
+  if (SystemProperties::GetFriendlyName(prop))
+    return CopyStringAndTestIfSuccess(out_value, value_length, prop.c_str());
+#if defined(SB_PLATFORM_FRIENDLY_NAME)
+  return CopyStringAndTestIfSuccess(out_value, value_length,
+                                    SB_PLATFORM_FRIENDLY_NAME);
+#endif  // defined(SB_PLATFORM_FRIENDLY_NAME)
+  return false;
+}
+
+bool GetModelYear(char* out_value, int value_length) {
+  std::string prop;
+  if (SystemProperties::GetModelYear(prop))
+    return CopyStringAndTestIfSuccess(out_value, value_length, prop.c_str());
+
+#if defined(SB_PLATFORM_MODEL_YEAR)
+  return CopyStringAndTestIfSuccess(out_value, value_length,
+    std::to_string(SB_PLATFORM_MODEL_YEAR).c_str());
+#endif  // defined(SB_PLATFORM_MODEL_YEAR)
+  return false;
+}
+
 bool GetModelName(char* out_value, int value_length) {
   const char* env = std::getenv("COBALT_MODEL_NAME");
   if (env && CopyStringAndTestIfSuccess(out_value, value_length, env))
     return true;
+
+  std::string prop;
+  if (SystemProperties::GetModelName(prop))
+    return CopyStringAndTestIfSuccess(out_value, value_length, prop.c_str());
 
   const char kPrefixStr[] = "MODEL_NUM=";
   const size_t kPrefixStrLength = SB_ARRAY_SIZE(kPrefixStr) - 1;
@@ -106,6 +135,12 @@ bool GetOperatorName(char* out_value, int value_length) {
   const char* env = std::getenv("COBALT_OPERATOR_NAME");
   if (env && CopyStringAndTestIfSuccess(out_value, value_length, env))
     return true;
+
+  std::string prop;
+  if (SystemProperties::GetBrandName(prop)) {
+    return CopyStringAndTestIfSuccess(
+      out_value, value_length, prop.c_str());
+  }
 
   FILE* partnerId = fopen("/opt/www/authService/partnerId3.dat", "r");
   if (partnerId) {
@@ -131,6 +166,13 @@ bool GetManufacturerName(char* out_value, int value_length) {
     const char* env = std::getenv("COBALT_MANUFACTURE_NAME");
     if (env && CopyStringAndTestIfSuccess(out_value, value_length, env))
         return true;
+
+    std::string prop;
+    if (SystemProperties::GetIntegratorName(prop)) {
+      return CopyStringAndTestIfSuccess(
+        out_value, value_length, prop.c_str());
+    }
+
     const char kPrefixStr[] = "MANUFACTURE=";
     const size_t kPrefixStrLength = SB_ARRAY_SIZE(kPrefixStr) - 1;
     if (TryReadFromPropertiesFile(kPrefixStr, kPrefixStrLength, out_value, value_length))
@@ -144,15 +186,18 @@ bool GetManufacturerName(char* out_value, int value_length) {
 }
 
 bool GetChipsetModelNumber(char* out_value, int value_length) {
-  std::string chipset =
-    third_party::starboard::rdk::shared::DeviceIdentification::GetChipset();
+  std::string chipset;
+  if (!SystemProperties::GetChipset(chipset))
+    chipset = DeviceIdentification::GetChipset();
   return CopyStringAndTestIfSuccess(
     out_value, value_length, chipset.c_str());
 }
 
 bool GetFirmwareVersion(char* out_value, int value_length) {
-  std::string firmware_version =
-    third_party::starboard::rdk::shared::DeviceIdentification::GetFirmwareVersion();
+  std::string firmware_version;
+  if (!SystemProperties::GetFirmwareVersion(firmware_version))
+    firmware_version = DeviceIdentification::GetFirmwareVersion();
+
   return CopyStringAndTestIfSuccess(
     out_value, value_length, firmware_version.c_str());
 }
@@ -210,11 +255,8 @@ bool SbSystemGetProperty(SbSystemPropertyId property_id,
     case kSbSystemPropertyFirmwareVersion:
       return GetFirmwareVersion(out_value, value_length);
 
-#if defined(SB_PLATFORM_MODEL_YEAR)
     case kSbSystemPropertyModelYear:
-      return CopyStringAndTestIfSuccess(out_value, value_length,
-          std::to_string(SB_PLATFORM_MODEL_YEAR).c_str());
-#endif  // defined(SB_PLATFORM_MODEL_YEAR)
+      return GetModelYear(out_value, value_length);
 
     case kSbSystemPropertySystemIntegratorName:
       return GetManufacturerName(out_value, value_length);
@@ -222,11 +264,8 @@ bool SbSystemGetProperty(SbSystemPropertyId property_id,
     case kSbSystemPropertySpeechApiKey:
       return false;
 
-#if defined(SB_PLATFORM_FRIENDLY_NAME)
     case kSbSystemPropertyFriendlyName:
-      return CopyStringAndTestIfSuccess(out_value, value_length,
-                                        SB_PLATFORM_FRIENDLY_NAME);
-#endif  // defined(SB_PLATFORM_FRIENDLY_NAME)
+      return GetFriendlyName(out_value, value_length);
 
     case kSbSystemPropertyPlatformName:
       return CopyStringAndTestIfSuccess(out_value, value_length, kPlatformName);

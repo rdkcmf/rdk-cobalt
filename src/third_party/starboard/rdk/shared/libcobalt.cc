@@ -147,23 +147,39 @@ void SbRdkQuit() {
 }
 
 void SbRdkSetSetting(const char* key, const char* json) {
-  if (key && SbStringCompareAll(key, "accessibility") == 0)
+  if (!key || key[0] == '\0' || !json)
+    return;
+
+  if (SbStringCompareAll(key, "accessibility") == 0) {
     Accessibility::SetSettings(json);
+  }
+  else if (SbStringCompareAll(key, "systemproperties") == 0) {
+    SystemProperties::SetSettings(json);
+  }
 }
 
 int SbRdkGetSetting(const char* key, char** out_json) {
-  if (key && SbStringCompareAll(key, "accessibility") == 0) {
-    if (out_json) {
-      std::string tmp;
-      if (Accessibility::GetSettings(tmp)) {
-        char *out = (char*)malloc(tmp.size() + 1);
-        SbMemoryCopy(out, tmp.c_str(), tmp.size());
-        out[tmp.size()] = '\0';
-        *out_json = out;
-        return 0;
-      }
-    }
+  if (!key || key[0] == '\0' || !out_json || *out_json != nullptr)
+    return -1;
+
+  bool result = false;
+  std::string tmp;
+
+  if (SbStringCompareAll(key, "accessibility") == 0) {
+    result = Accessibility::GetSettings(tmp);
   }
+  else if (SbStringCompareAll(key, "systemproperties") == 0) {
+    result = SystemProperties::GetSettings(tmp);
+  }
+
+  if (result && !tmp.empty()) {
+    char *out = (char*)malloc(tmp.size() + 1);
+    SbMemoryCopy(out, tmp.c_str(), tmp.size());
+    out[tmp.size()] = '\0';
+    *out_json = out;
+    return 0;
+  }
+
   return -1;
 }
 

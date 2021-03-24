@@ -88,6 +88,7 @@ private:
       Add(_T("gstdebug"), &GstDebug);
       Add(_T("preload"), &PreloadEnabled);
       Add(_T("autosuspenddelay"), &AutoSuspendDelay);
+      Add(_T("systemproperties"), &SystemProperties);
     }
     ~Config() {
     }
@@ -100,6 +101,7 @@ private:
     Core::JSON::String GstDebug;
     Core::JSON::Boolean PreloadEnabled;
     Core::JSON::DecUInt16 AutoSuspendDelay;
+    Core::JSON::VariantContainer SystemProperties;
   };
 
   class NotificationSink: public Core::Thread {
@@ -274,6 +276,12 @@ private:
 
       if (config.AutoSuspendDelay.IsSet() == true) {
         _autoSuspendDelayInSeconds = config.AutoSuspendDelay.Value();
+      }
+
+      if (config.SystemProperties.IsSet() == true) {
+        std::string properties;
+        if (config.SystemProperties.ToString(properties))
+          SbRdkSetSetting("systemproperties", properties.c_str());
       }
 
       Run();

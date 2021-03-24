@@ -480,6 +480,116 @@ public:
 
 SB_ONCE_INITIALIZE_FUNCTION(AccessibilityImpl, GetAccessibility);
 
+struct SystemPropertiesImpl {
+  struct SystemPropertiesData : public Core::JSON::Container {
+    SystemPropertiesData()
+      : Core::JSON::Container() {
+      Add(_T("modelname"), &ModelName);
+      Add(_T("brandname"), &BrandName);
+      Add(_T("modelyear"), &ModelYear);
+      Add(_T("chipsetmodelnumber"), &ChipsetModelNumber);
+      Add(_T("firmwareversion"), &FirmwareVersion);
+      Add(_T("integratorname"), &IntegratorName);
+      Add(_T("friendlyname"), &FriendlyName);
+    }
+    SystemPropertiesData(const SystemPropertiesData&) = delete;
+    SystemPropertiesData& operator=(const SystemPropertiesData&) = delete;
+
+    Core::JSON::String ModelName;
+    Core::JSON::String BrandName;
+    Core::JSON::String ModelYear;
+    Core::JSON::String ChipsetModelNumber;
+    Core::JSON::String FirmwareVersion;
+    Core::JSON::String IntegratorName;
+    Core::JSON::String FriendlyName;
+  };
+
+  void SetSettings(const std::string& json) {
+    ::starboard::ScopedLock lock(mutex_);
+    Core::OptionalType<Core::JSON::Error> error;
+    if ( !props_.FromString(json, error) ) {
+      props_.Clear();
+      SB_LOG(ERROR) << "Failed to parse systemproperties settings, error: "
+                    << (error.IsSet() ? Core::JSON::ErrorDisplayMessage(error.Value()): "Unknown");
+      return;
+    }
+  }
+
+  bool GetSettings(std::string& out_json) const {
+    ::starboard::ScopedLock lock(mutex_);
+    return props_.ToString(out_json);
+  }
+
+  bool GetModelName(std::string &out) const {
+    ::starboard::ScopedLock lock(mutex_);
+    if (props_.ModelName.IsSet() && !props_.ModelName.Value().empty()) {
+      out = props_.ModelName.Value();
+      return true;
+    }
+    return false;
+  }
+
+  bool GetBrandName(std::string &out) const {
+    ::starboard::ScopedLock lock(mutex_);
+    if (props_.BrandName.IsSet() && !props_.BrandName.Value().empty()) {
+      out = props_.BrandName.Value();
+      return true;
+    }
+    return false;
+  }
+
+  bool GetModelYear(std::string &out) const {
+    ::starboard::ScopedLock lock(mutex_);
+    if (props_.ModelYear.IsSet() && !props_.ModelYear.Value().empty()) {
+      out = props_.ModelYear.Value();
+      return true;
+    }
+    return false;
+  }
+
+  bool GetChipset(std::string &out) const {
+    ::starboard::ScopedLock lock(mutex_);
+    if (props_.ChipsetModelNumber.IsSet() && !props_.ChipsetModelNumber.Value().empty()) {
+      out = props_.ChipsetModelNumber.Value();
+      return true;
+    }
+    return false;
+  }
+
+  bool GetFirmwareVersion(std::string &out) const {
+    ::starboard::ScopedLock lock(mutex_);
+    if (props_.FirmwareVersion.IsSet() && !props_.FirmwareVersion.Value().empty()) {
+      out = props_.FirmwareVersion.Value();
+      return true;
+    }
+    return false;
+  }
+
+  bool GetIntegratorName(std::string &out) const {
+    ::starboard::ScopedLock lock(mutex_);
+    if (props_.IntegratorName.IsSet() && !props_.IntegratorName.Value().empty()) {
+      out = props_.IntegratorName.Value();
+      return true;
+    }
+    return false;
+  }
+
+  bool GetFriendlyName(std::string &out) const {
+    ::starboard::ScopedLock lock(mutex_);
+    if (props_.FriendlyName.IsSet() && !props_.FriendlyName.Value().empty()) {
+      out = props_.FriendlyName.Value();
+      return true;
+    }
+    return false;
+  }
+
+private:
+  ::starboard::Mutex mutex_;
+  SystemPropertiesData props_;
+};
+
+SB_ONCE_INITIALIZE_FUNCTION(SystemPropertiesImpl, GetSystemProperties);
+
 }  // namespace
 
 struct DisplayInfo::Impl {
@@ -717,6 +827,42 @@ void Accessibility::SetSettings(const std::string& json) {
 
 bool Accessibility::GetSettings(std::string& out_json) {
   return GetAccessibility()->GetSettings(out_json);
+}
+
+void SystemProperties::SetSettings(const std::string& json) {
+  GetSystemProperties()->SetSettings(json);
+}
+
+bool SystemProperties::GetSettings(std::string& out_json) {
+  return GetSystemProperties()->GetSettings(out_json);
+}
+
+bool SystemProperties::GetChipset(std::string &out) {
+  return GetSystemProperties()->GetChipset(out);
+}
+
+bool SystemProperties::GetFirmwareVersion(std::string &out) {
+  return GetSystemProperties()->GetFirmwareVersion(out);
+}
+
+bool SystemProperties::GetIntegratorName(std::string &out) {
+  return GetSystemProperties()->GetIntegratorName(out);
+}
+
+bool SystemProperties::GetBrandName(std::string &out) {
+  return GetSystemProperties()->GetBrandName(out);
+}
+
+bool SystemProperties::GetModelName(std::string &out) {
+  return GetSystemProperties()->GetModelName(out);
+}
+
+bool SystemProperties::GetModelYear(std::string &out) {
+  return GetSystemProperties()->GetModelYear(out);
+}
+
+bool SystemProperties::GetFriendlyName(std::string &out) {
+  return GetSystemProperties()->GetFriendlyName(out);
 }
 
 }  // namespace shared
