@@ -658,22 +658,13 @@ void DisplayInfo::Impl::Refresh() {
 
   needs_refresh_.store(false);
 
-  Core::JSON::EnumType<Exchange::IPlayerProperties::PlaybackResolution> resolution;
+  Core::JSON::String resolution;
   rc = ServiceLink(kPlayerInfoCallsign).Get(kDefaultTimeoutMs, "resolution", resolution);
-  if (Core::ERROR_NONE == rc) {
-    switch(resolution) {
-      case Exchange::IPlayerProperties::RESOLUTION_2160P30:
-      case Exchange::IPlayerProperties::RESOLUTION_2160P60:
-        resolution_info_ = ResolutionInfo { 3840 , 2160 };
-        break;
-      case Exchange::IPlayerProperties::RESOLUTION_1080I:
-      case Exchange::IPlayerProperties::RESOLUTION_1080P:
-      case Exchange::IPlayerProperties::RESOLUTION_UNKNOWN:
-        resolution_info_ = ResolutionInfo { 1920 , 1080 };
-        break;
-      default:
-        resolution_info_ = ResolutionInfo { 1280 , 720 };
-        break;
+  if (Core::ERROR_NONE == rc && resolution.IsSet()) {
+    if (resolution.Value().find("Resolution2160") != std::string::npos) {
+      resolution_info_ = ResolutionInfo { 3840 , 2160 };
+    } else {
+      resolution_info_ = ResolutionInfo { 1920 , 1080 };
     }
   } else {
     resolution_info_ = ResolutionInfo { 1920 , 1080 };
