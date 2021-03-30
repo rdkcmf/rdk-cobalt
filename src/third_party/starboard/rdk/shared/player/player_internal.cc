@@ -24,6 +24,7 @@
 #include <gst/audio/streamvolume.h>
 #include <gst/base/gstbytewriter.h>
 #include <gst/gst.h>
+#include <gst/base/gstflowcombiner.h>
 #include <gst/video/video.h>
 
 #include <map>
@@ -134,6 +135,7 @@ struct _GstCobaltSrcPrivate {
   guint pad_number;
   gboolean async_start;
   gboolean async_done;
+  GstFlowCombiner* flow_combiner;
 };
 
 enum { PROP_0, PROP_LOCATION };
@@ -156,10 +158,12 @@ G_DEFINE_TYPE_WITH_CODE(GstCobaltSrc,
 
 static void gst_cobalt_src_init(GstCobaltSrc* src) {
   GstCobaltSrcPrivate* priv = (GstCobaltSrcPrivate*)gst_cobalt_src_get_instance_private(src);
+  new (priv) GstCobaltSrcPrivate();
   src->priv = priv;
   src->priv->pad_number = 0;
   src->priv->async_start = FALSE;
   src->priv->async_done = FALSE;
+  src->priv->flow_combiner = gst_flow_combiner_new();
   g_object_set(GST_BIN(src), "message-forward", TRUE, NULL);
 }
 
@@ -172,6 +176,7 @@ static void gst_cobalt_src_finalize(GObject* object) {
   GstCobaltSrcPrivate* priv = src->priv;
 
   g_free(priv->uri);
+  gst_flow_combiner_free(priv->flow_combiner);
   priv->~GstCobaltSrcPrivate();
 
   GST_CALL_PARENT(G_OBJECT_CLASS, finalize, (object));
@@ -288,7 +293,16 @@ static gboolean gst_cobalt_src_query_with_parent(GstPad* pad,
   return result;
 }
 
-void gst_cobalt_src_handle_message(GstBin* bin, GstMessage* message) {
+static GstFlowReturn gst_cobalt_src_chain_with_parent(GstPad* pad, GstObject* parent, GstBuffer* buffer) {
+  GstCobaltSrc* src = GST_COBALT_SRC(gst_object_get_parent(parent));
+  GstFlowReturn ret = gst_proxy_pad_chain_default(pad, GST_OBJECT(src), buffer);
+  if (ret != GST_FLOW_FLUSHING)
+    ret = gst_flow_combiner_update_pad_flow(src->priv->flow_combiner, pad, ret);
+  gst_object_unref(src);
+  return ret;
+}
+
+static void gst_cobalt_src_handle_message(GstBin* bin, GstMessage* message) {
   GstCobaltSrc* src = GST_COBALT_SRC(GST_ELEMENT(bin));
 
   switch (GST_MESSAGE_TYPE(message)) {
@@ -352,6 +366,12 @@ void gst_cobalt_src_setup_and_add_app_src(GstElement* element,
   gst_bin_add(GST_BIN(element), appsrc);
   GstPad* target = gst_element_get_static_pad(appsrc, "src");
   GstPad* pad = gst_ghost_pad_new(name, target);
+
+  auto proxypad = GST_PAD(gst_proxy_pad_get_internal(GST_PROXY_PAD(pad)));
+  gst_flow_combiner_add_pad(src->priv->flow_combiner, proxypad);
+  gst_pad_set_chain_function(proxypad, static_cast<GstPadChainFunction>(gst_cobalt_src_chain_with_parent));
+  gst_object_unref(proxypad);
+
   gst_pad_set_query_function(pad, gst_cobalt_src_query_with_parent);
   gst_pad_set_active(pad, TRUE);
 
