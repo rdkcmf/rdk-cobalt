@@ -37,6 +37,8 @@
 #include "starboard/key.h"
 
 #include "third_party/starboard/rdk/shared/application_rdk.h"
+#include "third_party/starboard/rdk/shared/linux_key_mapping.h"
+#include "third_party/starboard/rdk/shared/log_override.h"
 
 #include <linux/input.h>
 
@@ -400,41 +402,7 @@ EssInput::~EssInput() {
   DeleteRepeatKey();
 }
 
-void EssInput::CreateKey(unsigned int key, SbInputEventType type, bool repeatable) {
-  unsigned int modifiers = key_modifiers_;
-  if (modifiers == kSbKeyModifiersCtrl) {  // only Ctrl is set
-    switch(key) {
-      case KEY_M:  // Menu
-      case KEY_G:  // Guide
-      case KEY_R:  // Record
-      case KEY_U:  // Volume Up
-      case KEY_D:  // Volume Down
-      case KEY_S:  // Stop
-      case KEY_N:  // Favorite
-      case KEY_O:  // OnDemand
-      case KEY_B:  // Replay
-      case KEY_C:  // Search
-      case KEY_E:  // Exit
-        key = KEY_UNKNOWN; modifiers = 0;
-        break;
-
-      case KEY_I: key = KEY_INFO; modifiers = 0; break;
-      case KEY_Y: key = KEY_MUTE; modifiers = 0; break;
-      case KEY_L: key = KEY_ESC; modifiers = 0; break;
-      case KEY_F: key = KEY_FASTFORWARD; modifiers = 0; break;
-      case KEY_W: key = KEY_REWIND; modifiers = 0; break;
-      case KEY_P: key = KEY_PLAYPAUSE; modifiers = 0; break;
-      case KEY_0: key = KEY_RED; modifiers = 0; break;
-      case KEY_1: key = KEY_GREEN; modifiers = 0; break;
-      case KEY_2: key = KEY_YELLOW; modifiers = 0; break;
-      case KEY_3: key = KEY_BLUE; modifiers = 0; break;
-      case KEY_UP: key = KEY_CHANNELUP; modifiers = 0; break;
-      case KEY_DOWN: key = KEY_CHANNELDOWN; modifiers = 0; break;
-
-      default: break;
-    }
-  }
-
+void EssInput::CreateKey(unsigned int key, SbInputEventType type, unsigned int modifiers, bool repeatable) {
   SbKey sb_key = KeyCodeToSbKey(key);
   if (sb_key == kSbKeyUnknown) {
     DeleteRepeatKey();
@@ -458,6 +426,7 @@ void EssInput::CreateKey(unsigned int key, SbInputEventType type, bool repeatabl
   if (repeatable && type == kSbInputEventTypePress) {
     key_repeat_key_ = key;
     key_repeat_state_ = 1;
+    key_repeat_modifiers_ = modifiers;
     key_repeat_event_id_ = SbEventSchedule(
       [](void* data) {
         EssInput* ess_input = reinterpret_cast<EssInput*>(data);
@@ -476,7 +445,7 @@ void EssInput::CreateRepeatKey() {
   if (key_repeat_interval_) {
     key_repeat_interval_ = kKeyRepeatTime;
   }
-  CreateKey(key_repeat_key_, kSbInputEventTypePress, true);
+  CreateKey(key_repeat_key_, kSbInputEventTypePress, key_repeat_modifiers_, true);
 }
 
 void EssInput::DeleteRepeatKey() {
@@ -503,17 +472,28 @@ void EssInput::OnKeyboardKey(unsigned int key, SbInputEventType type) {
   if (UpdateModifiers(key, type))
     return;
 
+  unsigned int modifiers = key_modifiers_;
+  LinuxKeyMapping::MapKeyCodeAndModifiers(key, modifiers);
+
   bool repeatable =
-    (key == KEY_LEFT || key == KEY_RIGHT || key == KEY_UP || key == KEY_DOWN) ||
-    ((key == KEY_F || key == KEY_W) && (key_modifiers_ == kSbKeyModifiersCtrl));
+    (key == KEY_LEFT || key == KEY_RIGHT || key == KEY_UP || key == KEY_DOWN ||
+     key == KEY_FASTFORWARD || key == KEY_REWIND) && (modifiers == 0);
 
   if (type == kSbInputEventTypePress && repeatable && key == key_repeat_key_ && key_repeat_state_)
     return;
 
+  static bool enable_key_debug = !!getenv("COBALT_ENABLE_KEY_DEBUG");
+  if (enable_key_debug) {
+    SB_LOG(INFO) << "OnKeyboardKey, key code = " << key
+                 << ", type = " << type
+                 << ", modifiers = " << modifiers
+                 << ", repeatable = " << repeatable;
+  }
+
   if (repeatable) {
-    CreateKey(key, type, true);
+    CreateKey(key, type, modifiers, true);
   } else {
-    CreateKey(key, type, false);
+    CreateKey(key, type, modifiers, false);
   }
 }
 

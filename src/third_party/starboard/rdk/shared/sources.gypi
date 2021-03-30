@@ -492,6 +492,8 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/configuration.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/hang_detector.h',
         '<(DEPTH)/third_party/starboard/rdk/shared/hang_detector.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/linux_key_mapping.h',
+        '<(DEPTH)/third_party/starboard/rdk/shared/linux_key_mapping.cc',
     ],
     'conditions': [
       ['<(has_ocdm)==1', {

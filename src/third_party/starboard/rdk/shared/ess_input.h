@@ -50,7 +50,7 @@ public:
   void OnKeyReleased(unsigned int key);
 
 private:
-  void CreateKey(unsigned int key, SbInputEventType type, bool repeatable);
+  void CreateKey(unsigned int key, SbInputEventType type, unsigned int modifiers, bool repeatable);
   void CreateRepeatKey();
   void DeleteRepeatKey();
   void OnKeyboardKey(unsigned int key, SbInputEventType type);
@@ -58,6 +58,7 @@ private:
 
   unsigned int key_modifiers_ { 0 };
   unsigned key_repeat_key_ { 0 };
+  unsigned key_repeat_modifiers_ { 0 };
   int key_repeat_state_ { 0 };
   SbEventId key_repeat_event_id_ { kSbEventIdInvalid };
   SbTime key_repeat_interval_ { 0 };
