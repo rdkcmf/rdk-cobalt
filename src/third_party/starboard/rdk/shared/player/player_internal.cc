@@ -1186,7 +1186,7 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   g_source_set_callback(src, [] (gpointer data) ->gboolean {
     PlayerImpl& player = *static_cast<PlayerImpl*>(data);
     GstState state, pending;
-    GstStateChangeReturn result = gst_element_get_state(player.pipeline_, &state, &pending, GST_CLOCK_TIME_NONE);
+    GstStateChangeReturn result = gst_element_get_state(player.pipeline_, &state, &pending, 0);
     gint64 position = player.GetPosition();
     GST_INFO("Player state: %s (pending: %s, result: %s), position: %" GST_TIME_FORMAT "",
              gst_element_state_get_name(state),
