@@ -69,6 +69,8 @@ GST_DEBUG_CATEGORY(cobalt_gst_player_debug);
 #endif
 #endif
 
+static void PrintGstCaps(GstCaps* caps);
+
 static GSourceFuncs SourceFunctions = {
     // prepare
     nullptr,
@@ -352,6 +354,7 @@ void gst_cobalt_src_setup_and_add_app_src(GstElement* element,
                                           GstAppSrcCallbacks* callbacks,
                                           gpointer user_data) {
   if (caps) {
+    PrintGstCaps(caps);
     gst_app_src_set_caps(GST_APP_SRC(appsrc), caps);
   }
 
@@ -677,6 +680,16 @@ static void PrintPositionPerSink(GstElement* element)
     }
   }
   gst_iterator_free (iter);
+}
+
+static void PrintGstCaps(GstCaps* caps) {
+#ifndef GST_DISABLE_GST_DEBUG
+  if (gst_debug_category_get_threshold(GST_CAT_DEFAULT) >= GST_LEVEL_INFO) {
+    gchar *caps_str = gst_caps_to_string(caps);
+    GST_INFO("caps: %s", caps_str);
+    g_free(caps_str);
+  }
+#endif
 }
 
 }  // namespace
@@ -1813,6 +1826,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
       if (!caps.empty()) {
         GstCaps* gst_caps = gst_caps_from_string(caps[0].c_str());
         AddVideoInfoToGstCaps(info, gst_caps);
+        PrintGstCaps(gst_caps);
         gst_app_src_set_caps(GST_APP_SRC(video_appsrc_), gst_caps);
         gst_caps_replace(&video_caps_, gst_caps);
         gst_caps_unref(gst_caps);
