@@ -645,7 +645,7 @@ void DisplayInfo::Impl::Refresh() {
                       << " ( " << Core::ErrorToString(rc) << " )";
         return;
       }
-      if (Core::ERROR_NONE != rc) {
+      if (Core::ERROR_NONE != rc && Core::ERROR_DUPLICATE_KEY != rc) {
         did_subscribe_.store(false);
         SB_LOG(ERROR) << "Failed to subscribe to '" << kDisplayInfoCallsign
                       << ".updated' event, rc=" << rc
@@ -656,7 +656,7 @@ void DisplayInfo::Impl::Refresh() {
     }
   }
 
-  needs_refresh_.store(false);
+  bool needs_refresh = false;
 
   Core::JSON::String resolution;
   rc = ServiceLink(kPlayerInfoCallsign).Get(kDefaultTimeoutMs, "resolution", resolution);
@@ -667,6 +667,7 @@ void DisplayInfo::Impl::Refresh() {
       resolution_info_ = ResolutionInfo { 1920 , 1080 };
     }
   } else {
+    needs_refresh |= (Core::ERROR_ASYNC_FAILED == rc);
     resolution_info_ = ResolutionInfo { 1920 , 1080 };
     SB_LOG(ERROR) << "Failed to get 'resolution', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
   }
@@ -674,12 +675,14 @@ void DisplayInfo::Impl::Refresh() {
   Core::JSON::DecUInt16 widthincentimeters, heightincentimeters;
   rc = display_info_.Get(kDefaultTimeoutMs, "widthincentimeters", widthincentimeters);
   if (Core::ERROR_NONE != rc) {
+    needs_refresh |= (Core::ERROR_ASYNC_FAILED == rc);
     widthincentimeters.Clear();
     SB_LOG(ERROR) << "Failed to get 'DisplayInfo.widthincentimeters', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
   }
 
   rc = display_info_.Get(kDefaultTimeoutMs, "heightincentimeters", heightincentimeters);
   if (Core::ERROR_NONE != rc) {
+    needs_refresh |= (Core::ERROR_ASYNC_FAILED == rc);
     heightincentimeters.Clear();
     SB_LOG(ERROR) << "Failed to get 'DisplayInfo.heightincentimeters', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
   }
@@ -697,6 +700,7 @@ void DisplayInfo::Impl::Refresh() {
     Caps tvcapabilities;
     rc = display_info_.Get(kDefaultTimeoutMs, "tvcapabilities", tvcapabilities);
     if (Core::ERROR_NONE != rc) {
+      needs_refresh |= (Core::ERROR_ASYNC_FAILED == rc);
       SB_LOG(ERROR) << "Failed to get 'tvcapabilities', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
       return false;
     }
@@ -715,6 +719,7 @@ void DisplayInfo::Impl::Refresh() {
     Caps stbcapabilities;
     rc = display_info_.Get(kDefaultTimeoutMs, "stbcapabilities", stbcapabilities);
     if (Core::ERROR_NONE != rc) {
+      needs_refresh |= (Core::ERROR_ASYNC_FAILED == rc);
       SB_LOG(ERROR) << "Failed to get 'stbcapabilities', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
       return false;
     }
@@ -734,6 +739,8 @@ void DisplayInfo::Impl::Refresh() {
   };
 
   has_hdr_support_ = detectHdr10Support();
+
+  needs_refresh_.store(needs_refresh);
 
   SB_LOG(INFO) << "Display info updated, resolution: "
                << resolution_info_.Width
