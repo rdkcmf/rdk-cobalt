@@ -491,6 +491,7 @@ struct SystemPropertiesImpl {
       Add(_T("firmwareversion"), &FirmwareVersion);
       Add(_T("integratorname"), &IntegratorName);
       Add(_T("friendlyname"), &FriendlyName);
+      Add(_T("devicetype"), &DeviceType);
     }
     SystemPropertiesData(const SystemPropertiesData&) = delete;
     SystemPropertiesData& operator=(const SystemPropertiesData&) = delete;
@@ -502,6 +503,7 @@ struct SystemPropertiesImpl {
     Core::JSON::String FirmwareVersion;
     Core::JSON::String IntegratorName;
     Core::JSON::String FriendlyName;
+    Core::JSON::String DeviceType;
   };
 
   void SetSettings(const std::string& json) {
@@ -578,6 +580,15 @@ struct SystemPropertiesImpl {
     ::starboard::ScopedLock lock(mutex_);
     if (props_.FriendlyName.IsSet() && !props_.FriendlyName.Value().empty()) {
       out = props_.FriendlyName.Value();
+      return true;
+    }
+    return false;
+  }
+
+  bool GetDeviceType(std::string &out) const {
+    ::starboard::ScopedLock lock(mutex_);
+    if (props_.DeviceType.IsSet() && !props_.DeviceType.Value().empty()) {
+      out = props_.DeviceType.Value();
       return true;
     }
     return false;
@@ -861,6 +872,10 @@ bool SystemProperties::GetModelYear(std::string &out) {
 
 bool SystemProperties::GetFriendlyName(std::string &out) {
   return GetSystemProperties()->GetFriendlyName(out);
+}
+
+bool SystemProperties::GetDeviceType(std::string &out) {
+  return GetSystemProperties()->GetDeviceType(out);
 }
 
 }  // namespace shared

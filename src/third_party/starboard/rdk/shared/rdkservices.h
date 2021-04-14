@@ -88,6 +88,7 @@ public:
   static bool GetModelName(std::string &out);
   static bool GetModelYear(std::string &out);
   static bool GetFriendlyName(std::string &out);
+  static bool GetDeviceType(std::string &out);
 };
 
 }  // namespace shared

@@ -12,7 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "starboard/system.h"
+#include "starboard/string.h"
+
+#include <core/Enumerate.h>
+
+#include "third_party/starboard/rdk/shared/rdkservices.h"
+#include "third_party/starboard/rdk/shared/log_override.h"
+
+using namespace third_party::starboard::rdk::shared;
+
+namespace WPEFramework {
+
+ENUM_CONVERSION_HANDLER(SbSystemDeviceType);
+
+ENUM_CONVERSION_BEGIN(SbSystemDeviceType)
+  { kSbSystemDeviceTypeBlueRayDiskPlayer, _TXT("BlueRayDiskPlayer") },
+  { kSbSystemDeviceTypeGameConsole,       _TXT("GameConsole") },
+  { kSbSystemDeviceTypeOverTheTopBox,     _TXT("OverTheTopBox") },
+  { kSbSystemDeviceTypeSetTopBox,         _TXT("SetTopBox") },
+  { kSbSystemDeviceTypeTV,                _TXT("TV") },
+  { kSbSystemDeviceTypeDesktopPC,         _TXT("DesktopPC") },
+  { kSbSystemDeviceTypeAndroidTV,         _TXT("AndroidTV") },
+  { kSbSystemDeviceTypeUnknown,           _TXT("Unknown") },
+ENUM_CONVERSION_END(SbSystemDeviceType);
+
+}
 
 SbSystemDeviceType SbSystemGetDeviceType() {
+  std::string prop;
+  if (SystemProperties::GetDeviceType(prop)) {
+    WPEFramework::Core::EnumerateType<SbSystemDeviceType> converted(prop.c_str(), false);
+    if (converted.IsSet() == true) {
+      SB_LOG(INFO) << "DeviceType: '" << converted.Data() << "'";
+      return converted.Value();
+    } else {
+      SB_LOG(ERROR) << "Failed to parse device type from '" << prop << "', fallback to report STB";
+    }
+  }
   return kSbSystemDeviceTypeSetTopBox;
 }
