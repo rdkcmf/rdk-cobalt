@@ -49,5 +49,13 @@ SbSystemDeviceType SbSystemGetDeviceType() {
       SB_LOG(ERROR) << "Failed to parse device type from '" << prop << "', fallback to report STB";
     }
   }
+  // try to deduce from experience flag
+  if (AuthService::GetExperience(prop)) {
+    if (prop == "Flex") {
+      SB_LOG(INFO) << "DeviceType: 'OverTheTopBox' for '" << prop << "'";
+      return kSbSystemDeviceTypeOverTheTopBox;
+    }
+  }
+  SB_LOG(INFO) << "DeviceType: 'SetTopBox'";
   return kSbSystemDeviceTypeSetTopBox;
 }

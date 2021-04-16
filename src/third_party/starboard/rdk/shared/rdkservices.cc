@@ -36,6 +36,7 @@
 #include "starboard/common/condition_variable.h"
 #include "starboard/common/mutex.h"
 #include "starboard/accessibility.h"
+#include "starboard/file.h"
 
 #include "third_party/starboard/rdk/shared/accessibility_data.h"
 #include "third_party/starboard/rdk/shared/log_override.h"
@@ -56,6 +57,9 @@ const char kPlayerInfoCallsign[] = "PlayerInfo.1";
 const char kDeviceIdentificationCallsign[] = "DeviceIdentification.1";
 const char kNetworkCallsign[] = "org.rdk.Network.1";
 const char kTTSCallsign[] = "org.rdk.TextToSpeech.1";
+const char kAuthServiceCallsign[] = "org.rdk.AuthService.1";
+
+const char kAuthServiceExperienceFile[] = "/opt/www/authService/experience.dat";
 
 const uint32_t kPriviligedRequestErrorCode = -32604U;
 
@@ -876,6 +880,52 @@ bool SystemProperties::GetFriendlyName(std::string &out) {
 
 bool SystemProperties::GetDeviceType(std::string &out) {
   return GetSystemProperties()->GetDeviceType(out);
+}
+
+bool AuthService::IsAvailable()
+{
+  const auto IsAvailableImpl = []() {
+    const std::string method = std::string("status@") + kAuthServiceCallsign;
+    Core::JSON::String tmp;
+    uint32_t rc = ServiceLink(EMPTY_STRING)
+      .Get(kDefaultTimeoutMs, method, tmp);
+    if (Core::ERROR_NONE == rc)
+      return true;
+    if (access(kAuthServiceExperienceFile, R_OK) == 0)
+      return true;
+    SB_LOG(INFO) << "AuthService is not available";
+    return false;
+  };
+  static bool is_available = IsAvailableImpl();
+  return is_available;
+}
+
+bool AuthService::GetExperience(std::string &out)
+{
+  if (!IsAvailable())
+    return false;
+
+  JsonObject data;
+  uint32_t rc = ServiceLink(kAuthServiceCallsign)
+    .Get(kDefaultTimeoutMs, "getExperience", data);
+  if (Core::ERROR_NONE == rc && data.Get("success").Boolean()) {
+    out = data.Get("experience").Value();
+    return true;
+  }
+
+  // Try to read directly from file
+  ::starboard::ScopedFile file(kAuthServiceExperienceFile, kSbFileOpenOnly | kSbFileRead);
+  if ( file.IsValid() ) {
+    const int kBufferSize = 128;
+    char buffer[kBufferSize];
+    int bytes_read = file.ReadAll(buffer, kBufferSize);
+    bytes_read = std::min(bytes_read, kBufferSize - 1);
+    buffer[bytes_read] = '\0';
+    out.assign(buffer);
+    return true;
+  }
+
+  return false;
 }
 
 }  // namespace shared

@@ -91,6 +91,12 @@ public:
   static bool GetDeviceType(std::string &out);
 };
 
+class AuthService {
+public:
+  static bool IsAvailable();
+  static bool GetExperience(std::string &out);
+};
+
 }  // namespace shared
 }  // namespace rdk
 }  // namespace starboard
