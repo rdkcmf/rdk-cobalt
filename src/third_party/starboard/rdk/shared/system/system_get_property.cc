@@ -125,8 +125,12 @@ bool GetModelName(char* out_value, int value_length) {
 
   const char kPrefixStr[] = "MODEL_NUM=";
   const size_t kPrefixStrLength = SB_ARRAY_SIZE(kPrefixStr) - 1;
-  if (TryReadFromPropertiesFile(kPrefixStr, kPrefixStrLength, out_value, value_length))
+  if (TryReadFromPropertiesFile(kPrefixStr, kPrefixStrLength, out_value, value_length)) {
+    if (AuthService::GetExperience(prop) && prop == "Flex") {
+      SbStringConcat(out_value, prop.c_str(), value_length);
+    }
     return true;
+  }
 
   return CopyStringAndTestIfSuccess(out_value, value_length, SB_PLATFORM_MODEL_NAME);
 }
@@ -135,7 +139,7 @@ bool GetOperatorName(char* out_value, int value_length) {
   const char* env = std::getenv("COBALT_OPERATOR_NAME");
   if (env && CopyStringAndTestIfSuccess(out_value, value_length, env))
     return true;
-
+  
   std::string prop;
   if (SystemProperties::GetBrandName(prop)) {
     return CopyStringAndTestIfSuccess(

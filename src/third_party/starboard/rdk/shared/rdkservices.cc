@@ -605,6 +605,68 @@ private:
 
 SB_ONCE_INITIALIZE_FUNCTION(SystemPropertiesImpl, GetSystemProperties);
 
+struct AuthServiceImpl {
+  AuthServiceImpl() {
+    const std::string method = std::string("status@") + kAuthServiceCallsign;
+    Core::JSON::String tmp;
+    uint32_t rc = ServiceLink(EMPTY_STRING)
+      .Get(kDefaultTimeoutMs, method, tmp);
+    if (Core::ERROR_NONE == rc) {
+      is_available_ = true;
+    } else if (access(kAuthServiceExperienceFile, R_OK) == 0) {
+      is_available_ = true;
+    } else {
+      SB_LOG(INFO) << "AuthService is not available";
+    }
+  }
+
+  bool IsAvailable() const {
+    return is_available_;
+  }
+
+  bool GetExperience(std::string &out) {
+    if (!IsAvailable())
+      return false;
+
+    ::starboard::ScopedLock lock(mutex_);
+    if (!experience_.empty()) {
+      out = experience_;
+      return true;
+    }
+
+    JsonObject data;
+    uint32_t rc = ServiceLink(kAuthServiceCallsign)
+      .Get(kDefaultTimeoutMs, "getExperience", data);
+    if (Core::ERROR_NONE == rc && data.Get("success").Boolean()) {
+      experience_ = data.Get("experience").Value();
+      out = experience_;
+      return true;
+    }
+
+    // Try to read directly from file
+    ::starboard::ScopedFile file(kAuthServiceExperienceFile, kSbFileOpenOnly | kSbFileRead);
+    if ( file.IsValid() ) {
+      const int kBufferSize = 128;
+      char buffer[kBufferSize];
+      int bytes_read = file.ReadAll(buffer, kBufferSize);
+      bytes_read = std::min(bytes_read, kBufferSize - 1);
+      buffer[bytes_read] = '\0';
+      experience_.assign(buffer);
+      out = experience_;
+      return true;
+    }
+
+    return false;
+  }
+
+private:
+  ::starboard::Mutex mutex_;
+  bool is_available_ { false };
+  std::string experience_;
+};
+
+SB_ONCE_INITIALIZE_FUNCTION(AuthServiceImpl, GetAuthService);
+
 }  // namespace
 
 struct DisplayInfo::Impl {
@@ -884,48 +946,12 @@ bool SystemProperties::GetDeviceType(std::string &out) {
 
 bool AuthService::IsAvailable()
 {
-  const auto IsAvailableImpl = []() {
-    const std::string method = std::string("status@") + kAuthServiceCallsign;
-    Core::JSON::String tmp;
-    uint32_t rc = ServiceLink(EMPTY_STRING)
-      .Get(kDefaultTimeoutMs, method, tmp);
-    if (Core::ERROR_NONE == rc)
-      return true;
-    if (access(kAuthServiceExperienceFile, R_OK) == 0)
-      return true;
-    SB_LOG(INFO) << "AuthService is not available";
-    return false;
-  };
-  static bool is_available = IsAvailableImpl();
-  return is_available;
+  return GetAuthService()->IsAvailable();
 }
 
 bool AuthService::GetExperience(std::string &out)
 {
-  if (!IsAvailable())
-    return false;
-
-  JsonObject data;
-  uint32_t rc = ServiceLink(kAuthServiceCallsign)
-    .Get(kDefaultTimeoutMs, "getExperience", data);
-  if (Core::ERROR_NONE == rc && data.Get("success").Boolean()) {
-    out = data.Get("experience").Value();
-    return true;
-  }
-
-  // Try to read directly from file
-  ::starboard::ScopedFile file(kAuthServiceExperienceFile, kSbFileOpenOnly | kSbFileRead);
-  if ( file.IsValid() ) {
-    const int kBufferSize = 128;
-    char buffer[kBufferSize];
-    int bytes_read = file.ReadAll(buffer, kBufferSize);
-    bytes_read = std::min(bytes_read, kBufferSize - 1);
-    buffer[bytes_read] = '\0';
-    out.assign(buffer);
-    return true;
-  }
-
-  return false;
+  return GetAuthService()->GetExperience(out);
 }
 
 }  // namespace shared
