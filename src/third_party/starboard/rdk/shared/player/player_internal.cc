@@ -1038,6 +1038,9 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   static void SetupSource(GstElement* pipeline,
                           GstElement* source,
                           PlayerImpl* self);
+  static void SetupElement(GstElement* pipeline,
+                           GstElement* element,
+                           PlayerImpl* self);
   bool ChangePipelineState(GstState state) const;
   void DispatchOnWorkerThread(Task* task) const;
   gint64 GetPosition() const;
@@ -1263,6 +1266,8 @@ PlayerImpl::PlayerImpl(SbPlayer player,
                nullptr);
   g_signal_connect(pipeline_, "source-setup",
                    G_CALLBACK(&PlayerImpl::SetupSource), this);
+  g_signal_connect(pipeline_, "element-setup",
+                   G_CALLBACK(&PlayerImpl::SetupElement), this);
   g_object_set(pipeline_, "uri", "cobalt://", nullptr);
 
   GstBus* bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline_));
@@ -1681,6 +1686,18 @@ void PlayerImpl::SetupSource(GstElement* pipeline,
   g_source_set_callback(src, &PlayerImpl::FinishSourceSetup, self, nullptr);
   self->source_setup_id_ = g_source_attach(src, self->main_loop_context_);
   g_source_unref(src);
+}
+
+// static
+void PlayerImpl::SetupElement(GstElement* pipeline,
+                              GstElement* element,
+                              PlayerImpl* self) {
+  if (GST_IS_BASE_SINK(element)) {
+    bool has_video = (self->video_codec_ != kSbMediaVideoCodecNone);
+    if (has_video && g_str_has_prefix(GST_ELEMENT_NAME(element), "amlhalasink")) {
+      g_object_set(element, "wait-video", TRUE, nullptr);
+    }
+  }
 }
 
 void PlayerImpl::MarkEOS(SbMediaType stream_type) {
@@ -2435,6 +2452,7 @@ void PlayerImpl::HandleApplicationMessage(GstBus* bus, GstMessage* message) {
     force_stop_ = true;
     ChangePipelineState(GST_STATE_READY);
     g_signal_handlers_disconnect_by_func(pipeline_, reinterpret_cast<gpointer>(&PlayerImpl::SetupSource), this);
+    g_signal_handlers_disconnect_by_func(pipeline_, reinterpret_cast<gpointer>(&PlayerImpl::SetupElement), this);
     ::starboard::ScopedLock lock(source_setup_mutex_);
     if (source_setup_id_ > -1) {
       GSource* src = g_main_context_find_source_by_id(main_loop_context_, source_setup_id_);
