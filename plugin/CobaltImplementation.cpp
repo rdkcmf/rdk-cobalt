@@ -232,8 +232,11 @@ private:
 
       uint32_t result = Core::ERROR_NONE;
 
+      string config_line = service->ConfigLine();
+      SYSLOG(Logging::Notification, (_T("Cobalt config line: --- %s ---\n"), config_line.c_str()));
+
       Config config;
-      config.FromString(service->ConfigLine());
+      config.FromString(config_line);
 
       Core::Directory(service->PersistentPath().c_str()).CreatePath();
       Core::SystemInfo::SetEnvironment(_T("HOME"), service->PersistentPath());
@@ -284,6 +287,8 @@ private:
           SbRdkSetSetting("systemproperties", properties.c_str());
       }
 
+      SYSLOG(Logging::Notification, (_T("Preload is set to: %s\n"), _preloadEnabled ? "true" : "false"));
+
       Run();
       return result;
     }
@@ -326,6 +331,16 @@ private:
         argv.push_back(cmdURL.c_str());
       if (IsPreloadEnabled())
         argv.push_back("--preload");
+
+      {
+        std::string args_str;
+        for (const char* arg: argv) {
+          if (!args_str.empty())
+            args_str += " ";
+          args_str += arg;
+        }
+        SYSLOG(Logging::Notification, (_T("StarboardMain args: %s\n"), args_str.c_str()));
+      }
 
       if (IsRunning() == true)
           _exitCode = StarboardMain(argv.size(), const_cast<char**>(argv.data()));
@@ -374,6 +389,7 @@ public:
   }
 
   virtual void SetURL(const string &URL) override {
+    SYSLOG(Logging::Notification, (_T("deeplink=%s\n"), URL.c_str()));
     SbRdkHandleDeepLink(URL.c_str());
   }
 
@@ -578,6 +594,8 @@ private:
   inline bool RequestForStateChange(
     const PluginHost::IStateControl::command command) {
     bool result = false;
+
+    SYSLOG(Logging::Notification, (_T("Cobalt request state change -> %s\n"), command == PluginHost::IStateControl::SUSPEND ? "suspend" : "resume"));
 
     switch (command) {
       case PluginHost::IStateControl::SUSPEND: {

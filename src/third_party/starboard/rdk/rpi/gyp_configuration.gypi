@@ -154,8 +154,10 @@
           # '-g',
         ],
         'compiler_flags_qa': [
+          '-g1',
         ],
         'compiler_flags_gold': [
+          '-g1',
         ],
       }],
     ],
