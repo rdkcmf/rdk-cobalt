@@ -1995,7 +1995,11 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
     auto& sample = local_samples.back();
 
     SB_CHECK(sample.Type() == sample_type);
-    SB_CHECK(serial == sample.SerialID());
+
+    if (serial != sample.SerialID()) {
+      GST_WARNING("Detected out-of-order sample. Expected serial: %llu, sample serial: %llu",
+                  serial, sample.SerialID());
+    }
 
     if (WriteSample(sample.Type(), sample.Buffer(), session_id,
                     sample.Subsamples(), sample.SubsamplesCount(), sample.Iv(),
