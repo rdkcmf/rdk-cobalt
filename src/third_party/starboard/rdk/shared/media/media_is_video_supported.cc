@@ -37,10 +37,12 @@
 #include "starboard/shared/starboard/media/media_util.h"
 #include "third_party/starboard/rdk/shared/media/gst_media_utils.h"
 #include "third_party/starboard/rdk/shared/application_rdk.h"
+#include "third_party/starboard/rdk/shared/rdkservices.h"
 #include "third_party/starboard/rdk/shared/log_override.h"
 
 using starboard::shared::starboard::media::IsSDRVideo;
 using third_party::starboard::rdk::shared::Application;
+using third_party::starboard::rdk::shared::DisplayInfo;
 
 SB_EXPORT bool SbMediaIsVideoSupported(SbMediaVideoCodec video_codec,
                                        const char* content_type,
@@ -74,8 +76,15 @@ SB_EXPORT bool SbMediaIsVideoSupported(SbMediaVideoCodec video_codec,
   }
 
   if (!IsSDRVideo(bit_depth, primary_id, transfer_id, matrix_id)) {
-    if (!Application::Get()->DisplayHasHDRSupport())
+    uint32_t hdr_caps = Application::Get()->GetHDRCaps();
+    if (transfer_id == kSbMediaTransferIdSmpteSt2084 &&
+        (hdr_caps & (DisplayInfo::kHdr10 | DisplayInfo::kHdr10Plus)) == 0) {
       return false;
+    }
+    if (transfer_id == kSbMediaTransferIdAribStdB67 &&
+        (hdr_caps & DisplayInfo::kHdrHlg) == 0) {
+      return false;
+    }
   }
 
   return bitrate <= kSbMediaMaxVideoBitrateInBitsPerSecond && fps <= 60 &&

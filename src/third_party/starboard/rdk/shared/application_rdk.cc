@@ -340,8 +340,8 @@ ResolutionInfo Application::GetDisplayResolution() const {
   return display_info_->GetResolution();
 }
 
-bool Application::DisplayHasHDRSupport() const {
-  return display_info_->HasHDRSupport();
+uint32_t Application::GetHDRCaps() const {
+  return display_info_->GetHDRCaps();
 }
 
 float Application::GetDisplayDiagonalSizeInInches() const {

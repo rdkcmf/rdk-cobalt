@@ -676,9 +676,9 @@ struct DisplayInfo::Impl {
     Refresh();
     return resolution_info_;
   }
-  bool HasHDRSupport() {
+  uint32_t GetHDRCaps() {
     Refresh();
-    return has_hdr_support_;
+    return hdr_caps_;
   }
   float GetDiagonalSizeInInches() {
     Refresh();
@@ -690,7 +690,7 @@ private:
 
   ServiceLink display_info_;
   ResolutionInfo resolution_info_ { };
-  bool has_hdr_support_ { false };
+  uint32_t hdr_caps_ { DisplayInfo::kHdrNone };
   float diagonal_size_in_inches_ { 0.f };
   ::starboard::atomic_bool needs_refresh_ { true };
   ::starboard::atomic_bool did_subscribe_ { false };
@@ -770,63 +770,58 @@ void DisplayInfo::Impl::Refresh() {
     diagonal_size_in_inches_ = 0.f;
   }
 
-  auto detectHdr10Support = [&]()
+  auto detectHdrCaps = [&](const char* method)
   {
-    using Caps = Core::JSON::ArrayType<Core::JSON::EnumType<Exchange::IHDRProperties::HDRType>>;
+    using HdrTypes = Core::JSON::ArrayType<Core::JSON::EnumType<Exchange::IHDRProperties::HDRType>>;
 
-    Caps tvcapabilities;
-    rc = display_info_.Get(kDefaultTimeoutMs, "tvcapabilities", tvcapabilities);
+    HdrTypes types;
+
+    uint32_t rc = display_info_.Get(kDefaultTimeoutMs, method, types);
     if (Core::ERROR_NONE != rc) {
       needs_refresh |= (Core::ERROR_ASYNC_FAILED == rc);
-      SB_LOG(ERROR) << "Failed to get 'tvcapabilities', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
-      return false;
+      SB_LOG(ERROR) << "Failed to get '" << method << "', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
+      return 0u;
     }
 
-    bool tvHasHDR10 = false;
-    {
-      Caps::Iterator index(tvcapabilities.Elements());
-      while (index.Next() && !tvHasHDR10)
-        tvHasHDR10 = (index.Current() == Exchange::IHDRProperties::HDR_10);
+    uint32_t result = 0u;
+    auto index(types.Elements());
+    while (index.Next()) {
+      switch(index.Current()) {
+        case Exchange::IHDRProperties::HDR_10:
+          result |= DisplayInfo::kHdr10;
+          break;
+        case Exchange::IHDRProperties::HDR_10PLUS:
+          result |= DisplayInfo::kHdr10Plus;
+          break;
+        case Exchange::IHDRProperties::HDR_HLG:
+          result |= DisplayInfo::kHdrHlg;
+          break;
+        case Exchange::IHDRProperties::HDR_DOLBYVISION:
+          result |= DisplayInfo::kHdrDolbyVision;
+          break;
+        case Exchange::IHDRProperties::HDR_TECHNICOLOR:
+          result |= DisplayInfo::kHdrTechnicolor;
+          break;
+        default:
+          break;
+      }
     }
-    if (false == tvHasHDR10) {
-      SB_LOG(INFO) << "No HDR10 in TV caps";
-      return false;
-    }
-
-    Caps stbcapabilities;
-    rc = display_info_.Get(kDefaultTimeoutMs, "stbcapabilities", stbcapabilities);
-    if (Core::ERROR_NONE != rc) {
-      needs_refresh |= (Core::ERROR_ASYNC_FAILED == rc);
-      SB_LOG(ERROR) << "Failed to get 'stbcapabilities', rc=" << rc << " ( " << Core::ErrorToString(rc) << " )";
-      return false;
-    }
-
-    bool stbHasHDR10 = false;
-    {
-      Caps::Iterator index(stbcapabilities.Elements());
-      while (index.Next() == true && stbHasHDR10 == false)
-        stbHasHDR10 = (index.Current() == Exchange::IHDRProperties::HDR_10);
-    }
-    if (false == stbHasHDR10) {
-      SB_LOG(INFO) << "No HDR10 in STB caps";
-      return false;
-    }
-
-    return stbHasHDR10;
+    return result;
   };
 
-  has_hdr_support_ = detectHdr10Support();
+  uint32_t tv_caps = detectHdrCaps("tvcapabilities");
+  uint32_t stb_caps = detectHdrCaps("stbcapabilities");
+
+  hdr_caps_ = tv_caps & stb_caps;
 
   needs_refresh_.store(needs_refresh);
 
   SB_LOG(INFO) << "Display info updated, resolution: "
-               << resolution_info_.Width
-               << 'x'
-               << resolution_info_.Height
-               << ", has hdr: "
-               << (has_hdr_support_ ? "yes" : "no")
-               << ", diagonal size in inches: "
-               << diagonal_size_in_inches_;
+               << resolution_info_.Width << 'x' << resolution_info_.Height
+               << ", hdr caps: 0x" << std::hex << hdr_caps_
+               << " (tvcaps: 0x"<< std::hex << tv_caps
+               << ", stbcaps: 0x" << std::hex << stb_caps << ")"
+               << ", diagonal size in inches: " << std::dec << diagonal_size_in_inches_;
 }
 
 void DisplayInfo::Impl::OnUpdated(const Core::JSON::String&) {
@@ -852,8 +847,8 @@ float DisplayInfo::GetDiagonalSizeInInches() const {
   return impl_->GetDiagonalSizeInInches();
 }
 
-bool DisplayInfo::HasHDRSupport() const {
-  return impl_->HasHDRSupport();
+uint32_t DisplayInfo::GetHDRCaps() const {
+  return impl_->GetHDRCaps();
 }
 
 std::string DeviceIdentification::GetChipset() {

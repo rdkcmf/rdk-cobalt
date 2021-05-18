@@ -41,11 +41,20 @@ struct ResolutionInfo {
 
 class DisplayInfo {
 public:
+  enum HdrCaps : uint8_t {
+    kHdrNone        = 0u,
+    kHdr10          = (1u << 0),
+    kHdr10Plus      = (1u << 1),
+    kHdrHlg         = (1u << 2),
+    kHdrDolbyVision = (1u << 3),
+    kHdrTechnicolor = (1u << 4),
+  };
+
   DisplayInfo();
   ~DisplayInfo();
   ResolutionInfo GetResolution() const;
   float GetDiagonalSizeInInches() const;
-  bool HasHDRSupport() const;
+  uint32_t GetHDRCaps() const;
 private:
   struct Impl;
   mutable ::starboard::scoped_ptr<Impl> impl_;
