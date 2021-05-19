@@ -156,6 +156,9 @@ struct LinuxKeyMappingImpl {
     { KEY_3, kSbKeyModifiersCtrl, KEY_BLUE,        kSbKeyModifiersNone },
     { KEY_U, kSbKeyModifiersCtrl, KEY_CHANNELUP,   kSbKeyModifiersNone },
     { KEY_D, kSbKeyModifiersCtrl, KEY_CHANNELDOWN, kSbKeyModifiersNone },
+
+    { KEY_PAGEDOWN, kSbKeyModifiersNone, KEY_NEXTSONG,   kSbKeyModifiersNone },
+    { KEY_PAGEUP, kSbKeyModifiersNone, KEY_PREVIOUSSONG, kSbKeyModifiersNone },
   };
 
   void UpdateKeyMapping(
