@@ -81,6 +81,16 @@ The table below lists configuration options of the plugin.
 | configuration?.language | string | <sup>*(optional)*</sup> POSIX-style Language(Locale) ID. Example: 'en_US' |
 | configuration?.preload | boolean | <sup>*(optional)*</sup> Enable pre-loading of application |
 | configuration?.autosuspenddelay | number | <sup>*(optional)*</sup> Applicable when pre-loading. Number of seconds to wait before suspending the app |
+| configuration?.gstdebug | string | <sup>*(optional)*</sup> Configure GST_DEBUG environment variable, default: 'gstplayer:4,2' |
+| configuration?.systemproperties | object | <sup>*(optional)*</sup> Configure some properties queried with Starboard System API |
+| configuration?.systemproperties?.modelname | string | <sup>*(optional)*</sup> The production model number of the device |
+| configuration?.systemproperties?.brandname | string | <sup>*(optional)*</sup> The name of the brand under which the device is being sold |
+| configuration?.systemproperties?.modelyear | string | <sup>*(optional)*</sup> The year the device was launched |
+| configuration?.systemproperties?.chipsetmodelnumber | string | <sup>*(optional)*</sup> The full model number of the main platform chipset |
+| configuration?.systemproperties?.firmwareversion | string | <sup>*(optional)*</sup> The production firmware version number which the device is currently running |
+| configuration?.systemproperties?.integratorname | string | <sup>*(optional)*</sup> Original manufcature of the device |
+| configuration?.systemproperties?.friendlyname | string | <sup>*(optional)*</sup> A friendly name for this actual device |
+| configuration?.systemproperties?.devicetype | string | <sup>*(optional)*</sup> Type of the device. Possible values [SetTopBox, OverTheTopBox, TV] |
 
 <a name="head.Methods"></a>
 # Methods

@@ -8,6 +8,47 @@
     "description": "The Cobalt plugin provides web browsing functionality based on the Cobalt engine.",
     "version": "1.0"
   },
+  "definitions": {
+    "systemproperties": {
+      "description": "Configure some properties queried with Starboard System API",
+      "type": "object",
+      "required": [],
+      "properties": {
+        "modelname": {
+          "type": "string",
+          "description": "The production model number of the device"
+        },
+        "brandname": {
+          "type": "string",
+          "description": "The name of the brand under which the device is being sold"
+        },
+        "modelyear": {
+          "type": "string",
+          "description": "The year the device was launched"
+        },
+        "chipsetmodelnumber": {
+          "type": "string",
+          "description": "The full model number of the main platform chipset"
+        },
+        "firmwareversion": {
+          "type": "string",
+          "description": "The production firmware version number which the device is currently running"
+        },
+        "integratorname": {
+          "type": "string",
+          "description": "Original manufcature of the device"
+        },
+        "friendlyname": {
+          "type": "string",
+          "description": "A friendly name for this actual device"
+        },
+        "devicetype": {
+          "type": "string",
+          "description": "Type of the device. Possible values [SetTopBox, OverTheTopBox, TV]"
+        }
+      }
+    }
+  },
   "configuration": {
     "type": "object",
     "properties": {
@@ -30,6 +71,13 @@
           "autosuspenddelay": {
             "type": "number",
             "description": "Applicable when pre-loading. Number of seconds to wait before suspending the app"
+          },
+          "gstdebug": {
+            "type": "string",
+            "description": "Configure GST_DEBUG environment variable, default: 'gstplayer:4,2'"
+          },
+          "systemproperties": {
+            "$ref": "#/definitions/systemproperties"
           }
         }
       }
