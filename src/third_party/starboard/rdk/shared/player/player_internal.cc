@@ -1211,6 +1211,8 @@ PlayerImpl::PlayerImpl(SbPlayer player,
       GstCaps* gst_caps = gst_caps_from_string(caps[0].c_str());
       gst_caps_replace(&audio_caps_, gst_caps);
       gst_caps_unref(gst_caps);
+      if (drm_system_)
+        DrmSystemOcdm::TransformCaps(&audio_caps_);
     }
   }
 
@@ -1843,6 +1845,8 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
       if (!caps.empty()) {
         GstCaps* gst_caps = gst_caps_from_string(caps[0].c_str());
         AddVideoInfoToGstCaps(info, gst_caps);
+        if (drm_system_)
+          DrmSystemOcdm::TransformCaps(&gst_caps);
         PrintGstCaps(gst_caps);
         gst_app_src_set_caps(GST_APP_SRC(video_appsrc_), gst_caps);
         gst_caps_replace(&video_caps_, gst_caps);
