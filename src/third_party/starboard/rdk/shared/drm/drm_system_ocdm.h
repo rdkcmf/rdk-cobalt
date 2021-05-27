@@ -69,6 +69,7 @@ class DrmSystemOcdm : public SbDrmSystemPrivate {
 
   static bool IsKeySystemSupported(const char* key_system,
                                    const char* mime_type);
+  static void TransformCaps(_GstCaps** caps);
 
   // SbDrmSystemPrivate
   void GenerateSessionUpdateRequest(int ticket,

@@ -47,7 +47,11 @@ using ScopedOcdmSession = std::unique_ptr<OpenCDMSession, OcdmSessionDeleter>;
 using OcdmGstSessionDecryptExFn =
   OpenCDMError(*)(struct OpenCDMSession*, GstBuffer*, GstBuffer*, const uint32_t, GstBuffer*, GstBuffer*, uint32_t, GstCaps*);
 
+using OcdmGstTransformCapsFn =
+  OpenCDMError(*)(GstCaps** caps);
+
 static OcdmGstSessionDecryptExFn g_ocdmGstSessionDecryptEx { nullptr };
+static OcdmGstTransformCapsFn g_ocdmGstTransformCapsFn { nullptr };
 
 }  // namespace
 
@@ -435,6 +439,12 @@ DrmSystemOcdm::DrmSystemOcdm(
     } else {
       SB_LOG(INFO) << "No opencdm_gstreamer_session_decrypt_ex. Fallback to opencdm_gstreamer_session_decrypt.";
     }
+    g_ocdmGstTransformCapsFn = (OcdmGstTransformCapsFn)dlsym(RTLD_DEFAULT, "opencdm_gstreamer_transform_caps");
+    if (g_ocdmGstTransformCapsFn) {
+      SB_LOG(INFO) << "Has opencdm_gstreamer_transform_caps";
+    } else {
+      SB_LOG(INFO) << "No opencdm_gstreamer_transform_caps.";
+    }
   });
 }
 
@@ -635,6 +645,11 @@ const void* DrmSystemOcdm::GetMetrics(int* size) {
     return nullptr;
 }
 
+void DrmSystemOcdm::TransformCaps(_GstCaps** caps) {
+  if (g_ocdmGstTransformCapsFn)
+    g_ocdmGstTransformCapsFn(caps);
+}
+
 }  // namespace drm
 }  // namespace shared
 }  // namespace rdk
@@ -761,6 +776,8 @@ bool DrmSystemOcdm::Decrypt(const std::string& id,
 const void* DrmSystemOcdm::GetMetrics(int* size) {
     return nullptr;
 }
+
+void DrmSystemOcdm::TransformCaps(_GstCaps** caps) { }
 
 }  // namespace drm
 }  // namespace shared
