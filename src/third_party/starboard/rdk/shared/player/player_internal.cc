@@ -941,8 +941,6 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
       type_ = other.type_;
       buffer_ = other.buffer_;
       other.buffer_ = nullptr;
-      buffer_copy_ = other.buffer_copy_;
-      other.buffer_copy_ = nullptr;
       iv_ = other.iv_;
       other.iv_ = nullptr;
       subsamples_ = other.subsamples_;
@@ -953,6 +951,8 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
       other.key_ = nullptr;
       serial_ = other.serial_;
       other.serial_ = 0;
+      timestamp_ = other.timestamp_;
+      other.timestamp_ = GST_CLOCK_TIME_NONE;
       return *this;
     }
 
@@ -971,9 +971,9 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
           subsamples_(subsamples),
           subsamples_count_(subsamples_count),
           key_(key),
-          serial_(serial) {
+          serial_(serial),
+          timestamp_(GST_BUFFER_TIMESTAMP(buffer_)) {
       SB_DCHECK(gst_buffer_is_writable(buffer));
-      buffer_copy_ = gst_buffer_copy_deep(buffer);
     }
 
     ~PendingSample() {
@@ -985,14 +985,12 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
         gst_buffer_unref(iv_);
       if (buffer_)
         gst_buffer_unref(buffer_);
-      if (buffer_copy_)
-        gst_buffer_unref(buffer_copy_);
     }
 
-    void Written() { buffer_copy_ = gst_buffer_copy_deep(buffer_); }
-
     SbMediaType Type() const { return type_; }
-    GstBuffer* Buffer() const { return buffer_copy_; }
+    GstClockTime Timestamp() const { return timestamp_; }
+    GstBuffer* CopyBuffer() const { return gst_buffer_copy_deep(buffer_); }
+    GstBuffer* TakeBuffer() { GstBuffer* res = buffer_; buffer_ = nullptr; return res; }
     GstBuffer* Iv() const { return iv_; }
     GstBuffer* Subsamples() const { return subsamples_; }
     int32_t SubsamplesCount() const { return subsamples_count_; }
@@ -1002,12 +1000,12 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
    private:
     SbMediaType type_;
     GstBuffer* buffer_;
-    GstBuffer* buffer_copy_;
     GstBuffer* iv_;
     GstBuffer* subsamples_;
     int32_t subsamples_count_;
     GstBuffer* key_;
     uint64_t serial_;
+    GstClockTime timestamp_;
   };
 
   struct PendingBounds {
@@ -1942,6 +1940,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
 
       PendingSample sample(sample_type, buffer, iv, subsamples,
                            subsamples_count, key, serial);
+      buffer= nullptr;
       key_str = {
           reinterpret_cast<const char*>(sample_infos[0].drm_info->identifier),
           sample_infos[0].drm_info->identifier_size};
@@ -1951,7 +1950,8 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
         return;
     }
   } else {
-    GST_TRACE("Encountered clear sample");
+    GST_LOG("Encounterd clear %s sample",
+            sample_type == kSbMediaTypeVideo ? "video" : "audio");
     if (keep_samples) {
       GST_INFO("Pending flushing operation. Storing sample");
       GST_INFO("SampleType:%d %" GST_TIME_FORMAT " id:%llu b:%p, s:%p, iv:%p, k:%p",
@@ -1959,6 +1959,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
                subsamples, iv, key);
       key_str = {kClearSamplesKey};
       PendingSample sample(sample_type, buffer, nullptr, nullptr, 0, nullptr, serial);
+      buffer= nullptr;
       ::starboard::ScopedLock lock(mutex_);
       pending_samples_[key_str].emplace_back(std::move(sample));
     }
@@ -1998,10 +1999,11 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
                   serial, sample.SerialID());
     }
 
-    if (WriteSample(sample.Type(), sample.Buffer(), session_id,
-                    sample.Subsamples(), sample.SubsamplesCount(), sample.Iv(),
-                    sample.Key(), sample.SerialID())) {
-      sample.Written();
+    GstBuffer* buffer_copy = sample.CopyBuffer();
+    if (!WriteSample(sample.Type(), buffer_copy, session_id,
+                     sample.Subsamples(), sample.SubsamplesCount(), sample.Iv(),
+                     sample.Key(), sample.SerialID())) {
+      gst_buffer_unref(buffer_copy);
     }
 
     {
@@ -2394,23 +2396,27 @@ void PlayerImpl::WritePendingSamples(const uint8_t* key, size_t key_len) {
       });
     GstClockTime prev_timestamps[kMediaNumber] = {-1, -1};
     for (auto& sample : local_samples) {
-      GST_INFO("Writing pending: SampleType:%d %" GST_TIME_FORMAT
-               " id:%llu b:%p, s:%p, iv:%p, k:%p",
-               sample.Type(),
-               GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(sample.Buffer())), sample.SerialID(),
-               sample.Buffer(), sample.Subsamples(), sample.Iv(), sample.Key());
       auto &prev_ts = prev_timestamps[sample.Type() == kSbMediaTypeVideo ? kVideoIndex : kAudioIndex];
-      if (prev_ts == GST_BUFFER_TIMESTAMP(sample.Buffer())) {
+
+      if (prev_ts == sample.Timestamp()) {
         GST_WARNING("Skipping %" GST_TIME_FORMAT ". Already written.",
                     GST_TIME_ARGS(prev_ts));
         continue;
       }
-      prev_ts = GST_BUFFER_TIMESTAMP(sample.Buffer());
-      if (WriteSample(sample.Type(), sample.Buffer(), session_id,
+
+      GstBuffer* buffer = keep_samples ? sample.CopyBuffer() : sample.TakeBuffer();
+      GST_INFO("Writing pending: SampleType:%d %" GST_TIME_FORMAT
+               " id:%llu b:%p, s:%p, iv:%p, k:%p",
+               sample.Type(), GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(buffer)),
+               sample.SerialID(), buffer,
+               sample.Subsamples(), sample.Iv(), sample.Key());
+      prev_ts = GST_BUFFER_TIMESTAMP(buffer);
+      if (WriteSample(sample.Type(), buffer, session_id,
                       sample.Subsamples(), sample.SubsamplesCount(),
                       sample.Iv(), sample.Key(), sample.SerialID())) {
         GST_INFO("Pending sample was written.");
-        sample.Written();
+      } else {
+        gst_buffer_unref(buffer);
       }
     }
 
