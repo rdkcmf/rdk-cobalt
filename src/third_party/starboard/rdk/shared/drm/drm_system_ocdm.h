@@ -69,7 +69,6 @@ class DrmSystemOcdm : public SbDrmSystemPrivate {
 
   static bool IsKeySystemSupported(const char* key_system,
                                    const char* mime_type);
-  static void TransformCaps(_GstCaps** caps);
 
   // SbDrmSystemPrivate
   void GenerateSessionUpdateRequest(int ticket,
@@ -97,7 +96,7 @@ class DrmSystemOcdm : public SbDrmSystemPrivate {
                     SbDrmKeyStatus status);
   void OnAllKeysUpdated();
   std::string SessionIdByKeyId(const uint8_t* key, uint8_t key_len);
-  bool Decrypt(const std::string& id,
+  int  Decrypt(const std::string& id,
                _GstBuffer* buffer,
                _GstBuffer* sub_sample,
                uint32_t sub_sample_count,

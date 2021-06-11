@@ -26,9 +26,12 @@
 #include <gst/gst.h>
 #include <gst/base/gstflowcombiner.h>
 #include <gst/video/video.h>
+#include <gst/base/gstbasetransform.h>
 
 #include <map>
 #include <string>
+#include <vector>
+#include <algorithm>
 
 #include "starboard/once.h"
 #include "starboard/common/mutex.h"
@@ -36,9 +39,10 @@
 #include "starboard/thread.h"
 #include "starboard/time.h"
 #include "starboard/memory.h"
-#include "third_party/starboard/rdk/shared/drm/drm_system_ocdm.h"
+#include "starboard/drm.h"
 #include "third_party/starboard/rdk/shared/media/gst_media_utils.h"
 #include "third_party/starboard/rdk/shared/hang_detector.h"
+#include "third_party/starboard/rdk/shared/drm/gst_decryptor_ocdm.h"
 
 namespace third_party {
 namespace starboard {
@@ -53,7 +57,7 @@ int Player::MaxNumberOfSamplesPerWrite() {
   return kMaxNumberOfSamplesPerWrite;
 }
 
-using third_party::starboard::rdk::shared::drm::DrmSystemOcdm;
+using third_party::starboard::rdk::shared::drm::CreateDecryptorElement;
 using third_party::starboard::rdk::shared::media::CodecToGstCaps;
 
 // **************************** GST/GLIB Helpers **************************** //
@@ -70,6 +74,7 @@ GST_DEBUG_CATEGORY(cobalt_gst_player_debug);
 #endif
 
 static void PrintGstCaps(GstCaps* caps);
+static GstElement* CreatePayloader();
 
 static GSourceFuncs SourceFunctions = {
     // prepare
@@ -352,7 +357,9 @@ void gst_cobalt_src_setup_and_add_app_src(GstElement* element,
                                           GstElement* appsrc,
                                           GstCaps* caps,
                                           GstAppSrcCallbacks* callbacks,
-                                          gpointer user_data) {
+                                          gpointer user_data,
+                                          gboolean inject_decryptor,
+                                          gboolean inject_payloader) {
   if (caps) {
     PrintGstCaps(caps);
     gst_app_src_set_caps(GST_APP_SRC(appsrc), caps);
@@ -367,8 +374,35 @@ void gst_cobalt_src_setup_and_add_app_src(GstElement* element,
   gchar* name = g_strdup_printf("src_%u", src->priv->pad_number);
   src->priv->pad_number++;
   gst_bin_add(GST_BIN(element), appsrc);
-  GstPad* target = gst_element_get_static_pad(appsrc, "src");
-  GstPad* pad = gst_ghost_pad_new(name, target);
+
+  GstElement* src_elem = appsrc;
+  GstElement* decryptor = inject_decryptor ? CreateDecryptorElement(nullptr) : nullptr;
+  GstElement* payloader = inject_payloader ? CreatePayloader() : nullptr;
+
+  if (decryptor) {
+    GST_DEBUG("Injecting decryptor element %" GST_PTR_FORMAT, decryptor);
+
+    gst_bin_add(GST_BIN(element), decryptor);
+    gst_element_sync_state_with_parent(decryptor);
+    gst_element_link(src_elem, decryptor);
+    src_elem = decryptor;
+  }
+
+  if (payloader) {
+    GST_DEBUG("Injecting payloader element %" GST_PTR_FORMAT, payloader);
+
+    if (GST_IS_BASE_TRANSFORM(payloader)) {
+      gst_base_transform_set_in_place(GST_BASE_TRANSFORM(payloader), TRUE);
+    }
+
+    gst_bin_add(GST_BIN(element), payloader);
+    gst_element_sync_state_with_parent(payloader);
+    gst_element_link(src_elem, payloader);
+    src_elem = payloader;
+  }
+
+  GstPad* target_pad = gst_element_get_static_pad(src_elem, "src");
+  GstPad* pad = gst_ghost_pad_new(name, target_pad);
 
   auto proxypad = GST_PAD(gst_proxy_pad_get_internal(GST_PROXY_PAD(pad)));
   gst_flow_combiner_add_pad(src->priv->flow_combiner, proxypad);
@@ -384,7 +418,7 @@ void gst_cobalt_src_setup_and_add_app_src(GstElement* element,
   gst_element_sync_state_with_parent(appsrc);
 
   g_free(name);
-  gst_object_unref(target);
+  gst_object_unref(target_pad);
 }
 
 static void gst_cobalt_src_do_async_start(GstCobaltSrc* src) {
@@ -692,6 +726,23 @@ static void PrintGstCaps(GstCaps* caps) {
 #endif
 }
 
+static GstElement* CreatePayloader() {
+  static GstElementFactory* factory = nullptr;
+  static volatile gsize init = 0;
+
+  if (g_once_init_enter (&init)) {
+    factory = gst_element_factory_find("svppay");
+    g_once_init_leave (&init, 1);
+  }
+
+  if (!factory) {
+    GST_WARNING("svppay not found");
+    return nullptr;
+  }
+
+  return gst_element_factory_create(factory, nullptr);
+}
+
 }  // namespace
 
 // ********************************* Player ******************************** //
@@ -861,7 +912,7 @@ class PlayerErrorTask : public Task {
   std::string msg_;
 };
 
-class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
+class PlayerImpl : public Player {
  public:
   PlayerImpl(SbPlayer player,
              SbWindow window,
@@ -889,9 +940,6 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   bool SetRate(double rate) override;
   void GetInfo(SbPlayerInfo2* info) override;
   void SetBounds(int zindex, int x, int y, int w, int h) override;
-
-  // DrmSystemOcdm::Observer
-  void OnKeyReady(const uint8_t* key, size_t key_len) override;
 
   GstElement* GetPipeline() const { return pipeline_;  }
   bool IsValid() const { return SbThreadIsValid(playback_thread_); }
@@ -941,14 +989,6 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
       type_ = other.type_;
       buffer_ = other.buffer_;
       other.buffer_ = nullptr;
-      iv_ = other.iv_;
-      other.iv_ = nullptr;
-      subsamples_ = other.subsamples_;
-      other.subsamples_ = nullptr;
-      subsamples_count_ = other.subsamples_count_;
-      other.subsamples_count_ = 0;
-      key_ = other.key_;
-      other.key_ = nullptr;
       serial_ = other.serial_;
       other.serial_ = 0;
       timestamp_ = other.timestamp_;
@@ -960,29 +1000,15 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
 
     PendingSample(SbMediaType type,
                   GstBuffer* buffer,
-                  GstBuffer* iv,
-                  GstBuffer* subsamples,
-                  int32_t subsamples_count,
-                  GstBuffer* key,
                   uint64_t serial)
         : type_(type),
           buffer_(buffer),
-          iv_(iv),
-          subsamples_(subsamples),
-          subsamples_count_(subsamples_count),
-          key_(key),
           serial_(serial),
           timestamp_(GST_BUFFER_TIMESTAMP(buffer_)) {
       SB_DCHECK(gst_buffer_is_writable(buffer));
     }
 
     ~PendingSample() {
-      if (key_)
-        gst_buffer_unref(key_);
-      if (subsamples_)
-        gst_buffer_unref(subsamples_);
-      if (iv_)
-        gst_buffer_unref(iv_);
       if (buffer_)
         gst_buffer_unref(buffer_);
     }
@@ -991,19 +1017,11 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
     GstClockTime Timestamp() const { return timestamp_; }
     GstBuffer* CopyBuffer() const { return gst_buffer_copy_deep(buffer_); }
     GstBuffer* TakeBuffer() { GstBuffer* res = buffer_; buffer_ = nullptr; return res; }
-    GstBuffer* Iv() const { return iv_; }
-    GstBuffer* Subsamples() const { return subsamples_; }
-    int32_t SubsamplesCount() const { return subsamples_count_; }
-    GstBuffer* Key() const { return key_; }
     uint64_t SerialID() const { return serial_; }
 
    private:
     SbMediaType type_;
     GstBuffer* buffer_;
-    GstBuffer* iv_;
-    GstBuffer* subsamples_;
-    int32_t subsamples_count_;
-    GstBuffer* key_;
     uint64_t serial_;
     GstClockTime timestamp_;
   };
@@ -1044,11 +1062,6 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   gint64 GetPosition() const;
   bool WriteSample(SbMediaType sample_type,
                    GstBuffer* buffer,
-                   const std::string& session_id,
-                   GstBuffer* subsample,
-                   int32_t subsamples_count,
-                   GstBuffer* iv,
-                   GstBuffer* key,
                    uint64_t serial_id);
   MediaType GetBothMediaTypeTakingCodecsIntoAccount() const;
   void RecordTimestamp(SbMediaType type, SbTime timestamp);
@@ -1071,14 +1084,14 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   }
 
   void HandleApplicationMessage(GstBus* bus, GstMessage* message);
-  void WritePendingSamples(const uint8_t* key, size_t key_len);
+  void WritePendingSamples();
   void CheckBuffering(gint64 position);
 
   SbPlayer player_;
   SbWindow window_;
   SbMediaVideoCodec video_codec_;
   SbMediaAudioCodec audio_codec_;
-  DrmSystemOcdm* drm_system_;
+  SbDrmSystem drm_system_;
   const SbMediaAudioSampleInfo audio_sample_info_;
   const char* max_video_capabilities_;
   SbPlayerDeallocateSampleFunc sample_deallocate_func_;
@@ -1117,7 +1130,7 @@ class PlayerImpl : public Player, public DrmSystemOcdm::Observer {
   int frame_width_{0};
   int frame_height_{0};
   State state_{State::kNull};
-  SamplesPendingKey pending_samples_;
+  PendingSamples pending_samples_;
   mutable gint64 cached_position_ns_{GST_CLOCK_TIME_NONE};
   PendingBounds pending_bounds_;
   SbMediaColorMetadata color_metadata_{};
@@ -1190,7 +1203,7 @@ PlayerImpl::PlayerImpl(SbPlayer player,
       window_(window),
       video_codec_(video_codec),
       audio_codec_(audio_codec),
-      drm_system_(reinterpret_cast<DrmSystemOcdm*>(drm_system)),
+      drm_system_(drm_system),
       audio_sample_info_(audio_sample_info),
       max_video_capabilities_(max_video_capabilities),
       sample_deallocate_func_(sample_deallocate_func),
@@ -1198,7 +1211,8 @@ PlayerImpl::PlayerImpl(SbPlayer player,
       player_status_func_(player_status_func),
       player_error_func_(player_error_func),
       context_(context) {
-
+  if (getenv("COBALT_DISABLE_AUDIO"))
+    audio_codec_ = kSbMediaAudioCodecNone;
   if (audio_codec_ == kSbMediaAudioCodecNone)
     has_enough_data_ &= ~static_cast<int>(MediaType::kAudio);
   if (video_codec_ == kSbMediaVideoCodecNone)
@@ -1210,8 +1224,6 @@ PlayerImpl::PlayerImpl(SbPlayer player,
       GstCaps* gst_caps = gst_caps_from_string(caps[0].c_str());
       gst_caps_replace(&audio_caps_, gst_caps);
       gst_caps_unref(gst_caps);
-      if (drm_system_)
-        DrmSystemOcdm::TransformCaps(&audio_caps_);
     }
   }
 
@@ -1235,9 +1247,6 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   }, this, nullptr);
   hang_monitor_source_id_ = g_source_attach(src, main_loop_context_);
   g_source_unref(src);
-
-  if (drm_system_)
-    drm_system_->AddObserver(this);
 
   GST_DEBUG_CATEGORY_INIT(cobalt_gst_player_debug, "gstplayer", 0,
                           "Cobalt player");
@@ -1285,6 +1294,15 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   } else {
     GST_WARNING("No playsink ?!?!?");
   }
+
+  if (drm_system_) {
+    GstContext* context = gst_context_new("cobalt-drm-system", FALSE);
+    GstStructure* context_structure = gst_context_writable_structure(context);
+    gst_structure_set(context_structure, "drm-system-instance", G_TYPE_POINTER, drm_system_, nullptr);
+    gst_element_set_context(GST_ELEMENT(pipeline_), context);
+    gst_context_unref(context);
+  }
+
   ChangePipelineState(GST_STATE_READY);
   g_main_context_pop_thread_default(main_loop_context_);
 
@@ -1316,9 +1334,6 @@ PlayerImpl::~PlayerImpl() {
   if (hang_monitor_source_id_ > -1) {
     GSource* src = g_main_context_find_source_by_id(main_loop_context_, hang_monitor_source_id_);
     g_source_destroy(src);
-  }
-  if (drm_system_) {
-    drm_system_->RemoveObserver(this);
   }
   ChangePipelineState(GST_STATE_NULL);
   GstBus* bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline_));
@@ -1475,13 +1490,7 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
 
             mutex.Release();
             GST_INFO("===> Writing pending samples");
-            self->WritePendingSamples(reinterpret_cast<const uint8_t*>(kClearSamplesKey), strlen(kClearSamplesKey));
-            if (self->drm_system_) {
-              auto ready_keys = self->drm_system_->GetReadyKeys();
-              for (auto& key : ready_keys) {
-                self->WritePendingSamples(reinterpret_cast<const uint8_t*>(key.c_str()), key.size());
-              }
-            }
+            self->WritePendingSamples();
             mutex.Acquire();
 
             if (self->has_enough_data_ == static_cast<int>(MediaType::kBoth))
@@ -1579,6 +1588,7 @@ gboolean PlayerImpl::FinishSourceSetup(gpointer user_data) {
   PlayerImpl* self = static_cast<PlayerImpl*>(user_data);
   ::starboard::ScopedLock lock(self->source_setup_mutex_);
   SB_DCHECK(self->source_);
+  bool has_drm_system = !!self->drm_system_;
   GstElement* source = self->source_;
   GstAppSrcCallbacks callbacks = {&PlayerImpl::AppSrcNeedData,
                                   &PlayerImpl::AppSrcEnoughData,
@@ -1586,12 +1596,12 @@ gboolean PlayerImpl::FinishSourceSetup(gpointer user_data) {
   if (self->audio_codec_ != kSbMediaAudioCodecNone) {
     gst_cobalt_src_setup_and_add_app_src(
         source, self->audio_appsrc_, self->audio_caps_,
-        &callbacks, self);
+        &callbacks, self, has_drm_system, false);
   }
   if (self->video_codec_ != kSbMediaVideoCodecNone) {
     gst_cobalt_src_setup_and_add_app_src(
         source, self->video_appsrc_, nullptr,
-        &callbacks, self);
+        &callbacks, self, has_drm_system, has_drm_system);
   }
   gst_cobalt_src_all_app_srcs_added(self->source_);
   self->source_setup_id_ = -1;
@@ -1687,7 +1697,7 @@ void PlayerImpl::SetupElement(GstElement* pipeline,
                               PlayerImpl* self) {
   if (GST_IS_BASE_SINK(element)) {
     bool has_video = (self->video_codec_ != kSbMediaVideoCodecNone);
-    if (has_video && g_str_has_prefix(GST_ELEMENT_NAME(element), "amlhalasink")) {
+    if (has_video && g_str_has_prefix(GST_ELEMENT_NAME(element), "amlhalasink") && !self->drm_system_) {
       g_object_set(element, "wait-video", TRUE, nullptr);
     }
   }
@@ -1719,14 +1729,7 @@ void PlayerImpl::MarkEOS(SbMediaType stream_type) {
   RecordTimestamp(stream_type, kSbTimeMax);
 }
 
-bool PlayerImpl::WriteSample(SbMediaType sample_type,
-                             GstBuffer* buffer,
-                             const std::string& session_id,
-                             GstBuffer* subsample,
-                             int32_t subsample_count,
-                             GstBuffer* iv,
-                             GstBuffer* key,
-                             uint64_t serial_id) {
+bool PlayerImpl::WriteSample(SbMediaType sample_type, GstBuffer* buffer, uint64_t serial_id) {
   GstElement* src = nullptr;
   if (sample_type == kSbMediaTypeVideo) {
     src = video_appsrc_;
@@ -1746,34 +1749,20 @@ bool PlayerImpl::WriteSample(SbMediaType sample_type,
       log_level = GST_LEVEL_DEBUG;
   }
 
-  GST_CAT_LEVEL_LOG (GST_CAT_DEFAULT, log_level, src,
-                   "SampleType:%d %" GST_TIME_FORMAT " id:%llu b:%p, s:%p, iv:%p, k:%p",
-                   sample_type, GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(buffer)), serial_id,
-                   buffer, subsample, iv, key);
+  GST_CAT_LEVEL_LOG (
+    GST_CAT_DEFAULT, log_level, src,
+    "SampleType:%d %" GST_TIME_FORMAT " id:%llu b:%p",
+    sample_type, GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(buffer)), serial_id, buffer);
 
-  bool decrypted = true;
-  if (!session_id.empty()) {
-    GST_LOG_OBJECT(src, "Decrypting using %s...", session_id.c_str());
-    SB_DCHECK(drm_system_ && subsample && subsample_count && iv && key);
-
-    GstCaps* caps = gst_caps_ref((sample_type == kSbMediaTypeVideo) ? video_caps_ : audio_caps_);
-    decrypted = drm_system_->Decrypt(session_id, buffer, subsample,
-                                     subsample_count, iv, key, caps);
-    gst_caps_unref(caps);
-
-    if (!decrypted)
-      GST_ERROR_OBJECT(src, "Failed decrypting");
-  }
-
-  if (decrypted)
-    gst_app_src_push_buffer(GST_APP_SRC(src), buffer);
+  gst_app_src_push_buffer(GST_APP_SRC(src), buffer);
 
   ::starboard::ScopedLock lock(mutex_);
-  if (decrypted && sample_type == kSbMediaTypeVideo)
+  if (sample_type == kSbMediaTypeVideo)
     ++total_video_frames_;
+
   // Wait for need-data to trigger instead.
   if (state_ == State::kInitial || state_ == State::kInitialPreroll)
-    return decrypted;
+    return true;
 
   bool has_enough =
       (sample_type == kSbMediaTypeVideo &&
@@ -1790,7 +1779,7 @@ bool PlayerImpl::WriteSample(SbMediaType sample_type,
     GST_LOG_OBJECT(src, "Has enough data");
   }
 
-  return decrypted;
+  return true;
 }
 
 void PlayerImpl::WriteSample(SbMediaType sample_type,
@@ -1818,12 +1807,6 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
   GST_BUFFER_TIMESTAMP(buffer) = timestamp;
   sample_deallocate_func_(player_, context_, sample_infos[0].buffer);
 
-  GstBuffer* subsamples = nullptr;
-  GstBuffer* iv = nullptr;
-  GstBuffer* key = nullptr;
-  int32_t subsamples_count = 0u;
-  std::string session_id;
-
   if (sample_infos[0].type == kSbMediaTypeVideo) {
     const auto& info = sample_infos[0].video_sample_info;
     if (frame_width_ != info.frame_width ||
@@ -1836,8 +1819,6 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
       if (!caps.empty()) {
         GstCaps* gst_caps = gst_caps_from_string(caps[0].c_str());
         AddVideoInfoToGstCaps(info, gst_caps);
-        if (drm_system_)
-          DrmSystemOcdm::TransformCaps(&gst_caps);
         PrintGstCaps(gst_caps);
         gst_app_src_set_caps(GST_APP_SRC(video_appsrc_), gst_caps);
         gst_caps_replace(&video_caps_, gst_caps);
@@ -1868,101 +1849,95 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
     }
   }
 
+  if (sample_infos[0].drm_info) {
+    GST_LOG("Encounterd encrypted %s sample",
+            sample_type == kSbMediaTypeVideo ? "video" : "audio");
+    SB_DCHECK(drm_system_);
+
+    GST_LOG("Encryption scheme %s",
+            sample_infos[0].drm_info->encryption_scheme == kSbDrmEncryptionSchemeAesCtr ? "Ctr" :
+            (sample_infos[0].drm_info->encryption_scheme == kSbDrmEncryptionSchemeAesCbc ? "Cbc" : "Unknown") );
+
+    GstBuffer* subsamples = nullptr;
+    GstBuffer* iv = nullptr;
+    GstBuffer* key = nullptr;
+    uint32_t subsamples_count = 0u;
+    uint32_t iv_size = 0u;
+    const int8_t kEmptyArray[kMaxIvSize / 2] = {0};
+
+    key = gst_buffer_new_allocate(
+        nullptr, sample_infos[0].drm_info->identifier_size, nullptr);
+    gst_buffer_fill(key, 0, sample_infos[0].drm_info->identifier,
+                    sample_infos[0].drm_info->identifier_size);
+
+    iv_size = sample_infos[0].drm_info->initialization_vector_size;
+    if (iv_size == kMaxIvSize &&
+        memcmp(sample_infos[0].drm_info->initialization_vector + kMaxIvSize / 2,
+               kEmptyArray, kMaxIvSize / 2) == 0) {
+      iv_size /= 2;
+    }
+    iv = gst_buffer_new_allocate(nullptr, iv_size, nullptr);
+    gst_buffer_fill(iv, 0, sample_infos[0].drm_info->initialization_vector, iv_size);
+
+    subsamples_count = sample_infos[0].drm_info->subsample_count;
+    if (subsamples_count) {
+      auto subsamples_raw_size =
+        subsamples_count * (sizeof(guint16) + sizeof(guint32));
+      guint8* subsamples_raw =
+        static_cast<guint8*>(g_malloc(subsamples_raw_size));
+      GstByteWriter writer;
+      gst_byte_writer_init_with_data(&writer, subsamples_raw, subsamples_raw_size, FALSE);
+      for (int32_t i = 0; i < subsamples_count; ++i) {
+        if (!gst_byte_writer_put_uint16_be(
+              &writer,
+              sample_infos[0].drm_info->subsample_mapping[i].clear_byte_count))
+          GST_ERROR("Failed writing clear subsample info at %d", i);
+        if (!gst_byte_writer_put_uint32_be(&writer,
+                                           sample_infos[0]
+                                           .drm_info->subsample_mapping[i]
+                                           .encrypted_byte_count))
+          GST_ERROR("Failed writing encrypted subsample info at %d", i);
+      }
+      subsamples = gst_buffer_new_wrapped(subsamples_raw, subsamples_raw_size);
+    }
+
+    GstStructure* info = gst_structure_new (
+      "application/x-cenc",
+      "encrypted", G_TYPE_BOOLEAN, TRUE,
+      "kid", GST_TYPE_BUFFER, key,
+      "iv_size", G_TYPE_UINT, iv_size,
+      "iv", GST_TYPE_BUFFER, iv,
+      "subsample_count", G_TYPE_UINT, subsamples_count,
+      "subsamples", GST_TYPE_BUFFER, subsamples,
+      "encryption_scheme", G_TYPE_UINT, sample_infos[0].drm_info->encryption_scheme,
+      NULL);
+
+    gst_buffer_add_protection_meta(buffer, info);
+
+    gst_buffer_unref(iv);
+    gst_buffer_unref(key);
+    gst_buffer_unref(subsamples);
+  } else {
+    GST_LOG("Encounterd clear %s sample",
+            sample_type == kSbMediaTypeVideo ? "video" : "audio");
+  }
+
   uint64_t serial = 0;
-  std::string key_str;
   bool keep_samples = false;
   {
     ::starboard::ScopedLock lock(mutex_);
     keep_samples = is_seek_pending_ || pending_rate_ != .0;
     serial = samples_serial_[ (sample_type == kSbMediaTypeVideo ? kVideoIndex : kAudioIndex) ]++;
   }
-  if (sample_infos[0].drm_info) {
-    GST_LOG("Encounterd encrypted %s sample",
-            sample_type == kSbMediaTypeVideo ? "video" : "audio");
-    SB_DCHECK(drm_system_);
-    key = gst_buffer_new_allocate(
-        nullptr, sample_infos[0].drm_info->identifier_size, nullptr);
-    gst_buffer_fill(key, 0, sample_infos[0].drm_info->identifier,
-                    sample_infos[0].drm_info->identifier_size);
-    size_t iv_size = sample_infos[0].drm_info->initialization_vector_size;
-    const int8_t kEmptyArray[kMaxIvSize / 2] = {0};
-    if (iv_size == kMaxIvSize &&
-        memcmp(sample_infos[0].drm_info->initialization_vector + kMaxIvSize / 2,
-               kEmptyArray, kMaxIvSize / 2) == 0)
-      iv_size /= 2;
 
-    iv = gst_buffer_new_allocate(nullptr, iv_size, nullptr);
-    gst_buffer_fill(iv, 0, sample_infos[0].drm_info->initialization_vector,
-                    iv_size);
-    subsamples_count = sample_infos[0].drm_info->subsample_count;
-    auto subsamples_raw_size =
-        subsamples_count * (sizeof(guint16) + sizeof(guint32));
-    guint8* subsamples_raw =
-        static_cast<guint8*>(g_malloc(subsamples_raw_size));
-    GstByteWriter writer;
-    gst_byte_writer_init_with_data(&writer, subsamples_raw, subsamples_raw_size,
-                                   FALSE);
-    for (int32_t i = 0; i < subsamples_count; ++i) {
-      if (!gst_byte_writer_put_uint16_be(
-              &writer,
-              sample_infos[0].drm_info->subsample_mapping[i].clear_byte_count))
-        GST_ERROR("Failed writing clear subsample info at %d", i);
-      if (!gst_byte_writer_put_uint32_be(&writer,
-                                         sample_infos[0]
-                                             .drm_info->subsample_mapping[i]
-                                             .encrypted_byte_count))
-        GST_ERROR("Failed writing encrypted subsample info at %d", i);
-    }
-    subsamples = gst_buffer_new_wrapped(subsamples_raw, subsamples_raw_size);
-
-    session_id = drm_system_->SessionIdByKeyId(
-        sample_infos[0].drm_info->identifier,
-        sample_infos[0].drm_info->identifier_size);
-    if (session_id.empty() || keep_samples) {
-      gchar *md5sum = 0;
-
-      #ifndef GST_DISABLE_GST_DEBUG
-      if (gst_debug_category_get_threshold(GST_CAT_DEFAULT) >= GST_LEVEL_INFO) {
-        md5sum = g_compute_checksum_for_data(
-          G_CHECKSUM_MD5,
-          sample_infos[0].drm_info->identifier,
-          sample_infos[0].drm_info->identifier_size);
-      }
-      #endif
-
-      GST_INFO("No session/pending flushing operation. Storing sample");
-      GST_INFO("SampleType:%d %" GST_TIME_FORMAT " id:%llu b:%p, s:%p, iv:%p, k:%p(%s)",
-               sample_type, GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(buffer)), serial, buffer,
-               subsamples, iv, key, md5sum);
-
-      if (md5sum)
-        g_free(md5sum);
-
-      PendingSample sample(sample_type, buffer, iv, subsamples,
-                           subsamples_count, key, serial);
-      buffer= nullptr;
-      key_str = {
-          reinterpret_cast<const char*>(sample_infos[0].drm_info->identifier),
-          sample_infos[0].drm_info->identifier_size};
-      ::starboard::ScopedLock lock(mutex_);
-      pending_samples_[key_str].emplace_back(std::move(sample));
-      if (session_id.empty())
-        return;
-    }
-  } else {
-    GST_LOG("Encounterd clear %s sample",
-            sample_type == kSbMediaTypeVideo ? "video" : "audio");
-    if (keep_samples) {
-      GST_INFO("Pending flushing operation. Storing sample");
-      GST_INFO("SampleType:%d %" GST_TIME_FORMAT " id:%llu b:%p, s:%p, iv:%p, k:%p",
-               sample_type, GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(buffer)), serial, buffer,
-               subsamples, iv, key);
-      key_str = {kClearSamplesKey};
-      PendingSample sample(sample_type, buffer, nullptr, nullptr, 0, nullptr, serial);
-      buffer= nullptr;
-      ::starboard::ScopedLock lock(mutex_);
-      pending_samples_[key_str].emplace_back(std::move(sample));
-    }
+  if (keep_samples) {
+    GST_INFO("Pending flushing operation. Storing sample");
+    GST_INFO("SampleType:%d %" GST_TIME_FORMAT " id:%llu b:%" GST_PTR_FORMAT,
+             sample_type, GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(buffer)), serial, buffer);
+    PendingSample sample(sample_type, buffer, serial);
+    buffer= nullptr;
+    ::starboard::ScopedLock lock(mutex_);
+    pending_samples_.emplace_back(std::move(sample));
   }
 
   {
@@ -1982,7 +1957,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
     PendingSamples local_samples;
     {
       ::starboard::ScopedLock lock(mutex_);
-      local_samples.swap(pending_samples_[key_str]);
+      local_samples.swap(pending_samples_);
     }
 
     if(local_samples.empty()) {
@@ -2000,28 +1975,22 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
     }
 
     GstBuffer* buffer_copy = sample.CopyBuffer();
-    if (!WriteSample(sample.Type(), buffer_copy, session_id,
-                     sample.Subsamples(), sample.SubsamplesCount(), sample.Iv(),
-                     sample.Key(), sample.SerialID())) {
+    if (!WriteSample(sample.Type(), buffer_copy, sample.SerialID())) {
       gst_buffer_unref(buffer_copy);
     }
 
     {
       ::starboard::ScopedLock lock(mutex_);
       std::move(local_samples.begin(), local_samples.end(),
-                std::back_inserter(pending_samples_[key_str]));
+                std::back_inserter(pending_samples_));
     }
   } else {
-    WriteSample(sample_type, buffer, session_id, subsamples, subsamples_count,
-                iv, key, serial);
+    if (!WriteSample(sample_type, buffer, serial)) {
+      gst_buffer_unref(buffer);
+    }
   }
 
-  if (!session_id.empty() && !keep_samples) {
-    GST_TRACE("Wrote sample. Cleaning up.");
-    gst_buffer_unref(iv);
-    gst_buffer_unref(key);
-    gst_buffer_unref(subsamples);
-  }
+  GST_TRACE("Wrote sample.");
 }
 
 void PlayerImpl::SetVolume(double volume) {
@@ -2351,44 +2320,18 @@ gint64 PlayerImpl::GetPosition() const {
   return position;
 }
 
-void PlayerImpl::OnKeyReady(const uint8_t* key, size_t key_len) {
-
-  {
-    ::starboard::ScopedLock lock(mutex_);
-    has_oob_write_pending_ = true;
-  }
-
-  GstBuffer* kid_buf = gst_buffer_new_allocate(nullptr, key_len, nullptr);
-  gst_buffer_fill(kid_buf, 0, key, key_len);
-
-  GstStructure* structure = gst_structure_new("key-ready", "kid", GST_TYPE_BUFFER, kid_buf, nullptr);
-  gst_element_post_message(
-    pipeline_, gst_message_new_application(GST_OBJECT(pipeline_), structure));
-  gst_buffer_unref (kid_buf);
-}
-
-void PlayerImpl::WritePendingSamples(const uint8_t* key, size_t key_len) {
-  std::string key_str(reinterpret_cast<const char*>(key), key_len);
+void PlayerImpl::WritePendingSamples() {
   PendingSamples local_samples;
   bool keep_samples = false;
   int ticket = -1;
   {
     ::starboard::ScopedLock lock(mutex_);
-    SamplesPendingKey::iterator iter;
-    iter = pending_samples_.find(key_str);
     keep_samples = is_seek_pending_ || pending_rate_ != 0.;
     ticket = ticket_;
-    if (iter != pending_samples_.end()) {
-      local_samples.swap(iter->second);
-    }
+    local_samples.swap(pending_samples_);
   }
 
   if (!local_samples.empty()) {
-    std::string session_id;
-    if (drm_system_) {
-      session_id = drm_system_->SessionIdByKeyId(key, key_len);
-    }
-
     std::sort(
       local_samples.begin(), local_samples.end(),
       [](const PendingSample& lhs, const PendingSample& rhs) -> bool {
@@ -2405,15 +2348,9 @@ void PlayerImpl::WritePendingSamples(const uint8_t* key, size_t key_len) {
       }
 
       GstBuffer* buffer = keep_samples ? sample.CopyBuffer() : sample.TakeBuffer();
-      GST_INFO("Writing pending: SampleType:%d %" GST_TIME_FORMAT
-               " id:%llu b:%p, s:%p, iv:%p, k:%p",
-               sample.Type(), GST_TIME_ARGS(GST_BUFFER_TIMESTAMP(buffer)),
-               sample.SerialID(), buffer,
-               sample.Subsamples(), sample.Iv(), sample.Key());
+      GST_INFO("Writing pending: SampleType:%d id:%llu b:%" GST_PTR_FORMAT, sample.Type(), sample.SerialID(), buffer);
       prev_ts = GST_BUFFER_TIMESTAMP(buffer);
-      if (WriteSample(sample.Type(), buffer, session_id,
-                      sample.Subsamples(), sample.SubsamplesCount(),
-                      sample.Iv(), sample.Key(), sample.SerialID())) {
+      if (WriteSample(sample.Type(), buffer, sample.SerialID())) {
         GST_INFO("Pending sample was written.");
       } else {
         gst_buffer_unref(buffer);
@@ -2425,7 +2362,7 @@ void PlayerImpl::WritePendingSamples(const uint8_t* key, size_t key_len) {
         ::starboard::ScopedLock lock(mutex_);
         if (ticket_ == ticket) {
           std::move(local_samples.begin(), local_samples.end(),
-                    std::back_inserter(pending_samples_[key_str]));
+                    std::back_inserter(pending_samples_));
         } else {
           keep_samples = false;
         }
@@ -2497,38 +2434,6 @@ void PlayerImpl::HandleApplicationMessage(GstBus* bus, GstMessage* message) {
       GSource* src = g_main_context_find_source_by_id(main_loop_context_, source_setup_id_);
       g_source_destroy(src);
       source_setup_id_ = -1;
-    }
-  }
-  else if (gst_structure_has_name(structure, "key-ready")) {
-    const GValue* value = gst_structure_get_value(structure, "kid");
-    if (!value) {
-      GST_ERROR("No kid value");
-      return;
-    }
-    GstMapInfo info;
-    GstBuffer* kid_buf = gst_value_get_buffer(value);
-    if (!kid_buf) {
-      GST_ERROR("No kid buffer");
-      return;
-    }
-    if (FALSE == gst_buffer_map(kid_buf, &info, GST_MAP_READ)) {
-      GST_ERROR("Failed to map kid buffer");
-      return;
-    }
-    #ifndef GST_DISABLE_GST_DEBUG
-    if (gst_debug_category_get_threshold(GST_CAT_DEFAULT) >= GST_LEVEL_INFO) {
-      gchar *md5sum = g_compute_checksum_for_data(G_CHECKSUM_MD5, info.data, info.size);
-      GST_INFO("Key ready: %s", md5sum);
-      g_free(md5sum);
-    }
-    #endif
-    WritePendingSamples(static_cast<const uint8_t*>(info.data), static_cast<size_t>(info.size));
-    gst_buffer_unmap(kid_buf, &info);
-
-    {
-      ::starboard::ScopedLock lock(mutex_);
-      has_oob_write_pending_ = false;
-      pending_oob_write_condition_.Broadcast();
     }
   }
 }

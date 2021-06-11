@@ -24,8 +24,8 @@
 #include "starboard/common/mutex.h"
 #include "starboard/shared/starboard/thread_checker.h"
 
-#include "opencdm/open_cdm.h"
-#include "opencdm/open_cdm_adapter.h"
+#include <opencdm/open_cdm.h>
+#include <opencdm/open_cdm_adapter.h>
 
 #include "third_party/starboard/rdk/shared/log_override.h"
 
@@ -36,9 +36,15 @@ namespace shared {
 namespace drm {
 namespace {
 
+static SbMutex g_session_dtor_mutex_ = SB_MUTEX_INITIALIZER;
+
 struct OcdmSessionDeleter {
   void operator()(OpenCDMSession* session) {
-    opencdm_destruct_session(session);
+    if (session) {
+      SbMutexAcquire(&g_session_dtor_mutex_);
+      opencdm_destruct_session(session);
+      SbMutexRelease(&g_session_dtor_mutex_);
+    }
   }
 };
 
@@ -47,11 +53,7 @@ using ScopedOcdmSession = std::unique_ptr<OpenCDMSession, OcdmSessionDeleter>;
 using OcdmGstSessionDecryptExFn =
   OpenCDMError(*)(struct OpenCDMSession*, GstBuffer*, GstBuffer*, const uint32_t, GstBuffer*, GstBuffer*, uint32_t, GstCaps*);
 
-using OcdmGstTransformCapsFn =
-  OpenCDMError(*)(GstCaps** caps);
-
 static OcdmGstSessionDecryptExFn g_ocdmGstSessionDecryptEx { nullptr };
-static OcdmGstTransformCapsFn g_ocdmGstTransformCapsFn { nullptr };
 
 }  // namespace
 
@@ -98,7 +100,10 @@ class Session {
                          int ticket);
   void Update(const void* key, int key_size, int ticket);
   std::string Id() const { return id_; }
-  OpenCDMSession* OcdmSession() const { return session_.get(); }
+
+  int Decrypt( _GstBuffer* buffer,
+    _GstBuffer* sub_sample, uint32_t sub_sample_count,
+    _GstBuffer* iv, _GstBuffer* key, _GstCaps* caps);
 
  private:
   static void OnProcessChallenge(OpenCDMSession* session,
@@ -171,8 +176,13 @@ Session::~Session() {
 void Session::Close() {
   SB_DCHECK(thread_checker_.CalledOnValidThread());
   if (session_) {
-    opencdm_session_close(session_.get());
-    session_ = nullptr;
+    ScopedOcdmSession tmp;
+    {
+      ::starboard::ScopedLock lock(mutex_);
+      tmp = std::move (session_);
+      SB_CHECK( session_ == nullptr );
+    }
+    opencdm_session_close(tmp.get());
   }
 
   auto id = Id();
@@ -248,6 +258,30 @@ void Session::Update(const void* key, int key_size, int ticket) {
                               kSbDrmStatusUnknownError, nullptr, id.c_str(),
                               id.size());
   }
+}
+
+int Session::Decrypt(
+  _GstBuffer* buffer,
+  _GstBuffer* sub_sample,
+  uint32_t sub_sample_count,
+  _GstBuffer* iv,
+  _GstBuffer* key,
+  _GstCaps* caps) {
+
+  ::starboard::ScopedLock lock(mutex_);
+  if (!session_)
+    return ERROR_INVALID_SESSION;
+
+  if (g_ocdmGstSessionDecryptEx != nullptr) {
+    return g_ocdmGstSessionDecryptEx(session_.get(), buffer,
+                                     sub_sample, sub_sample_count, iv,
+                                     key, 0, caps);
+  }
+
+  return opencdm_gstreamer_session_decrypt(session_.get(), buffer,
+                                           sub_sample, sub_sample_count, iv,
+                                           key, 0);
+
 }
 
 // static
@@ -439,12 +473,6 @@ DrmSystemOcdm::DrmSystemOcdm(
     } else {
       SB_LOG(INFO) << "No opencdm_gstreamer_session_decrypt_ex. Fallback to opencdm_gstreamer_session_decrypt.";
     }
-    g_ocdmGstTransformCapsFn = (OcdmGstTransformCapsFn)dlsym(RTLD_DEFAULT, "opencdm_gstreamer_transform_caps");
-    if (g_ocdmGstTransformCapsFn) {
-      SB_LOG(INFO) << "Has opencdm_gstreamer_transform_caps";
-    } else {
-      SB_LOG(INFO) << "No opencdm_gstreamer_transform_caps.";
-    }
   });
 }
 
@@ -475,6 +503,7 @@ void DrmSystemOcdm::GenerateSessionUpdateRequest(
                   key_statuses_changed_callback_, session_closed_callback_));
   session->GenerateChallenge(type, initialization_data,
                              initialization_data_size, ticket);
+  ::starboard::ScopedLock lock(mutex_);
   sessions_.push_back(std::move(session));
 }
 
@@ -516,6 +545,7 @@ SbDrmSystemPrivate::DecryptStatus DrmSystemOcdm::Decrypt(InputBuffer* buffer) {
 }
 
 Session* DrmSystemOcdm::GetSessionById(const std::string& id) const {
+  ::starboard::ScopedLock lock(mutex_);
   auto iter = std::find_if(
       sessions_.begin(), sessions_.end(),
       [&id](const std::unique_ptr<Session>& s) { return id == s->Id(); });
@@ -617,12 +647,14 @@ void DrmSystemOcdm::AnnounceKeys() {
 
 std::string DrmSystemOcdm::SessionIdByKeyId(const uint8_t* key,
                                             uint8_t key_len) {
+  SbMutexAcquire(&g_session_dtor_mutex_);
   ScopedOcdmSession session{
       opencdm_get_system_session(ocdm_system_, key, key_len, 0)};
+  SbMutexRelease(&g_session_dtor_mutex_);
   return session ? opencdm_session_id(session.get()) : std::string{};
 }
 
-bool DrmSystemOcdm::Decrypt(const std::string& id,
+int DrmSystemOcdm::Decrypt(const std::string& id,
                             _GstBuffer* buffer,
                             _GstBuffer* sub_sample,
                             uint32_t sub_sample_count,
@@ -630,154 +662,14 @@ bool DrmSystemOcdm::Decrypt(const std::string& id,
                             _GstBuffer* key,
                             _GstCaps* caps) {
   session::Session* session = GetSessionById(id);
-  SB_DCHECK(session);
-  if (g_ocdmGstSessionDecryptEx != nullptr) {
-    return g_ocdmGstSessionDecryptEx(session->OcdmSession(), buffer,
-                                     sub_sample, sub_sample_count, iv,
-                                     key, 0, caps) == ERROR_NONE;
-  }
-  return opencdm_gstreamer_session_decrypt(session->OcdmSession(), buffer,
-                                           sub_sample, sub_sample_count, iv,
-                                           key, 0) == ERROR_NONE;
+  if (!session)
+    return ERROR_INVALID_SESSION;
+  return session->Decrypt(buffer, sub_sample, sub_sample_count, iv, key, caps);
 }
 
 const void* DrmSystemOcdm::GetMetrics(int* size) {
     return nullptr;
 }
-
-void DrmSystemOcdm::TransformCaps(_GstCaps** caps) {
-  if (g_ocdmGstTransformCapsFn)
-    g_ocdmGstTransformCapsFn(caps);
-}
-
-}  // namespace drm
-}  // namespace shared
-}  // namespace rdk
-}  // namespace starboard
-}  // namespace third_party
-
-#else  // defined(HAS_OCDM)
-
-#include "third_party/starboard/rdk/shared/drm/drm_system_ocdm.h"
-
-namespace third_party {
-namespace starboard {
-namespace rdk {
-namespace shared {
-namespace drm {
-
-namespace session {
-struct Session {};
-}
-using session::Session;
-
-DrmSystemOcdm::DrmSystemOcdm(
-    const char* key_system,
-    void* context,
-    SbDrmSessionUpdateRequestFunc session_update_request_callback,
-    SbDrmSessionUpdatedFunc session_updated_callback,
-    SbDrmSessionKeyStatusesChangedFunc key_statuses_changed_callback,
-    SbDrmServerCertificateUpdatedFunc server_certificate_updated_callback,
-    SbDrmSessionClosedFunc session_closed_callback)
-    : key_system_(key_system),
-      context_(context),
-      session_update_request_callback_(session_update_request_callback),
-      session_updated_callback_(session_updated_callback),
-      key_statuses_changed_callback_(key_statuses_changed_callback),
-      server_certificate_updated_callback_(server_certificate_updated_callback),
-      session_closed_callback_(session_closed_callback) {
-}
-
-DrmSystemOcdm::~DrmSystemOcdm() {
-}
-
-// static
-bool DrmSystemOcdm::IsKeySystemSupported(const char* key_system,
-                                         const char* mime_type) {
-  return false;
-}
-
-void DrmSystemOcdm::GenerateSessionUpdateRequest(
-    int ticket,
-    const char* type,
-    const void* initialization_data,
-    int initialization_data_size) {
-}
-
-void DrmSystemOcdm::UpdateSession(int ticket,
-                                  const void* key,
-                                  int key_size,
-                                  const void* session_id,
-                                  int session_id_size) {
-}
-
-void DrmSystemOcdm::CloseSession(const void* session_id, int session_id_size) {
-}
-
-void DrmSystemOcdm::UpdateServerCertificate(int ticket,
-                                            const void* certificate,
-                                            int certificate_size) {
-}
-
-SbDrmSystemPrivate::DecryptStatus DrmSystemOcdm::Decrypt(InputBuffer* buffer) {
-  return kFailure;
-}
-
-Session* DrmSystemOcdm::GetSessionById(const std::string& id) const {
-  return nullptr;
-}
-
-void DrmSystemOcdm::AddObserver(DrmSystemOcdm::Observer* obs) {
-}
-
-void DrmSystemOcdm::RemoveObserver(DrmSystemOcdm::Observer* obs) {
-}
-
-void DrmSystemOcdm::OnKeyUpdated(const std::string& session_id,
-                                 SbDrmKeyId&& key_id,
-                                 SbDrmKeyStatus status) {
-}
-
-void DrmSystemOcdm::OnAllKeysUpdated() {
-}
-
-std::set<std::string> DrmSystemOcdm::GetReadyKeysUnlocked() const {
-  return {};
-}
-
-std::set<std::string> DrmSystemOcdm::GetReadyKeys() const {
-  ::starboard::ScopedLock lock(mutex_);
-  return GetReadyKeysUnlocked();
-}
-
-DrmSystemOcdm::KeysWithStatus DrmSystemOcdm::GetSessionKeys(
-    const std::string& session_id) const {
-  return DrmSystemOcdm::KeysWithStatus{};
-}
-
-void DrmSystemOcdm::AnnounceKeys() {
-}
-
-std::string DrmSystemOcdm::SessionIdByKeyId(const uint8_t* key,
-                                            uint8_t key_len) {
-  return std::string{};
-}
-
-bool DrmSystemOcdm::Decrypt(const std::string& id,
-                            _GstBuffer* buffer,
-                            _GstBuffer* sub_sample,
-                            uint32_t sub_sample_count,
-                            _GstBuffer* iv,
-                            _GstBuffer* key,
-                            _GstCaps* caps) {
-  return false;
-}
-
-const void* DrmSystemOcdm::GetMetrics(int* size) {
-    return nullptr;
-}
-
-void DrmSystemOcdm::TransformCaps(_GstCaps** caps) { }
 
 }  // namespace drm
 }  // namespace shared
