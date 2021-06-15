@@ -1211,7 +1211,8 @@ PlayerImpl::PlayerImpl(SbPlayer player,
       player_status_func_(player_status_func),
       player_error_func_(player_error_func),
       context_(context) {
-  if (getenv("COBALT_DISABLE_AUDIO"))
+  static bool disable_audio = !!getenv("COBALT_DISABLE_AUDIO");
+  if (disable_audio)
     audio_codec_ = kSbMediaAudioCodecNone;
   if (audio_codec_ == kSbMediaAudioCodecNone)
     has_enough_data_ &= ~static_cast<int>(MediaType::kAudio);
@@ -1696,8 +1697,9 @@ void PlayerImpl::SetupElement(GstElement* pipeline,
                               GstElement* element,
                               PlayerImpl* self) {
   if (GST_IS_BASE_SINK(element)) {
+    static bool disable_wait_video = !!getenv("COBALT_AML_DISABLE_WAIT_VIDEO");
     bool has_video = (self->video_codec_ != kSbMediaVideoCodecNone);
-    if (has_video && g_str_has_prefix(GST_ELEMENT_NAME(element), "amlhalasink") && !self->drm_system_) {
+    if (has_video && g_str_has_prefix(GST_ELEMENT_NAME(element), "amlhalasink") && !disable_wait_video) {
       g_object_set(element, "wait-video", TRUE, nullptr);
     }
   }
@@ -1757,9 +1759,6 @@ bool PlayerImpl::WriteSample(SbMediaType sample_type, GstBuffer* buffer, uint64_
   gst_app_src_push_buffer(GST_APP_SRC(src), buffer);
 
   ::starboard::ScopedLock lock(mutex_);
-  if (sample_type == kSbMediaTypeVideo)
-    ++total_video_frames_;
-
   // Wait for need-data to trigger instead.
   if (state_ == State::kInitial || state_ == State::kInitialPreroll)
     return true;
@@ -1928,6 +1927,8 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
     ::starboard::ScopedLock lock(mutex_);
     keep_samples = is_seek_pending_ || pending_rate_ != .0;
     serial = samples_serial_[ (sample_type == kSbMediaTypeVideo ? kVideoIndex : kAudioIndex) ]++;
+    if (sample_type == kSbMediaTypeVideo)
+      ++total_video_frames_;
   }
 
   if (keep_samples) {

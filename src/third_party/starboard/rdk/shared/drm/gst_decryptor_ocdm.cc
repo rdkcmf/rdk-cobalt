@@ -106,8 +106,7 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
     GstBuffer* iv, GstBuffer* key) {
 
     GST_TRACE_OBJECT(self, "buf=(%" GST_PTR_FORMAT "), "
-                     "subsample_count=%u, subsamples=(%" GST_PTR_FORMAT " ), "
-                     "iv=(%" GST_PTR_FORMAT "), key=(%" GST_PTR_FORMAT ")",
+                     "subsample_count=%u, subsamples=(%p), iv=(%p), key=(%p)",
                      buffer, subsample_count, subsamples, iv, key);
     if (!drm_system_) {
       GstContext* context = gst_element_get_context(GST_ELEMENT(self), "cobalt-drm-system");
@@ -288,6 +287,7 @@ static void cobalt_ocdm_decryptor_finalize(GObject* object) {
   CobaltOcdmDecryptorPrivate* priv = GST_COBALT_OCDM_DECRYPTOR_GET_PRIVATE(self);
 
   priv->~CobaltOcdmDecryptorPrivate();
+
   GST_CALL_PARENT(G_OBJECT_CLASS, finalize, (object));
 }
 
