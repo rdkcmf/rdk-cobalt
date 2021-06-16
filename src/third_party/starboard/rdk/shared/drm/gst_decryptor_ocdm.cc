@@ -75,11 +75,6 @@ static GstStaticPadTemplate srcTemplate =
 GST_DEBUG_CATEGORY(cobalt_ocdm_decryptor_debug_category);
 #define GST_CAT_DEFAULT cobalt_ocdm_decryptor_debug_category
 
-#define GST_COBALT_OCDM_DECRYPTOR_GET_PRIVATE(obj) (G_TYPE_INSTANCE_GET_PRIVATE((obj), COBALT_OCDM_DECRYPTOR_TYPE, CobaltOcdmDecryptorPrivate))
-
-#define cobalt_ocdm_decryptor_parent_class parent_class
-G_DEFINE_TYPE(CobaltOcdmDecryptor, cobalt_ocdm_decryptor, GST_TYPE_BASE_TRANSFORM);
-
 struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
   ~_CobaltOcdmDecryptorPrivate() {
     if (drm_system_)
@@ -233,6 +228,9 @@ private:
   bool is_active_ { true };
 };
 
+#define cobalt_ocdm_decryptor_parent_class parent_class
+G_DEFINE_TYPE_WITH_PRIVATE(CobaltOcdmDecryptor, cobalt_ocdm_decryptor, GST_TYPE_BASE_TRANSFORM);
+
 static void cobalt_ocdm_decryptor_finalize(GObject*);
 static GstCaps* cobalt_ocdm_decryptor_transform_caps(GstBaseTransform*, GstPadDirection, GstCaps*, GstCaps*);
 static GstFlowReturn cobalt_ocdm_decryptor_transform_ip(GstBaseTransform* base, GstBuffer* buffer);
@@ -268,12 +266,11 @@ static void cobalt_ocdm_decryptor_class_init(CobaltOcdmDecryptorClass* klass) {
   base_transform_class->sink_event = GST_DEBUG_FUNCPTR(cobalt_ocdm_decryptor_sink_event);
   base_transform_class->start = GST_DEBUG_FUNCPTR(cobalt_ocdm_decryptor_start);
   base_transform_class->stop = GST_DEBUG_FUNCPTR(cobalt_ocdm_decryptor_stop);
-
-  g_type_class_add_private(klass, sizeof(CobaltOcdmDecryptorPrivate));
 }
 
 static void cobalt_ocdm_decryptor_init(CobaltOcdmDecryptor* self) {
-  CobaltOcdmDecryptorPrivate* priv = GST_COBALT_OCDM_DECRYPTOR_GET_PRIVATE(self);
+  CobaltOcdmDecryptorPrivate* priv = reinterpret_cast<CobaltOcdmDecryptorPrivate*>(
+    cobalt_ocdm_decryptor_get_instance_private(self));
   self->priv = new (priv) CobaltOcdmDecryptorPrivate();
 
   GstBaseTransform* base = GST_BASE_TRANSFORM(self);
@@ -284,7 +281,8 @@ static void cobalt_ocdm_decryptor_init(CobaltOcdmDecryptor* self) {
 
 static void cobalt_ocdm_decryptor_finalize(GObject* object) {
   CobaltOcdmDecryptor* self = COBALT_OCDM_DECRYPTOR(object);
-  CobaltOcdmDecryptorPrivate* priv = GST_COBALT_OCDM_DECRYPTOR_GET_PRIVATE(self);
+  CobaltOcdmDecryptorPrivate* priv = reinterpret_cast<CobaltOcdmDecryptorPrivate*>(
+    cobalt_ocdm_decryptor_get_instance_private(self));
 
   priv->~CobaltOcdmDecryptorPrivate();
 
@@ -296,7 +294,8 @@ static GstCaps* cobalt_ocdm_decryptor_transform_caps(GstBaseTransform* base, Gst
     return nullptr;
 
   CobaltOcdmDecryptor* self = COBALT_OCDM_DECRYPTOR(base);
-  CobaltOcdmDecryptorPrivate* priv = GST_COBALT_OCDM_DECRYPTOR_GET_PRIVATE(self);
+  CobaltOcdmDecryptorPrivate* priv = reinterpret_cast<CobaltOcdmDecryptorPrivate*>(
+    cobalt_ocdm_decryptor_get_instance_private(self));
 
   GST_DEBUG_OBJECT(self, "Transform in direction: %s, caps %" GST_PTR_FORMAT ", filter %" GST_PTR_FORMAT,
                    direction == GST_PAD_SINK ? "GST_PAD_SINK" : "GST_PAD_SRC", caps, filter);
@@ -308,7 +307,8 @@ static GstCaps* cobalt_ocdm_decryptor_transform_caps(GstBaseTransform* base, Gst
 
 static GstFlowReturn cobalt_ocdm_decryptor_transform_ip(GstBaseTransform* base, GstBuffer* buffer) {
   CobaltOcdmDecryptor* self = COBALT_OCDM_DECRYPTOR(base);
-  CobaltOcdmDecryptorPrivate* priv = GST_COBALT_OCDM_DECRYPTOR_GET_PRIVATE(self);
+  CobaltOcdmDecryptorPrivate* priv = reinterpret_cast<CobaltOcdmDecryptorPrivate*>(
+    cobalt_ocdm_decryptor_get_instance_private(self));
 
   GST_TRACE_OBJECT(self, "Transform in place buf=(%" GST_PTR_FORMAT ")", buffer);
 
@@ -374,7 +374,8 @@ exit:
 
 static void cobalt_ocdm_decryptor_set_context(GstElement* element, GstContext* context) {
   CobaltOcdmDecryptor* self = COBALT_OCDM_DECRYPTOR(element);
-  CobaltOcdmDecryptorPrivate* priv = GST_COBALT_OCDM_DECRYPTOR_GET_PRIVATE(self);
+  CobaltOcdmDecryptorPrivate* priv = reinterpret_cast<CobaltOcdmDecryptorPrivate*>(
+    cobalt_ocdm_decryptor_get_instance_private(self));
 
   if (gst_context_has_context_type(context, "cobalt-drm-system")) {
     const GValue* value = gst_structure_get_value(gst_context_get_structure(context), "drm-system-instance");
@@ -389,7 +390,8 @@ static void cobalt_ocdm_decryptor_set_context(GstElement* element, GstContext* c
 
 static GstStateChangeReturn cobalt_ocdm_decryptor_change_state(GstElement* element, GstStateChange transition) {
   CobaltOcdmDecryptor* self = COBALT_OCDM_DECRYPTOR(element);
-  CobaltOcdmDecryptorPrivate* priv = GST_COBALT_OCDM_DECRYPTOR_GET_PRIVATE(self);
+  CobaltOcdmDecryptorPrivate* priv = reinterpret_cast<CobaltOcdmDecryptorPrivate*>(
+    cobalt_ocdm_decryptor_get_instance_private(self));
 
   switch (transition) {
     case GST_STATE_CHANGE_READY_TO_PAUSED:
@@ -409,7 +411,8 @@ static GstStateChangeReturn cobalt_ocdm_decryptor_change_state(GstElement* eleme
 
 static gboolean cobalt_ocdm_decryptor_sink_event(GstBaseTransform* base, GstEvent* event) {
   CobaltOcdmDecryptor* self = COBALT_OCDM_DECRYPTOR(base);
-  CobaltOcdmDecryptorPrivate* priv = GST_COBALT_OCDM_DECRYPTOR_GET_PRIVATE(self);
+  CobaltOcdmDecryptorPrivate* priv = reinterpret_cast<CobaltOcdmDecryptorPrivate*>(
+    cobalt_ocdm_decryptor_get_instance_private(self));
 
   switch (GST_EVENT_TYPE(event)) {
     case GST_EVENT_FLUSH_START: {
@@ -431,14 +434,16 @@ static gboolean cobalt_ocdm_decryptor_sink_event(GstBaseTransform* base, GstEven
 
 static gboolean cobalt_ocdm_decryptor_stop(GstBaseTransform *base) {
   CobaltOcdmDecryptor* self = COBALT_OCDM_DECRYPTOR(base);
-  CobaltOcdmDecryptorPrivate* priv = GST_COBALT_OCDM_DECRYPTOR_GET_PRIVATE(self);
+  CobaltOcdmDecryptorPrivate* priv = reinterpret_cast<CobaltOcdmDecryptorPrivate*>(
+    cobalt_ocdm_decryptor_get_instance_private(self));
   priv->SetActive(false);
   return TRUE;
 }
 
 static gboolean cobalt_ocdm_decryptor_start(GstBaseTransform *base) {
   CobaltOcdmDecryptor* self = COBALT_OCDM_DECRYPTOR(base);
-  CobaltOcdmDecryptorPrivate* priv = GST_COBALT_OCDM_DECRYPTOR_GET_PRIVATE(self);
+  CobaltOcdmDecryptorPrivate* priv = reinterpret_cast<CobaltOcdmDecryptorPrivate*>(
+    cobalt_ocdm_decryptor_get_instance_private(self));
   priv->SetActive(true);
   return TRUE;
 }
