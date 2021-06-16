@@ -83,6 +83,10 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
       gst_buffer_unref(current_key_id_);
       current_key_id_ = nullptr;
     }
+    if (cached_caps_) {
+      gst_caps_unref(cached_caps_);
+      cached_caps_ = nullptr;
+    }
   }
 
   // DrmSystemOcdm::Observer

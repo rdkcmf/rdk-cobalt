@@ -50,5 +50,7 @@ extern "C" SB_EXPORT_PLATFORM int main(int argc, char** argv) {
   int result = application.Run(argc, argv);
 //  starboard::shared::signal::UninstallCrashSignalHandlers();
   starboard::shared::signal::UninstallSuspendSignalHandlers();
+
+  gst_deinit();
   return result;
 }
