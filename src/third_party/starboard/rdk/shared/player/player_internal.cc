@@ -365,8 +365,12 @@ void gst_cobalt_src_setup_and_add_app_src(GstElement* element,
     gst_app_src_set_caps(GST_APP_SRC(appsrc), caps);
   }
 
-  g_object_set(appsrc, "block", FALSE, "format", GST_FORMAT_TIME, "stream-type",
-               GST_APP_STREAM_TYPE_SEEKABLE, nullptr);
+  g_object_set(appsrc,
+               "block", FALSE,
+               "format", GST_FORMAT_TIME,
+               nullptr);
+  gst_app_src_set_stream_type(GST_APP_SRC(appsrc), GST_APP_STREAM_TYPE_SEEKABLE);
+  gst_app_src_set_emit_signals(GST_APP_SRC(appsrc), FALSE);
   gst_app_src_set_callbacks(GST_APP_SRC(appsrc), callbacks, user_data, nullptr);
   gst_app_src_set_max_bytes(GST_APP_SRC(appsrc), 0);
 
@@ -399,6 +403,21 @@ void gst_cobalt_src_setup_and_add_app_src(GstElement* element,
     gst_element_sync_state_with_parent(payloader);
     gst_element_link(src_elem, payloader);
     src_elem = payloader;
+  }
+
+  if (decryptor || payloader) {
+    GstElement* queue = gst_element_factory_make("queue", nullptr);
+    g_object_set (
+      G_OBJECT (queue),
+      "max-size-buffers", 10,
+      "max-size-bytes", 0,
+      "max-size-time", (gint64) 0,
+      "silent", TRUE,
+      nullptr);
+    gst_bin_add(GST_BIN(element), queue);
+    gst_element_sync_state_with_parent(queue);
+    gst_element_link(src_elem, queue);
+    src_elem = queue;
   }
 
   GstPad* target_pad = gst_element_get_static_pad(src_elem, "src");
@@ -1386,6 +1405,15 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
       gchar* debug = nullptr;
       gst_message_parse_error(message, &err, &debug);
 
+      std::string file_name = "cobalt_";
+      file_name += (GST_OBJECT_NAME(self->pipeline_));
+      file_name += "_err_";
+      file_name += std::to_string(err->code);
+      GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(self->pipeline_),
+                                        GST_DEBUG_GRAPH_SHOW_ALL,
+                                        file_name.c_str());
+
+
       bool is_eos = (self->eos_data_ == (int)self->GetBothMediaTypeTakingCodecsIntoAccount());
       if (err->domain == GST_STREAM_ERROR && is_eos) {
         GST_WARNING("Got stream error. But all streams are ended, so reporting EOS. Error code %d: %s (%s).",
@@ -1601,7 +1629,7 @@ gboolean PlayerImpl::FinishSourceSetup(gpointer user_data) {
   }
   if (self->video_codec_ != kSbMediaVideoCodecNone) {
     gst_cobalt_src_setup_and_add_app_src(
-        source, self->video_appsrc_, nullptr,
+        source, self->video_appsrc_, self->video_caps_,
         &callbacks, self, has_drm_system, has_drm_system);
   }
   gst_cobalt_src_all_app_srcs_added(self->source_);
@@ -1823,6 +1851,9 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
         gst_caps_replace(&video_caps_, gst_caps);
         gst_caps_unref(gst_caps);
       }
+    }
+    if (!info.is_key_frame) {
+      GST_BUFFER_FLAG_SET (buffer, GST_BUFFER_FLAG_DELTA_UNIT);
     }
   }
 

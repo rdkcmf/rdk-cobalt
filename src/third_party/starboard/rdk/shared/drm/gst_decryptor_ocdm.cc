@@ -104,9 +104,24 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
     GstBuffer* subsamples, uint32_t subsample_count,
     GstBuffer* iv, GstBuffer* key) {
 
-    GST_TRACE_OBJECT(self, "buf=(%" GST_PTR_FORMAT "), "
-                     "subsample_count=%u, subsamples=(%p), iv=(%p), key=(%p)",
-                     buffer, subsample_count, subsamples, iv, key);
+#ifndef GST_DISABLE_GST_DEBUG
+    if (gst_debug_category_get_threshold(GST_CAT_DEFAULT) >= GST_LEVEL_TRACE) {
+      gchar *md5sum = 0;
+
+      GstMapInfo map_info;
+      if (gst_buffer_map(key, &map_info, GST_MAP_READ)) {
+        md5sum = g_compute_checksum_for_data(G_CHECKSUM_MD5, map_info.data, map_info.size);
+        gst_buffer_unmap(key, &map_info);
+      }
+
+      GST_TRACE_OBJECT(self, "buf=(%" GST_PTR_FORMAT "), "
+                       "subsample_count=%u, subsamples=(%p), iv=(%p), key=(%p : %s)",
+                       buffer, subsample_count, subsamples, iv, key, md5sum);
+
+      g_free(md5sum);
+    }
+#endif
+
     if (!drm_system_) {
       GstContext* context = gst_element_get_context(GST_ELEMENT(self), "cobalt-drm-system");
       if (context) {
@@ -126,6 +141,11 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
       return GST_FLOW_NOT_SUPPORTED;
     } else {
       if (!current_key_id_ || gst_buffer_memcmp(current_key_id_, 0, map_info.data, map_info.size) != 0) {
+        if (gst_debug_category_get_threshold(GST_CAT_DEFAULT) >= GST_LEVEL_DEBUG) {
+          gchar *md5sum = g_compute_checksum_for_data(G_CHECKSUM_MD5, map_info.data, map_info.size);
+          GST_DEBUG_OBJECT(self, "Waiting for key %s", md5sum);
+          g_free(md5sum);
+        }
         ::starboard::ScopedLock lock(mutex_);
         current_session_id_.clear();
         if (current_key_id_) {
@@ -144,6 +164,7 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
           condition_.Wait();
           awaiting_key_info_ = nullptr;
         }
+        GST_DEBUG_OBJECT(self, "Done waiting for key");
       }
       gst_buffer_unmap(key, &map_info);
     }

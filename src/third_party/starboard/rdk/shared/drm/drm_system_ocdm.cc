@@ -148,6 +148,7 @@ class Session {
   const SbDrmSessionKeyStatusesChangedFunc key_statuses_changed_callback_;
   const SbDrmSessionClosedFunc session_closed_callback_;
   ::starboard::Mutex mutex_;
+  ::starboard::Mutex close_mutex_;
   std::string last_challenge_;
   std::string last_challenge_url_;
   std::string id_;
@@ -176,6 +177,7 @@ Session::~Session() {
 void Session::Close() {
   SB_DCHECK(thread_checker_.CalledOnValidThread());
   if (session_) {
+    ::starboard::ScopedLock lock(close_mutex_);
     ScopedOcdmSession tmp;
     {
       ::starboard::ScopedLock lock(mutex_);
@@ -268,20 +270,20 @@ int Session::Decrypt(
   _GstBuffer* key,
   _GstCaps* caps) {
 
-  ::starboard::ScopedLock lock(mutex_);
-  if (!session_)
+  ::starboard::ScopedLock lock(close_mutex_);
+  OpenCDMSession* session = session_.get();
+  if (!session)
     return ERROR_INVALID_SESSION;
 
   if (g_ocdmGstSessionDecryptEx != nullptr) {
-    return g_ocdmGstSessionDecryptEx(session_.get(), buffer,
+    return g_ocdmGstSessionDecryptEx(session, buffer,
                                      sub_sample, sub_sample_count, iv,
                                      key, 0, caps);
   }
 
-  return opencdm_gstreamer_session_decrypt(session_.get(), buffer,
+  return opencdm_gstreamer_session_decrypt(session, buffer,
                                            sub_sample, sub_sample_count, iv,
                                            key, 0);
-
 }
 
 // static
