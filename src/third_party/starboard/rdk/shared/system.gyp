@@ -43,7 +43,6 @@
     'wpeframework-packages': [
       'WPEFrameworkCore',
       'WPEFrameworkDefinitions',
-      'WPEFrameworkPlugins',
       'WPEFrameworkWebSocket',
     ],
     'has_securityagent%' : '<!(pkg-config securityagent && echo 1 || echo 0)',
