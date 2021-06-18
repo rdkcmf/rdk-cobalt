@@ -353,13 +353,13 @@ static void gst_cobalt_src_handle_message(GstBin* bin, GstMessage* message) {
   }
 }
 
-void gst_cobalt_src_setup_and_add_app_src(GstElement* element,
+void gst_cobalt_src_setup_and_add_app_src(SbMediaType media_type,
+                                          GstElement* element,
                                           GstElement* appsrc,
                                           GstCaps* caps,
                                           GstAppSrcCallbacks* callbacks,
                                           gpointer user_data,
-                                          gboolean inject_decryptor,
-                                          gboolean inject_payloader) {
+                                          gboolean inject_decryptor) {
   if (caps) {
     PrintGstCaps(caps);
     gst_app_src_set_caps(GST_APP_SRC(appsrc), caps);
@@ -381,7 +381,7 @@ void gst_cobalt_src_setup_and_add_app_src(GstElement* element,
 
   GstElement* src_elem = appsrc;
   GstElement* decryptor = inject_decryptor ? CreateDecryptorElement(nullptr) : nullptr;
-  GstElement* payloader = inject_payloader ? CreatePayloader() : nullptr;
+  GstElement* payloader = (decryptor && media_type == kSbMediaTypeVideo) ? CreatePayloader() : nullptr;
 
   if (decryptor) {
     GST_DEBUG("Injecting decryptor element %" GST_PTR_FORMAT, decryptor);
@@ -1623,14 +1623,14 @@ gboolean PlayerImpl::FinishSourceSetup(gpointer user_data) {
                                   &PlayerImpl::AppSrcEnoughData,
                                   &PlayerImpl::AppSrcSeekData, nullptr};
   if (self->audio_codec_ != kSbMediaAudioCodecNone) {
-    gst_cobalt_src_setup_and_add_app_src(
+    gst_cobalt_src_setup_and_add_app_src(kSbMediaTypeAudio,
         source, self->audio_appsrc_, self->audio_caps_,
-        &callbacks, self, has_drm_system, false);
+        &callbacks, self, has_drm_system);
   }
   if (self->video_codec_ != kSbMediaVideoCodecNone) {
-    gst_cobalt_src_setup_and_add_app_src(
+    gst_cobalt_src_setup_and_add_app_src(kSbMediaTypeVideo,
         source, self->video_appsrc_, self->video_caps_,
-        &callbacks, self, has_drm_system, has_drm_system);
+        &callbacks, self, has_drm_system);
   }
   gst_cobalt_src_all_app_srcs_added(self->source_);
   self->source_setup_id_ = -1;
@@ -1952,6 +1952,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
             sample_type == kSbMediaTypeVideo ? "video" : "audio");
   }
 
+  gint64 seek_pos_ns = GST_CLOCK_TIME_NONE;
   uint64_t serial = 0;
   bool keep_samples = false;
   {
@@ -1960,6 +1961,14 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
     serial = samples_serial_[ (sample_type == kSbMediaTypeVideo ? kVideoIndex : kAudioIndex) ]++;
     if (sample_type == kSbMediaTypeVideo)
       ++total_video_frames_;
+    if (seek_position_ != kSbTimeMax)
+        seek_pos_ns =  seek_position_ * kSbTimeNanosecondsPerMicrosecond;
+  }
+
+  if (GST_CLOCK_TIME_IS_VALID(seek_pos_ns) && seek_pos_ns > GST_BUFFER_TIMESTAMP(buffer)) {
+    // Set dummy duration to let sink drop out-of-segment samples
+    GST_BUFFER_DURATION (buffer) = GST_SECOND / 60;
+    GST_BUFFER_FLAG_SET (buffer, GST_BUFFER_FLAG_DECODE_ONLY);
   }
 
   if (keep_samples) {

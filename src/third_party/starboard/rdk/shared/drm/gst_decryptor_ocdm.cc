@@ -76,6 +76,14 @@ GST_DEBUG_CATEGORY(cobalt_ocdm_decryptor_debug_category);
 #define GST_CAT_DEFAULT cobalt_ocdm_decryptor_debug_category
 
 struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
+  _CobaltOcdmDecryptorPrivate() {
+#ifndef GST_DISABLE_GST_DEBUG
+    if (gst_debug_category_get_threshold(GST_CAT_DEFAULT) >= GST_LEVEL_DEBUG) {
+      decrypt_dur_.reserve( 300 );
+    }
+#endif
+  }
+
   ~_CobaltOcdmDecryptorPrivate() {
     if (drm_system_)
       drm_system_->RemoveObserver(this);
@@ -104,8 +112,14 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
     GstBuffer* subsamples, uint32_t subsample_count,
     GstBuffer* iv, GstBuffer* key) {
 
+    gint64 start = 0;
+
 #ifndef GST_DISABLE_GST_DEBUG
-    if (gst_debug_category_get_threshold(GST_CAT_DEFAULT) >= GST_LEVEL_TRACE) {
+    const GstDebugLevel debug_level = gst_debug_category_get_threshold(GST_CAT_DEFAULT);
+    if (debug_level >= GST_LEVEL_DEBUG) {
+      start = g_get_monotonic_time();
+    }
+    if (debug_level >= GST_LEVEL_TRACE) {
       gchar *md5sum = 0;
 
       GstMapInfo map_info;
@@ -141,9 +155,9 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
       return GST_FLOW_NOT_SUPPORTED;
     } else {
       if (!current_key_id_ || gst_buffer_memcmp(current_key_id_, 0, map_info.data, map_info.size) != 0) {
-        if (gst_debug_category_get_threshold(GST_CAT_DEFAULT) >= GST_LEVEL_DEBUG) {
+        if (debug_level >= GST_LEVEL_DEBUG) {
           gchar *md5sum = g_compute_checksum_for_data(G_CHECKSUM_MD5, map_info.data, map_info.size);
-          GST_DEBUG_OBJECT(self, "Waiting for key %s", md5sum);
+          GST_DEBUG_OBJECT(self, "Got new key %s", md5sum);
           g_free(md5sum);
         }
         ::starboard::ScopedLock lock(mutex_);
@@ -164,7 +178,11 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
           condition_.Wait();
           awaiting_key_info_ = nullptr;
         }
-        GST_DEBUG_OBJECT(self, "Done waiting for key");
+        if (debug_level >= GST_LEVEL_DEBUG) {
+          gchar *md5sum = g_compute_checksum_for_data(G_CHECKSUM_MD5, (const guchar*)current_session_id_.c_str(), current_session_id_.size());
+          GST_DEBUG_OBJECT(self, "Got new session id %s", md5sum);
+          g_free(md5sum);
+        }
       }
       gst_buffer_unmap(key, &map_info);
     }
@@ -212,6 +230,42 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
       return GST_FLOW_ERROR;
     }
 
+    if (start) {
+      gint64 dur_ms = (g_get_monotonic_time() - start) / 1000;
+
+      decrypt_dur_.push_back(dur_ms);
+      total_time_ +=dur_ms;
+      total_size_ += gst_buffer_get_size(buffer);
+
+      ++buf_count_;
+
+      if ( buf_count_ == 300 ) {
+        std::sort(decrypt_dur_.begin(), decrypt_dur_.end());
+
+        uint64_t median     = decrypt_dur_[ decrypt_dur_.size() / 2 ];
+        uint64_t max_time   = *decrypt_dur_.rbegin();
+        uint64_t total_time = total_time_; total_time_ = 0;
+        uint64_t total_size = total_size_; total_size_ = 0;
+        uint32_t buf_count  = buf_count_; buf_count_ = 0;
+
+        decrypt_dur_.resize(0);
+
+        GST_DEBUG_OBJECT(self,
+          "%s decrypt time: "
+          "avg = %" G_GUINT64_FORMAT " ms, "
+          "median = %" G_GUINT64_FORMAT " ms, "
+          "max = %" G_GUINT64_FORMAT " ms, "
+          "size = %" G_GUINT64_FORMAT " kb, "
+          "buf count = %u",
+          IsVideo() ? "video" : "audio",
+          (total_time / buf_count),
+          median,
+          max_time,
+          (total_size / 1024),
+          buf_count);
+      }
+    }
+
     return GST_FLOW_OK;
   }
 
@@ -237,7 +291,18 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
 
   void SetCachedCaps(GstCaps* caps) {
     gst_caps_replace(&cached_caps_, caps);
+
+    if ( caps ) {
+      const GstStructure *s;
+      const gchar *media_type;
+      s = gst_caps_get_structure (caps, 0);
+      media_type = gst_structure_get_name (s);
+
+      is_video_ = g_str_has_prefix(media_type, "video");
+    }
   }
+
+  bool IsVideo() const { return is_video_; }
 
 private:
   ::starboard::Mutex mutex_;
@@ -251,6 +316,12 @@ private:
   DrmSystemOcdm* drm_system_ { nullptr };
   bool is_flushing_ { false };
   bool is_active_ { true };
+  bool is_video_ { false };
+
+  std::vector<uint64_t> decrypt_dur_;
+  uint64_t total_time_ { 0 };
+  uint64_t total_size_ { 0 };
+  uint32_t buf_count_ { 0 };
 };
 
 #define cobalt_ocdm_decryptor_parent_class parent_class
