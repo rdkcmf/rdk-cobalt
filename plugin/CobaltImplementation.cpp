@@ -267,10 +267,13 @@ private:
         Core::SystemInfo::SetEnvironment(_T("COBALT_CONTENT_DIR"), kDefaultContentDir);
       }
 
-      if (config.GstDebug.IsSet() == true) {
-        Core::SystemInfo::SetEnvironment(_T("GST_DEBUG"), config.GstDebug.Value());
-      } else {
-        Core::SystemInfo::SetEnvironment(_T("GST_DEBUG"), "gstplayer:4,2");
+      {
+        string envVal, gstDebug = "gstplayer:4,2";
+        if (Core::SystemInfo::GetEnvironment(_T("GST_DEBUG"), envVal) && !envVal.empty())
+          gstDebug = "," + envVal;
+        if (config.GstDebug.IsSet() == true)
+          gstDebug += "," + config.GstDebug.Value();
+        Core::SystemInfo::SetEnvironment(_T("GST_DEBUG"), gstDebug);
       }
 
       if (config.PreloadEnabled.IsSet() == true) {
