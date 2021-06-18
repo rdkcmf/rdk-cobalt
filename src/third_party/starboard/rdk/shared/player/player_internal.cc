@@ -409,7 +409,7 @@ void gst_cobalt_src_setup_and_add_app_src(GstElement* element,
     GstElement* queue = gst_element_factory_make("queue", nullptr);
     g_object_set (
       G_OBJECT (queue),
-      "max-size-buffers", 10,
+      "max-size-buffers", 120,
       "max-size-bytes", 0,
       "max-size-time", (gint64) 0,
       "silent", TRUE,
