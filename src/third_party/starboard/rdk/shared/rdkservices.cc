@@ -208,6 +208,7 @@ private:
   ::starboard::Mutex mutex_;
   ::starboard::ConditionVariable condition_ { mutex_ };
 
+  std::string client_id_;
   struct IsTTSEnabledInfo : public Core::JSON::Container {
     IsTTSEnabledInfo()
       : Core::JSON::Container() {
@@ -287,6 +288,13 @@ public:
     if (Core::ERROR_NONE == rc) {
       is_enabled_.store( info.IsEnabled.Value() );
     }
+    if (Core::SystemInfo::GetEnvironment(_T("CLIENT_IDENTIFIER"), client_id_) == true) {
+      std::string::size_type pos = client_id_.find(',');
+      if (pos != std::string::npos)
+        client_id_.erase(pos, std::string::npos);
+    } else {
+        client_id_ = "Cobalt";
+    }
   }
 
   void Speak(const std::string &text) {
@@ -295,6 +303,7 @@ public:
 
     JsonObject params;
     params.Set(_T("text"), text);
+    params.Set(_T("callsign"), client_id_ );
 
     uint64_t rc = tts_link_.Dispatch(kDefaultTimeoutMs, "speak", params, &TextToSpeechImpl::OnSpeakResult, this);
     if (Core::ERROR_NONE == rc) {
