@@ -365,6 +365,11 @@ void gst_cobalt_src_setup_and_add_app_src(SbMediaType media_type,
     gst_app_src_set_caps(GST_APP_SRC(appsrc), caps);
   }
 
+  const uint32_t kAudioMaxBytes = 256 * 1024;
+  const uint32_t kVideoMaxBytes = 4 * 1024 * 1024;
+
+  uint32_t max_bytes = (media_type == kSbMediaTypeVideo) ? kVideoMaxBytes : kAudioMaxBytes;
+
   g_object_set(appsrc,
                "block", FALSE,
                "format", GST_FORMAT_TIME,
@@ -372,7 +377,7 @@ void gst_cobalt_src_setup_and_add_app_src(SbMediaType media_type,
   gst_app_src_set_stream_type(GST_APP_SRC(appsrc), GST_APP_STREAM_TYPE_SEEKABLE);
   gst_app_src_set_emit_signals(GST_APP_SRC(appsrc), FALSE);
   gst_app_src_set_callbacks(GST_APP_SRC(appsrc), callbacks, user_data, nullptr);
-  gst_app_src_set_max_bytes(GST_APP_SRC(appsrc), 0);
+  gst_app_src_set_max_bytes(GST_APP_SRC(appsrc), max_bytes);
 
   GstCobaltSrc* src = GST_COBALT_SRC(element);
   gchar* name = g_strdup_printf("src_%u", src->priv->pad_number);
@@ -409,7 +414,7 @@ void gst_cobalt_src_setup_and_add_app_src(SbMediaType media_type,
     GstElement* queue = gst_element_factory_make("queue", nullptr);
     g_object_set (
       G_OBJECT (queue),
-      "max-size-buffers", 120,
+      "max-size-buffers", 60,
       "max-size-bytes", 0,
       "max-size-time", (gint64) 0,
       "silent", TRUE,
@@ -1163,6 +1168,7 @@ class PlayerImpl : public Player {
   HangMonitor hang_monitor_ { "Player" };
   GstCaps* audio_caps_ { nullptr };
   GstCaps* video_caps_ { nullptr };
+  SbTime buf_target_min_ts_ { kSbTimeMax };
 };
 
 struct PlayerRegistry
@@ -2065,6 +2071,7 @@ void PlayerImpl::Seek(SbTime seek_to_timestamp, int ticket) {
       min_sample_timestamp_ = kSbTimeMax;
       samples_serial_[kVideoIndex] = 0;
       samples_serial_[kAudioIndex] = 0;
+      buf_target_min_ts_ = kSbTimeMax;
     }
 
     ticket_ = ticket;
@@ -2289,14 +2296,20 @@ void PlayerImpl::CheckBuffering(gint64 position) {
 
   constexpr SbTime kMarginNs =
       350 * kSbTimeMillisecond * kSbTimeNanosecondsPerMicrosecond;
+
   MediaType origin = MediaType::kNone;
   SbTime min_ts = MinTimestamp(&origin);
-  if (min_ts != kSbTimeMax && min_ts + kMarginNs <= position &&
+
+  if (min_ts == kSbTimeMax)
+    return;
+
+  if (min_ts + kMarginNs <= position &&
       GST_STATE(pipeline_) == GST_STATE_PLAYING &&
       GST_STATE_PENDING(pipeline_) != GST_STATE_PAUSED) {
     {
       ::starboard::ScopedLock lock(mutex_);
       DecoderNeedsData(lock, origin);
+      buf_target_min_ts_ = min_ts + kMarginNs;
     }
 
     PrintPositionPerSink(pipeline_);
@@ -2305,6 +2318,21 @@ void PlayerImpl::CheckBuffering(gint64 position) {
                 GST_TIME_ARGS(position), GST_TIME_ARGS(min_ts + kMarginNs));
 
     ChangePipelineState(GST_STATE_PAUSED);
+  } else if (buf_target_min_ts_ != kSbTimeMax && min_ts > buf_target_min_ts_) {
+    double rate;
+    SbTime buf_target_min_ts = buf_target_min_ts_;
+    {
+      ::starboard::ScopedLock lock(mutex_);
+      buf_target_min_ts_ = kSbTimeMax;
+      rate = rate_;
+    }
+    GstState state, pending;
+    gst_element_get_state(pipeline_, &state, &pending, 0);
+    if (rate > .0 && state != GST_STATE_PLAYING && pending != GST_STATE_PLAYING) {
+      GST_TRACE("Moving to playing, min_ts = %" GST_TIME_FORMAT " need %" GST_TIME_FORMAT,
+                GST_TIME_ARGS(min_ts), GST_TIME_ARGS(buf_target_min_ts));
+      ChangePipelineState(GST_STATE_PLAYING);
+    }
   }
 }
 
