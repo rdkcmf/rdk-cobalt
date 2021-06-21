@@ -366,7 +366,7 @@ void gst_cobalt_src_setup_and_add_app_src(SbMediaType media_type,
   }
 
   const uint32_t kAudioMaxBytes = 256 * 1024;
-  const uint32_t kVideoMaxBytes = 4 * 1024 * 1024;
+  const uint32_t kVideoMaxBytes = 8 * 1024 * 1024;
 
   uint32_t max_bytes = (media_type == kSbMediaTypeVideo) ? kVideoMaxBytes : kAudioMaxBytes;
 
@@ -1797,16 +1797,22 @@ bool PlayerImpl::WriteSample(SbMediaType sample_type, GstBuffer* buffer, uint64_
   if (state_ == State::kInitial || state_ == State::kInitialPreroll)
     return true;
 
+  MediaType media = sample_type == kSbMediaTypeVideo
+    ? MediaType::kVideo
+    : MediaType::kAudio;
+
   bool has_enough =
       (sample_type == kSbMediaTypeVideo &&
        (has_enough_data_ & static_cast<int>(MediaType::kVideo)) != 0) ||
       (sample_type == kSbMediaTypeAudio &&
        (has_enough_data_ & static_cast<int>(MediaType::kAudio)) != 0);
-  if (!has_enough) {
-    GST_LOG_OBJECT(src, "Asking for more");
-    MediaType media = sample_type == kSbMediaTypeVideo
-      ? MediaType::kVideo
-      : MediaType::kAudio;
+
+  bool force_buf = has_enough &&
+      (buf_target_min_ts_ != kSbTimeMax &&
+       min_sample_timestamp_origin_ == media);
+
+  if (!has_enough || force_buf) {
+    GST_LOG_OBJECT(src, "Asking for more (forced buffering? %s)", force_buf ? "yes" : "no");
     DecoderNeedsData(lock, media);
   } else {
     GST_LOG_OBJECT(src, "Has enough data");
