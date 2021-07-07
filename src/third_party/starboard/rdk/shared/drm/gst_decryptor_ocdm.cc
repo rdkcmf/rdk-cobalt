@@ -99,12 +99,17 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
 
   // DrmSystemOcdm::Observer
   void OnKeyReady(const uint8_t* key, size_t key_len) override {
-    ::starboard::ScopedLock lock(mutex_);
-    if (awaiting_key_info_) {
-      if (key_len == awaiting_key_info_->size &&
-          memcmp(awaiting_key_info_->data, key, key_len) == 0)
-        condition_.Signal();
+#ifndef GST_DISABLE_GST_DEBUG
+    if (gst_debug_category_get_threshold(GST_CAT_DEFAULT) >= GST_LEVEL_DEBUG) {
+      gchar *md5sum = g_compute_checksum_for_data(G_CHECKSUM_MD5, key, key_len);
+      GST_DEBUG("key ready: %s", md5sum);
+      g_free(md5sum);
     }
+#endif
+
+    ::starboard::ScopedLock lock(mutex_);
+    if (awaiting_key_info_)
+      condition_.Signal();
   }
 
   GstFlowReturn Decrypt(
@@ -116,9 +121,6 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
 
 #ifndef GST_DISABLE_GST_DEBUG
     const GstDebugLevel debug_level = gst_debug_category_get_threshold(GST_CAT_DEFAULT);
-    if (debug_level >= GST_LEVEL_DEBUG) {
-      start = g_get_monotonic_time();
-    }
     if (debug_level >= GST_LEVEL_TRACE) {
       gchar *md5sum = 0;
 
@@ -136,7 +138,7 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
     }
 #endif
 
-    if (!drm_system_) {
+    if ( !drm_system_ ) {
       GstContext* context = gst_element_get_context(GST_ELEMENT(self), "cobalt-drm-system");
       if (context) {
         const GValue* value = gst_structure_get_value(gst_context_get_structure(context), "drm-system-instance");
@@ -157,7 +159,7 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
       if (!current_key_id_ || gst_buffer_memcmp(current_key_id_, 0, map_info.data, map_info.size) != 0) {
         if (debug_level >= GST_LEVEL_DEBUG) {
           gchar *md5sum = g_compute_checksum_for_data(G_CHECKSUM_MD5, map_info.data, map_info.size);
-          GST_DEBUG_OBJECT(self, "Got new key %s", md5sum);
+          GST_DEBUG_OBJECT(self, "Got buffer protected with key %s", md5sum);
           g_free(md5sum);
         }
         ::starboard::ScopedLock lock(mutex_);
@@ -174,13 +176,14 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
             current_key_id_ = gst_buffer_copy(key);
             break;
           }
+          GST_DEBUG_OBJECT(self, "Session id is empty, waiting");
           awaiting_key_info_ = &map_info;
           condition_.Wait();
           awaiting_key_info_ = nullptr;
         }
         if (debug_level >= GST_LEVEL_DEBUG) {
           gchar *md5sum = g_compute_checksum_for_data(G_CHECKSUM_MD5, (const guchar*)current_session_id_.c_str(), current_session_id_.size());
-          GST_DEBUG_OBJECT(self, "Got new session id %s", md5sum);
+          GST_DEBUG_OBJECT(self, "Using session with id '%s'", md5sum);
           g_free(md5sum);
         }
       }
@@ -210,19 +213,25 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
       SetCachedCaps( caps );
     }
 
+#ifndef GST_DISABLE_GST_DEBUG
+    if ( debug_level >= GST_LEVEL_DEBUG ) {
+      start = g_get_monotonic_time();
+    }
+#endif
+
     int rc = drm_system_->Decrypt(
       current_session_id_, buffer,
       subsamples, subsample_count,
       iv, key, caps);
 
-    if (caps) {
+    if ( caps ) {
       gst_caps_unref(caps);
       caps = nullptr;
     }
 
     if ( rc != 0 ) {
       if ( rc == ERROR_INVALID_SESSION ) {
-        GST_DEBUG_OBJECT(self, "Decryption failed due to invalid session. Probably due to player shutdown. Drop sample.");
+        GST_DEBUG_OBJECT(self, "Invalid session. Probably due to player shutdown.");
         return GST_BASE_TRANSFORM_FLOW_DROPPED;
       }
 
@@ -230,11 +239,11 @@ struct _CobaltOcdmDecryptorPrivate : public DrmSystemOcdm::Observer {
       return GST_FLOW_ERROR;
     }
 
-    if (start) {
+    if ( start ) {
       gint64 dur_ms = (g_get_monotonic_time() - start) / 1000;
 
       decrypt_dur_.push_back(dur_ms);
-      total_time_ +=dur_ms;
+      total_time_ += dur_ms;
       total_size_ += gst_buffer_get_size(buffer);
 
       ++buf_count_;

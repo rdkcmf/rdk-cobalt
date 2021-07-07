@@ -21,6 +21,7 @@
 #include <mutex>
 #include <gst/gst.h>
 
+#include "starboard/memory.h"
 #include "starboard/common/mutex.h"
 #include "starboard/shared/starboard/thread_checker.h"
 
@@ -105,6 +106,7 @@ class Session {
     _GstBuffer* sub_sample, uint32_t sub_sample_count,
     _GstBuffer* iv, _GstBuffer* key, _GstCaps* caps);
 
+  void DispatchPendingKeyUpdates();
  private:
   static void OnProcessChallenge(OpenCDMSession* session,
                                  void* user_data,
@@ -152,6 +154,9 @@ class Session {
   std::string last_challenge_;
   std::string last_challenge_url_;
   std::string id_;
+
+  std::vector<SbDrmKeyId> pending_key_updates_;
+  bool all_keys_updated_ { false };
 };
 
 Session::Session(
@@ -211,6 +216,7 @@ void Session::GenerateChallenge(const std::string& type,
     ::starboard::ScopedLock lock(mutex_);
     ticket_ = ticket;
     operation_ = Operation::kGenrateChallenge;
+    all_keys_updated_ = false;
   }
   OpenCDMSession* session = nullptr;
   if (opencdm_construct_session(
@@ -241,6 +247,28 @@ void Session::GenerateChallenge(const std::string& type,
   if (!challenge.empty()) {
     Session::ProcessChallenge(this, ticket, std::move(id), std::move(url),
                               std::move(challenge));
+  }
+}
+
+void Session::DispatchPendingKeyUpdates() {
+  bool all_keys_updated = false;
+  std::vector<SbDrmKeyId> pending_key_updates;
+  {
+    ::starboard::ScopedLock lock(mutex_);
+    pending_key_updates.swap(pending_key_updates_);
+    all_keys_updated = all_keys_updated_;
+  }
+
+  if (!pending_key_updates.empty()) {
+    for (const auto& drm_key_id : pending_key_updates) {
+      Session::OnKeyUpdated(
+         session_.get(), this,
+         drm_key_id.identifier,
+         drm_key_id.identifier_size);
+    }
+    if (all_keys_updated) {
+      Session::OnAllKeysUpdated(session_.get(), this);
+    }
   }
 }
 
@@ -358,15 +386,27 @@ void Session::OnKeyUpdated(struct OpenCDMSession* /*ocdm_session*/,
     ::starboard::ScopedLock lock(session->mutex_);
     id = session->Id();
   }
+
+  SbDrmKeyId drm_key_id;
+  drm_key_id.identifier_size = std::min(static_cast<int>(length), SB_ARRAY_SIZE_INT(drm_key_id.identifier));
+  SbMemoryCopy(drm_key_id.identifier, key_id, drm_key_id.identifier_size);
+
   if (id.empty()) {
-    SB_LOG(WARNING) << "Updating closed session ?";
+    ::starboard::ScopedLock lock(session->mutex_);
+    if (SbDrmTicketIsValid(session->ticket_)) {
+      session->pending_key_updates_.push_back(std::move(drm_key_id));
+    } else {
+      SB_LOG(WARNING) << "Updating closed session ?";
+    }
     return;
   }
 
   auto status = opencdm_session_status(session->session_.get(), key_id, length);
-  SbDrmKeyId drm_key_id;
-  std::copy_n(key_id, length, drm_key_id.identifier);
-  drm_key_id.identifier_size = length;
+
+  gchar *md5sum = g_compute_checksum_for_data(G_CHECKSUM_MD5, key_id, length);
+  SB_LOG(INFO) << "OnKeyUpdated SessionId: '" << id << "', key_id: '" << md5sum << "' status: " << status;
+  g_free(md5sum);
+
   session->drm_system_->OnKeyUpdated(id, std::move(drm_key_id),
                                      KeyStatus2DrmKeyStatus(status));
 }
@@ -380,6 +420,13 @@ void Session::OnAllKeysUpdated(const struct OpenCDMSession* /*ocdm_session*/,
   {
     ::starboard::ScopedLock lock(session->mutex_);
     id = session->Id();
+    session->all_keys_updated_ = true;
+    if (id.empty()) {
+      if (SbDrmTicketIsValid(session->ticket_) &&
+          session->operation_ == Operation::kGenrateChallenge) {
+        return;
+      }
+    }
     session->operation_ = Operation::kNone;
     ticket = session->ticket_;
     session->ticket_ = kSbDrmTicketInvalid;
@@ -505,8 +552,11 @@ void DrmSystemOcdm::GenerateSessionUpdateRequest(
                   key_statuses_changed_callback_, session_closed_callback_));
   session->GenerateChallenge(type, initialization_data,
                              initialization_data_size, ticket);
-  ::starboard::ScopedLock lock(mutex_);
+  Session *session_ptr = session.get();
+  mutex_.Acquire();
   sessions_.push_back(std::move(session));
+  mutex_.Release();
+  session_ptr->DispatchPendingKeyUpdates();
 }
 
 void DrmSystemOcdm::UpdateSession(int ticket,

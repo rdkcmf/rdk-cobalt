@@ -2078,6 +2078,7 @@ void PlayerImpl::Seek(SbTime seek_to_timestamp, int ticket) {
       samples_serial_[kVideoIndex] = 0;
       samples_serial_[kAudioIndex] = 0;
       buf_target_min_ts_ = kSbTimeMax;
+      dropped_video_frames_ = 0;
     }
 
     ticket_ = ticket;
