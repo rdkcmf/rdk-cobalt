@@ -83,6 +83,30 @@ struct APIContext
     sem.Take();
   }
 
+  void RequestPause() {
+    starboard::ScopedLock lock(mutex_);
+    WaitForApp(lock);
+    starboard::Semaphore sem;
+    Application::Get()->Pause(
+      &sem,
+      [](void* ctx) {
+        reinterpret_cast<starboard::Semaphore*>(ctx)->Put();
+      });
+    sem.Take();
+  }
+
+  void RequestUnpause() {
+    starboard::ScopedLock lock(mutex_);
+    WaitForApp(lock);
+    starboard::Semaphore sem;
+    Application::Get()->Unpause(
+      &sem,
+      [](void* ctx) {
+        reinterpret_cast<starboard::Semaphore*>(ctx)->Put();
+      });
+    sem.Take();
+  }
+
   void RequestStop()
   {
     starboard::ScopedLock lock(mutex_);
@@ -140,6 +164,14 @@ void SbRdkSuspend() {
 
 void SbRdkResume() {
   GetContext()->RequestResume();
+}
+
+void SbRdkPause() {
+  GetContext()->RequestPause();
+}
+
+void SbRdkUnpause() {
+  GetContext()->RequestUnpause();
 }
 
 void SbRdkQuit() {
