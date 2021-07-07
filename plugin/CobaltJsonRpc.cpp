@@ -18,6 +18,7 @@
 #include <interfaces/json/JsonData_Browser.h>
 #include <interfaces/json/JsonData_StateControl.h>
 #include <interfaces/IDictionary.h>
+#include <core/Optional.h>
 
 #include "Cobalt.h"
 #include "Module.h"
@@ -134,16 +135,29 @@ uint32_t Cobalt::get_fps(Core::JSON::DecUInt32 &response) const /* Browser */
 uint32_t Cobalt::get_state(Core::JSON::EnumType<StateType> &response) const /* StateControl */
 {
   ASSERT(_cobalt != nullptr);
+
+  response.Clear();
+
   PluginHost::IStateControl *stateControl(_cobalt->QueryInterface<PluginHost::IStateControl>());
   if (stateControl != nullptr) {
     PluginHost::IStateControl::state currentState = stateControl->State();
-    response = (
-      currentState == PluginHost::IStateControl::SUSPENDED ?
-      StateType::SUSPENDED : StateType::RESUMED);
+    switch (currentState) {
+      case PluginHost::IStateControl::SUSPENDED:
+        response = StateType::SUSPENDED;
+        break;
+      case PluginHost::IStateControl::RESUMED:
+        response = StateType::RESUMED;
+        break;
+      case PluginHost::IStateControl::BACKGROUNDED:
+        response = StateType::BACKGROUNDED;
+        break;
+      default:
+        break;
+    };
     stateControl->Release();
   }
 
-  return Core::ERROR_NONE;
+  return response.IsSet() ? Core::ERROR_NONE : Core::ERROR_ILLEGAL_STATE;
 }
 
 // Property: state - Running state of the service
@@ -158,14 +172,30 @@ uint32_t Cobalt::set_state(const Core::JSON::EnumType<StateType> &param) /* Stat
     PluginHost::IStateControl *stateControl(
       _cobalt->QueryInterface<PluginHost::IStateControl>());
     if (stateControl != nullptr) {
-      stateControl->Request(
-        param == StateType::SUSPENDED ?
-        PluginHost::IStateControl::SUSPEND :
-        PluginHost::IStateControl::RESUME);
+      Core::OptionalType<PluginHost::IStateControl::command> cmd;
+
+      switch(param.Value()) {
+        case StateType::SUSPENDED:
+          cmd = PluginHost::IStateControl::SUSPEND;
+          break;
+        case StateType::RESUMED:
+          cmd = PluginHost::IStateControl::RESUME;
+          break;
+        case StateType::BACKGROUNDED:
+          cmd = PluginHost::IStateControl::BACKGROUND;
+          break;
+        default:
+          break;
+      }
+
+      if (cmd.IsSet())
+        result = stateControl->Request(cmd.Value());
 
       stateControl->Release();
     }
-    result = Core::ERROR_NONE;
+    else {
+      result = Core::ERROR_ILLEGAL_STATE;
+    }
   }
   return result;
 }
