@@ -31,11 +31,44 @@
 
 #include <gst/gst.h>
 
+#include <signal.h>
+
 #include "starboard/configuration.h"
 #include "starboard/shared/signal/crash_signals.h"
 #include "starboard/shared/signal/suspend_signals.h"
 
 #include "third_party/starboard/rdk/shared/application_rdk.h"
+
+namespace third_party {
+namespace starboard {
+namespace rdk {
+namespace shared {
+
+static struct sigaction old_actions[2];
+
+static void RequestStop(int signal_id) {
+  SbSystemRequestStop(0);
+}
+
+static void InstallStopSignalHandlers() {
+  struct sigaction action = {0};
+  action.sa_handler = RequestStop;
+  action.sa_flags = 0;
+  ::sigemptyset(&action.sa_mask);
+  ::sigaction(SIGINT, &action, &old_actions[0]);
+  ::sigaction(SIGTERM, &action, &old_actions[1]);
+}
+
+static void UninstallStopSignalHandlers() {
+  ::sigaction(SIGINT, &old_actions[0], NULL);
+  ::sigaction(SIGTERM, &old_actions[1], NULL);
+}
+
+}  // namespace shared
+}  // namespace rdk
+}  // namespace starboard
+}  // namespace third_party
+
 
 extern "C" SB_EXPORT_PLATFORM int main(int argc, char** argv) {
   tzset();
@@ -46,8 +79,10 @@ extern "C" SB_EXPORT_PLATFORM int main(int argc, char** argv) {
 
 //  starboard::shared::signal::InstallCrashSignalHandlers();
   starboard::shared::signal::InstallSuspendSignalHandlers();
+  third_party::starboard::rdk::shared::InstallStopSignalHandlers();
   third_party::starboard::rdk::shared::Application application;
   int result = application.Run(argc, argv);
+  third_party::starboard::rdk::shared::UninstallStopSignalHandlers();
 //  starboard::shared::signal::UninstallCrashSignalHandlers();
   starboard::shared::signal::UninstallSuspendSignalHandlers();
 
