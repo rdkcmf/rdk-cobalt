@@ -225,6 +225,11 @@ void Cobalt::StateChange(const PluginHost::IStateControl::state state) {
                                         PluginHost::IShell::DEACTIVATED,
                                         PluginHost::IShell::REQUESTED));
       break;
+   case PluginHost::IStateControl::BACKGROUNDED:
+      TRACE(Trace::Information,
+            (string(_T("StateChange: { \"backgrounded\":true }"))));
+      _service->Notify("{ \"backgrounded\":true }");
+      break;
     case PluginHost::IStateControl::UNINITIALIZED:
       break;
     default:

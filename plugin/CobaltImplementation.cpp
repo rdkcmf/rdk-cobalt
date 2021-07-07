@@ -26,6 +26,8 @@ int  StarboardMain(int argc, char **argv);
 void SbRdkHandleDeepLink(const char* link);
 void SbRdkSuspend();
 void SbRdkResume();
+void SbRdkPause();
+void SbRdkUnpause();
 void SbRdkQuit();
 void SbRdkSetSetting(const char* key, const char* json);
 int  SbRdkGetSetting(const char* key, char** out_json);
@@ -307,6 +309,17 @@ private:
       return (true);
     }
 
+    bool Pause(const bool paused)
+    {
+      if (paused == true) {
+        SbRdkPause();
+      }
+      else {
+        SbRdkUnpause();
+      }
+      return (true);
+    }
+
     string Url() const { return _url; }
 
     bool IsPreloadEnabled() const { return _preloadEnabled; }
@@ -481,17 +494,11 @@ public:
     _adminLock.Lock();
 
     if (_state == PluginHost::IStateControl::UNINITIALIZED) {
-      // Seems we are passing state changes before we reached an operational Cobalt.
-      // Just move the state to what we would like it to be :-)
-      _state = (
-        command == PluginHost::IStateControl::SUSPEND ?
-        PluginHost::IStateControl::SUSPENDED :
-        PluginHost::IStateControl::RESUMED);
-      result = Core::ERROR_NONE;
+      ASSERT(false);
     } else {
       switch (command) {
         case PluginHost::IStateControl::SUSPEND:
-          if (_state == PluginHost::IStateControl::RESUMED || _statePending == PluginHost::IStateControl::RESUMED) {
+          if (_state != PluginHost::IStateControl::SUSPENDED && _statePending != PluginHost::IStateControl::SUSPENDED) {
             _statePending = PluginHost::IStateControl::SUSPENDED;
             _sink.RequestForStateChange(
               PluginHost::IStateControl::SUSPEND);
@@ -499,7 +506,7 @@ public:
           }
           break;
         case PluginHost::IStateControl::RESUME:
-          if (_state == PluginHost::IStateControl::SUSPENDED || _statePending == PluginHost::IStateControl::SUSPENDED) {
+          if (_state != PluginHost::IStateControl::RESUMED && _statePending != PluginHost::IStateControl::RESUMED) {
             _statePending = PluginHost::IStateControl::RESUMED;
             _sink.RequestForStateChange(
               PluginHost::IStateControl::RESUME);
@@ -507,6 +514,14 @@ public:
           }
           if (_delayedSuspend.IsScheduled()) {
             _delayedSuspend.Cancel();
+          }
+          break;
+        case PluginHost::IStateControl::BACKGROUND:
+          if (_state != PluginHost::IStateControl::BACKGROUNDED && _statePending != PluginHost::IStateControl::BACKGROUNDED) {
+            _statePending = PluginHost::IStateControl::BACKGROUNDED;
+            _sink.RequestForStateChange(
+              PluginHost::IStateControl::BACKGROUND);
+            result = Core::ERROR_NONE;
           }
           break;
         default:
@@ -539,6 +554,16 @@ public:
 
           if (_state != PluginHost::IStateControl::SUSPENDED) {
             StateChange(PluginHost::IStateControl::SUSPENDED);
+          }
+
+          _adminLock.Unlock();
+          break;
+        case PluginHost::IStateControl::BACKGROUND:
+
+          _adminLock.Lock();
+
+          if (_state != PluginHost::IStateControl::BACKGROUNDED) {
+            StateChange(PluginHost::IStateControl::BACKGROUNDED);
           }
 
           _adminLock.Unlock();
@@ -608,7 +633,14 @@ private:
         break;
       }
       case PluginHost::IStateControl::RESUME: {
+        // implies unpause
         if (_window.Suspend(false) == true) {
+          result = true;
+        }
+        break;
+      }
+      case PluginHost::IStateControl::BACKGROUND: {
+        if (_window.Pause(true) == true) {
           result = true;
         }
         break;
