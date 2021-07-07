@@ -26,6 +26,8 @@ extern "C" {
 SB_EXPORT_PLATFORM void SbRdkHandleDeepLink(const char* link);
 SB_EXPORT_PLATFORM void SbRdkSuspend();
 SB_EXPORT_PLATFORM void SbRdkResume();
+SB_EXPORT_PLATFORM void SbRdkPause();
+SB_EXPORT_PLATFORM void SbRdkUnpause();
 SB_EXPORT_PLATFORM void SbRdkQuit();
 SB_EXPORT_PLATFORM void SbRdkSetSetting(const char* key, const char* json);
 SB_EXPORT_PLATFORM int  SbRdkGetSetting(const char* key, char** out_json);  // caller is responsible to free

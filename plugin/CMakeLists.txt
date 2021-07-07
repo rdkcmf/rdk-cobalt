@@ -24,6 +24,12 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(PLUGIN_NAME Cobalt)
 set(MODULE_NAME ${NAMESPACE}${PLUGIN_NAME})
 
+option(PLUGIN_COBALT_ENABLE_FOCUS_IFACE "Enable support for focus change." OFF)
+
+if (PLUGIN_COBALT_ENABLE_FOCUS_IFACE)
+    add_definitions(-DPLUGIN_COBALT_ENABLE_FOCUS_IFACE=1)
+endif()
+
 find_package(${NAMESPACE}Plugins REQUIRED)
 
 # find_package(JsonGenerator REQUIRED)

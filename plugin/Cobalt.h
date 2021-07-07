@@ -20,6 +20,9 @@
 #include "Module.h"
 #include <interfaces/IBrowser.h>
 #include <interfaces/IMemory.h>
+#if defined(PLUGIN_COBALT_ENABLE_FOCUS_IFACE) && PLUGIN_COBALT_ENABLE_FOCUS_IFACE
+#include <interfaces/IFocus.h>
+#endif
 #include <interfaces/json/JsonData_Browser.h>
 #include <interfaces/json/JsonData_StateControl.h>
 
@@ -123,6 +126,9 @@ public:
     INTERFACE_AGGREGATE(PluginHost::IStateControl, _cobalt)
     INTERFACE_AGGREGATE(Exchange::IBrowser, _cobalt)
     INTERFACE_AGGREGATE(Exchange::IMemory, _memory)
+#if defined(PLUGIN_COBALT_ENABLE_FOCUS_IFACE) && PLUGIN_COBALT_ENABLE_FOCUS_IFACE
+    INTERFACE_AGGREGATE(Exchange::IFocus, _cobalt)
+#endif
   END_INTERFACE_MAP
 
 public:
