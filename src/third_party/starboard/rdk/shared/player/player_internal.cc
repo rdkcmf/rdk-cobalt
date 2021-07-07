@@ -1562,12 +1562,20 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
           GST_ELEMENT_METADATA_KLASS);
       if (g_strrstr(klass, "Video")) {
         GstFormat format;
-        guint64 dropped = 0;
-        gst_message_parse_qos_stats(message, &format, nullptr, &dropped);
+        guint64 dropped = 0, processed = 0;
+        GstDebugLevel log_level = GST_LEVEL_DEBUG;
+        gst_message_parse_qos_stats(message, &format, &processed, &dropped);
         if (format == GST_FORMAT_BUFFERS) {
           ::starboard::ScopedLock lock(self->mutex_);
-          self->dropped_video_frames_ = static_cast<int>(dropped);
+          if (self->dropped_video_frames_ != static_cast<int>(dropped)) {
+            log_level = GST_LEVEL_INFO;
+            self->dropped_video_frames_ = static_cast<int>(dropped);
+          }
         }
+        GST_CAT_LEVEL_LOG (
+          GST_CAT_DEFAULT, log_level, NULL,
+          "QOS written = %d, processed = %" G_GUINT64_FORMAT ", dropped = %" G_GUINT64_FORMAT,
+          self->total_video_frames_, processed, dropped);
       }
     } break;
 
@@ -2079,6 +2087,7 @@ void PlayerImpl::Seek(SbTime seek_to_timestamp, int ticket) {
       samples_serial_[kAudioIndex] = 0;
       buf_target_min_ts_ = kSbTimeMax;
       dropped_video_frames_ = 0;
+      total_video_frames_ = 0;
     }
 
     ticket_ = ticket;
