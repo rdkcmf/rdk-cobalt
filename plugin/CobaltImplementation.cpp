@@ -19,6 +19,7 @@
 #include <interfaces/IMemory.h>
 #include <interfaces/IBrowser.h>
 #include <interfaces/IDictionary.h>
+#include <interfaces/IFocus.h>
 
 extern "C" {
 
@@ -26,6 +27,8 @@ int  StarboardMain(int argc, char **argv);
 void SbRdkHandleDeepLink(const char* link);
 void SbRdkSuspend();
 void SbRdkResume();
+void SbRdkPause();
+void SbRdkUnpause();
 void SbRdkQuit();
 void SbRdkSetSetting(const char* key, const char* json);
 int  SbRdkGetSetting(const char* key, char** out_json);
@@ -63,10 +66,17 @@ static void SetThunderAccessPointIfNeeded() {
   file.Close();
 }
 
+enum StateChangeCommand : uint16_t {
+  SUSPEND = PluginHost::IStateControl::SUSPEND,
+  RESUME = PluginHost::IStateControl::RESUME,
+  BACKGROUND
+};
+
 class CobaltImplementation:
     public Exchange::IBrowser,
     public PluginHost::IStateControl,
-    public Exchange::IDictionary {
+    public Exchange::IDictionary,
+    public Exchange::IFocus {
 private:
   class Config: public Core::JSON::Container {
   private:
@@ -113,7 +123,7 @@ private:
   public:
     NotificationSink(CobaltImplementation &parent) :
       _parent(parent), _command(
-        PluginHost::IStateControl::SUSPEND) {
+        StateChangeCommand::SUSPEND) {
     }
     virtual ~NotificationSink() {
       Stop();
@@ -122,7 +132,7 @@ private:
 
   public:
     void RequestForStateChange(
-      const PluginHost::IStateControl::command command) {
+      const StateChangeCommand command) {
       _lock.Lock();
       _command = command;
       _lock.Unlock();
@@ -134,7 +144,7 @@ private:
       bool success = false;
 
       _lock.Lock();
-      const PluginHost::IStateControl::command command = _command;
+      const StateChangeCommand command = _command;
       _lock.Unlock();
 
       if ((IsRunning() == true) && (success == false)) {
@@ -157,7 +167,7 @@ private:
 
   private:
     CobaltImplementation &_parent;
-    PluginHost::IStateControl::command _command;
+    StateChangeCommand _command;
     mutable Core::CriticalSection _lock;
   };
 
@@ -303,6 +313,17 @@ private:
       }
       else {
         SbRdkResume();
+      }
+      return (true);
+    }
+
+    bool Pause(const bool paused)
+    {
+      if (paused == true) {
+        SbRdkPause();
+      }
+      else {
+        SbRdkUnpause();
       }
       return (true);
     }
@@ -480,34 +501,28 @@ public:
 
     _adminLock.Lock();
 
-    if (_state == PluginHost::IStateControl::UNINITIALIZED) {
-      // Seems we are passing state changes before we reached an operational Cobalt.
-      // Just move the state to what we would like it to be :-)
-      _state = (
-        command == PluginHost::IStateControl::SUSPEND ?
-        PluginHost::IStateControl::SUSPENDED :
-        PluginHost::IStateControl::RESUMED);
-      result = Core::ERROR_NONE;
+    if (_state == PluginHost::IStateControl::UNINITIALIZED || _state == PluginHost::IStateControl::EXITED) {
+      ASSERT(false);
     } else {
       switch (command) {
         case PluginHost::IStateControl::SUSPEND:
-          if (_state == PluginHost::IStateControl::RESUMED || _statePending == PluginHost::IStateControl::RESUMED) {
+          if (_state != PluginHost::IStateControl::SUSPENDED && _statePending != PluginHost::IStateControl::SUSPENDED) {
             _statePending = PluginHost::IStateControl::SUSPENDED;
             _sink.RequestForStateChange(
-              PluginHost::IStateControl::SUSPEND);
-            result = Core::ERROR_NONE;
+              StateChangeCommand::SUSPEND);
           }
+          result = Core::ERROR_NONE;
           break;
         case PluginHost::IStateControl::RESUME:
-          if (_state == PluginHost::IStateControl::SUSPENDED || _statePending == PluginHost::IStateControl::SUSPENDED) {
+          if (_state != PluginHost::IStateControl::RESUMED && _statePending != PluginHost::IStateControl::RESUMED) {
             _statePending = PluginHost::IStateControl::RESUMED;
             _sink.RequestForStateChange(
-              PluginHost::IStateControl::RESUME);
-            result = Core::ERROR_NONE;
+              StateChangeCommand::RESUME);
           }
           if (_delayedSuspend.IsScheduled()) {
             _delayedSuspend.Cancel();
           }
+          result = Core::ERROR_NONE;
           break;
         default:
           break;
@@ -520,10 +535,10 @@ public:
   }
 
   void StateChangeCompleted(bool success,
-                            const PluginHost::IStateControl::command request) {
+                            const StateChangeCommand request) {
     if (success) {
       switch (request) {
-        case PluginHost::IStateControl::RESUME:
+        case StateChangeCommand::RESUME:
 
           _adminLock.Lock();
 
@@ -533,7 +548,7 @@ public:
 
           _adminLock.Unlock();
           break;
-        case PluginHost::IStateControl::SUSPEND:
+        case StateChangeCommand::SUSPEND:
 
           _adminLock.Lock();
 
@@ -542,6 +557,8 @@ public:
           }
 
           _adminLock.Unlock();
+          break;
+        case StateChangeCommand::BACKGROUND:
           break;
         default:
           ASSERT(false);
@@ -555,10 +572,23 @@ public:
   void RequestDelayedSuspend() {
     _adminLock.Lock();
     if (_state == PluginHost::IStateControl::SUSPENDED && _statePending == PluginHost::IStateControl::SUSPENDED) {
-      _sink.RequestForStateChange(PluginHost::IStateControl::SUSPEND);
+      _sink.RequestForStateChange(StateChangeCommand::SUSPEND);
     }
     _adminLock.Unlock();
   }
+
+  // IFocus
+  uint32_t Focused(const bool focused) override {
+    _adminLock.Lock();
+    if (_state == PluginHost::IStateControl::RESUMED || _statePending == PluginHost::IStateControl::RESUMED) {
+      if (focused)
+        _sink.RequestForStateChange(StateChangeCommand::RESUMED);
+      else
+        _sink.RequestForStateChange(StateChangeCommand::BACKGROUND);
+    }
+    _adminLock.Unlock();
+    return Core::ERROR_NONE;
+  };
 
   // IDictionary iface
   void Register(const string& nameSpace, struct IDictionary::INotification* sink) override  {  }
@@ -591,24 +621,46 @@ public:
   INTERFACE_ENTRY (Exchange::IBrowser)
   INTERFACE_ENTRY (PluginHost::IStateControl)
   INTERFACE_ENTRY (Exchange::IDictionary)
+  INTERFACE_ENTRY (Exchange::IFocus)
   END_INTERFACE_MAP
 
 private:
+  static const char* ToString(const StateChangeCommand command) {
+    switch(command) {
+      case StateChangeCommand::SUSPEND:
+        return "suspend";
+      case StateChangeCommand::RESUME:
+        return "resume";
+      case StateChangeCommand::BACKGROUND:
+        return "background";
+      default:
+        break;
+    }
+    return "unknown";
+  }
+
   inline bool RequestForStateChange(
-    const PluginHost::IStateControl::command command) {
+    const StateChangeCommand command) {
     bool result = false;
 
-    SYSLOG(Logging::Notification, (_T("Cobalt request state change -> %s\n"), command == PluginHost::IStateControl::SUSPEND ? "suspend" : "resume"));
+    SYSLOG(Logging::Notification, (_T("Cobalt request state change -> %s\n"), ToString(command)));
 
     switch (command) {
-      case PluginHost::IStateControl::SUSPEND: {
+      case StateChangeCommand::SUSPEND: {
         if (_window.Suspend(true) == true) {
           result = true;
         }
         break;
       }
-      case PluginHost::IStateControl::RESUME: {
+      case StateChangeCommand::RESUME: {
+        // implies unpause
         if (_window.Suspend(false) == true) {
+          result = true;
+        }
+        break;
+      }
+      case StateChangeCommand::BACKGROUND: {
+        if (_window.Pause(true) == true) {
           result = true;
         }
         break;

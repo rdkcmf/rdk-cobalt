@@ -20,6 +20,7 @@
 #include "Module.h"
 #include <interfaces/IBrowser.h>
 #include <interfaces/IMemory.h>
+#include <interfaces/IFocus.h>
 #include <interfaces/json/JsonData_Browser.h>
 #include <interfaces/json/JsonData_StateControl.h>
 
@@ -123,6 +124,7 @@ public:
     INTERFACE_AGGREGATE(PluginHost::IStateControl, _cobalt)
     INTERFACE_AGGREGATE(Exchange::IBrowser, _cobalt)
     INTERFACE_AGGREGATE(Exchange::IMemory, _memory)
+    INTERFACE_AGGREGATE(Exchange::IFocus, _cobalt)
   END_INTERFACE_MAP
 
 public:
