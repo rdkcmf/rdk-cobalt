@@ -517,7 +517,7 @@ public:
           result = Core::ERROR_NONE;
           break;
         case PluginHost::IStateControl::BACKGROUND:
-          if (_state != PluginHost::IStateControl::BACKGROUNDED && _statePending != PluginHost::IStateControl::BACKGROUNDED) {
+          if (_state == PluginHost::IStateControl::RESUMED || _statePending == PluginHost::IStateControl::RESUMED) {
             _statePending = PluginHost::IStateControl::BACKGROUNDED;
             _sink.RequestForStateChange(
               PluginHost::IStateControl::BACKGROUND);
@@ -623,7 +623,7 @@ private:
     const PluginHost::IStateControl::command command) {
     bool result = false;
 
-    SYSLOG(Logging::Notification, (_T("Cobalt request state change -> %s\n"), command == PluginHost::IStateControl::SUSPEND ? "suspend" : "resume"));
+    SYSLOG(Logging::Notification, (_T("Cobalt request state change -> %s\n"), PluginHost::IStateControl::ToString(command)));
 
     switch (command) {
       case PluginHost::IStateControl::SUSPEND: {
