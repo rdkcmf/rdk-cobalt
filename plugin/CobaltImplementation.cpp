@@ -582,7 +582,7 @@ public:
     _adminLock.Lock();
     if (_state == PluginHost::IStateControl::RESUMED || _statePending == PluginHost::IStateControl::RESUMED) {
       if (focused)
-        _sink.RequestForStateChange(StateChangeCommand::RESUMED);
+        _sink.RequestForStateChange(StateChangeCommand::RESUME);
       else
         _sink.RequestForStateChange(StateChangeCommand::BACKGROUND);
     }
