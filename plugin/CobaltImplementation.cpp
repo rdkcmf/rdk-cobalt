@@ -502,27 +502,27 @@ public:
             _statePending = PluginHost::IStateControl::SUSPENDED;
             _sink.RequestForStateChange(
               PluginHost::IStateControl::SUSPEND);
-            result = Core::ERROR_NONE;
           }
+          result = Core::ERROR_NONE;
           break;
         case PluginHost::IStateControl::RESUME:
           if (_state != PluginHost::IStateControl::RESUMED && _statePending != PluginHost::IStateControl::RESUMED) {
             _statePending = PluginHost::IStateControl::RESUMED;
             _sink.RequestForStateChange(
               PluginHost::IStateControl::RESUME);
-            result = Core::ERROR_NONE;
           }
           if (_delayedSuspend.IsScheduled()) {
             _delayedSuspend.Cancel();
           }
+          result = Core::ERROR_NONE;
           break;
         case PluginHost::IStateControl::BACKGROUND:
           if (_state != PluginHost::IStateControl::BACKGROUNDED && _statePending != PluginHost::IStateControl::BACKGROUNDED) {
             _statePending = PluginHost::IStateControl::BACKGROUNDED;
             _sink.RequestForStateChange(
               PluginHost::IStateControl::BACKGROUND);
-            result = Core::ERROR_NONE;
           }
+          result = Core::ERROR_NONE;
           break;
         default:
           break;
