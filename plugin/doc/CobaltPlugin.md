@@ -324,12 +324,36 @@ Notifications are autonomous events, triggered by the internals of the implement
 
 The following events are provided by the Cobalt plugin:
 
+Cobalt interface events:
+
+| Event | Description |
+| :-------- | :-------- |
+| [closure](#event.closure) | Triggered when app requests to close its window |
+
 StateControl interface events:
 
 | Event | Description |
 | :-------- | :-------- |
 | [statechange](#event.statechange) | Signals a state change of the service |
 
+
+<a name="event.closure"></a>
+## *closure <sup>event</sup>*
+
+Triggered when app requests to close its window.
+
+### Parameters
+
+This event carries no parameters.
+
+### Example
+
+```json
+{
+    "jsonrpc": "2.0",
+    "method": "client.events.1.closure"
+}
+```
 
 <a name="event.statechange"></a>
 ## *statechange <sup>event</sup>*

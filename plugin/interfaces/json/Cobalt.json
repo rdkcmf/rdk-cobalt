@@ -28,5 +28,10 @@
         "type": "null"
       }
     }
+  },
+  "events": {
+    "closure": {
+      "summary": "Triggered when app requests to close its window"
+    }
   }
 }

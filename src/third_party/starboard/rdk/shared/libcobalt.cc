@@ -107,11 +107,40 @@ struct APIContext
     sem.Take();
   }
 
-  void RequestStop()
+  void RequestQuit()
   {
     starboard::ScopedLock lock(mutex_);
+    stop_request_cb_ = nullptr;
+    stop_request_cb_data_ = nullptr;
     if (running_)
         Application::Get()->Stop(0);
+  }
+
+  void SetStopRequestHandler(SbRdkCallbackFunc cb, void* user_data)
+  {
+    starboard::ScopedLock lock(mutex_);
+    stop_request_cb_ = cb;
+    stop_request_cb_data_ = user_data;
+  }
+
+  void RequestStop()
+  {
+    SbRdkCallbackFunc cb;
+    void* user_data;
+    int should_invoke_default = 1;
+
+    mutex_.Acquire();
+    cb = stop_request_cb_;
+    user_data = stop_request_cb_data_;
+    mutex_.Release();
+
+    if (cb) {
+      should_invoke_default = cb(user_data);
+    }
+
+    if (should_invoke_default) {
+      RequestQuit();
+    }
   }
 
 private:
@@ -124,6 +153,8 @@ private:
   bool running_ { false };
   starboard::Mutex mutex_;
   starboard::ConditionVariable condition_;
+  SbRdkCallbackFunc stop_request_cb_ { nullptr };
+  void* stop_request_cb_data_ { nullptr };
 };
 
 SB_ONCE_INITIALIZE_FUNCTION(APIContext, GetContext);
@@ -175,7 +206,7 @@ void SbRdkUnpause() {
 }
 
 void SbRdkQuit() {
-  GetContext()->RequestStop();
+  GetContext()->RequestQuit();
 }
 
 void SbRdkSetSetting(const char* key, const char* json) {
@@ -213,6 +244,14 @@ int SbRdkGetSetting(const char* key, char** out_json) {
   }
 
   return -1;
+}
+
+void SbRdkSetStopRequestHandler(SbRdkCallbackFunc cb, void* user_data) {
+  GetContext()->SetStopRequestHandler(cb, user_data);
+}
+
+void SbRdkRequestStop() {
+  GetContext()->RequestStop();
 }
 
 }  // extern "C"

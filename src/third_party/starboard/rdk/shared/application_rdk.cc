@@ -248,6 +248,11 @@ bool Application::DestroySbWindow(SbWindow window) {
 }
 
 void Application::InjectInputEvent(SbInputData* data) {
+  if (native_window_ == 0) {
+    Application::DeleteDestructor<SbInputData>(data);
+    return;
+  }
+
   data->window = window_;
   Inject(new Event(kSbEventTypeInput, data,
                    &Application::DeleteDestructor<SbInputData>));

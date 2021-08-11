@@ -243,5 +243,11 @@ void Cobalt::Deactivated(RPC::IRemoteConnection *connection) {
   }
 }
 
+void Cobalt::Closure() {
+  TRACE(Trace::Information, (_T("Closure: \"true\"")));
+  _service->Notify(_T("{\"Closure\": true }"));
+  event_closure();
+}
+
 }  // namespace Plugin
 }  // namespace WPEFramework

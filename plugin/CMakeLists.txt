@@ -62,5 +62,6 @@ install(TARGETS ${MODULE_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/${STORAGE
 
 set(PLUGIN_COBALT_AUTOSTART false CACHE STRING "Automatically start Cobalt plugin")
 set(PLUGIN_COBALT_OUTOFPROCESS true CACHE STRING "Controls if the plugin should run in its own process")
+set(PLUGIN_COBALT_CLOSUREPOLICY "quit" CACHE STRING "Configures how to handle window close request")
 
 write_config(${PLUGIN_NAME})

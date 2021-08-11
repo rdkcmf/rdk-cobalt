@@ -35,6 +35,10 @@ void SbRdkQuit();
 void SbRdkSetSetting(const char* key, const char* json);
 int  SbRdkGetSetting(const char* key, char** out_json);
 
+typedef int (*SbRdkCallbackFunc)(void *user_data);
+void SbRdkSetStopRequestHandler(SbRdkCallbackFunc cb, void* user_data);
+void SbRdkRequestStop();
+
 }  // extern "C"
 
 namespace WPEFramework {
@@ -104,6 +108,7 @@ private:
       Add(_T("preload"), &PreloadEnabled);
       Add(_T("autosuspenddelay"), &AutoSuspendDelay);
       Add(_T("systemproperties"), &SystemProperties);
+      Add(_T("closurepolicy"), &ClosurePolicy);
     }
     ~Config() {
     }
@@ -117,6 +122,7 @@ private:
     Core::JSON::Boolean PreloadEnabled;
     Core::JSON::DecUInt16 AutoSuspendDelay;
     Core::JSON::VariantContainer SystemProperties;
+    Core::JSON::String ClosurePolicy;
   };
 
   class NotificationSink: public Core::Thread {
@@ -307,6 +313,16 @@ private:
 
       SYSLOG(Logging::Notification, (_T("Preload is set to: %s\n"), _preloadEnabled ? "true" : "false"));
 
+      if (config.ClosurePolicy.IsSet() == true) {
+        _parent._shouldSuspendOnClose = config.ClosurePolicy.Value().compare("suspend") == 0;
+      }
+
+      SbRdkSetStopRequestHandler([](void* data)-> int {
+        CobaltWindow* window = reinterpret_cast<CobaltWindow*>(data);
+        window->_parent.OnWindowCloseRequest();
+        return 0;
+      }, this);
+
       Run();
       return result;
     }
@@ -399,7 +415,8 @@ public:
     _cobaltClients(),
     _stateControlClients(),
     _sink(*this),
-    _delayedSuspend(*this) {
+    _delayedSuspend(*this),
+    _shouldSuspendOnClose(false) {
   }
 
   virtual ~CobaltImplementation() {
@@ -624,6 +641,15 @@ public:
     return false;
   }
 
+  void OnWindowCloseRequest() {
+    if (_shouldSuspendOnClose) {
+      Request(PluginHost::IStateControl::SUSPEND);
+      NotifyClosure();
+    } else {
+      SbRdkQuit();
+    }
+  }
+
   BEGIN_INTERFACE_MAP (CobaltImplementation)
   INTERFACE_ENTRY (Exchange::IBrowser)
   INTERFACE_ENTRY (PluginHost::IStateControl)
@@ -698,6 +724,17 @@ private:
     _adminLock.Unlock();
   }
 
+  void NotifyClosure()
+  {
+    _adminLock.Lock();
+    std::list<Exchange::IBrowser::INotification*>::iterator index(_cobaltClients.begin());
+    while (index != _cobaltClients.end()) {
+      (*index)->Closure();
+      index++;
+    }
+    _adminLock.Unlock();
+  }
+
 private:
   CobaltWindow _window;
   mutable Core::CriticalSection _adminLock;
@@ -707,6 +744,7 @@ private:
   std::list<PluginHost::IStateControl::INotification*> _stateControlClients;
   NotificationSink _sink;
   DelayedSuspend _delayedSuspend;
+  bool _shouldSuspendOnClose;
 };
 
 SERVICE_REGISTRATION(CobaltImplementation, 1, 0);

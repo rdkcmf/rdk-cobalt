@@ -73,6 +73,7 @@ private:
       _parent.Hidden(hidden);
     }
     virtual void Closure() override {
+      _parent.Closure();
     }
     virtual void Activated(RPC::IRemoteConnection*) override {
     }
@@ -178,6 +179,7 @@ private:
   void event_urlchange(const string &url, const bool &loaded); // Browser
   void event_visibilitychange(const bool &hidden); // Browser
   void event_statechange(const bool &suspended); // StateControl
+  void event_closure(); // Browser
 
   uint32_t get_accessibility(JsonObject &response) const;
   uint32_t set_accessibility(const JsonObject &param);

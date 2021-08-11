@@ -285,5 +285,11 @@ void Cobalt::event_statechange(const bool &suspended) /* StateControl */
   Notify(_T("statechange"), params);
 }
 
+// Event: closure - Notifies that app requested to close its window
+void Cobalt::event_closure() /* Browser */
+{
+  Notify(_T("closure"));
+}
+
 }  // namespace Plugin
 }  // namespace WPEFramework

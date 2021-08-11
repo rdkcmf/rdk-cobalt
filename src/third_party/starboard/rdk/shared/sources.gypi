@@ -310,7 +310,6 @@
         '<(DEPTH)/starboard/shared/starboard/system_get_random_uint64.cc',
 
         '<(DEPTH)/starboard/shared/starboard/system_request_pause.cc',
-        '<(DEPTH)/starboard/shared/starboard/system_request_stop.cc',
         '<(DEPTH)/starboard/shared/starboard/system_request_suspend.cc',
         '<(DEPTH)/starboard/shared/starboard/system_request_unpause.cc',
         '<(DEPTH)/starboard/shared/starboard/system_supports_resume.cc',
@@ -334,6 +333,7 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_has_capability.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_get_extensions.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_sign_with_certification_secret_key.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/system/system_request_stop.cc',
     ],
 
     'time_sources': [
