@@ -1146,7 +1146,6 @@ class PlayerImpl : public Player {
   MediaType min_sample_timestamp_origin_{MediaType::kNone};
   bool is_seek_pending_{false};
   double pending_rate_{.0};
-  bool is_rate_being_changed_{false};
   int has_enough_data_{static_cast<int>(MediaType::kBoth)};
   mutable int decoder_state_data_{static_cast<int>(MediaType::kNone)};
   int eos_data_{static_cast<int>(MediaType::kNone)};
@@ -1170,6 +1169,7 @@ class PlayerImpl : public Player {
   GstCaps* audio_caps_ { nullptr };
   GstCaps* video_caps_ { nullptr };
   SbTime buf_target_min_ts_ { kSbTimeMax };
+  bool did_instant_rate_change_ { false };
 };
 
 struct PlayerRegistry
@@ -1491,7 +1491,7 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
             }
             if (self->state_ == State::kPrerollAfterSeek ||
                 self->state_ == State::kInitialPreroll) {
-              self->has_oob_write_pending_ |= (is_seek_pending || is_rate_pending);
+              self->has_oob_write_pending_ |= is_seek_pending;
             }
           }
 
@@ -1521,15 +1521,13 @@ gboolean PlayerImpl::BusMessageCallback(GstBus* bus,
         ::starboard::Mutex &mutex = self->mutex_;
         ::starboard::ScopedLock lock(mutex);
 
-        self->is_rate_being_changed_ = false;
         if (self->state_ == State::kPrerollAfterSeek ||
             self->state_ == State::kInitialPreroll) {
 
           bool is_seek_pending = self->is_seek_pending_;
-          bool is_rate_pending = self->pending_rate_ != 0.;
           bool has_pending_samples = (self->pending_samples_.empty() == false) || self->has_oob_write_pending_;
 
-          if (!is_seek_pending && !is_rate_pending && has_pending_samples) {
+          if (!is_seek_pending && has_pending_samples) {
 
             int prev_has_data = static_cast<int>(self->has_enough_data_);
             self->has_enough_data_ = static_cast<int>(MediaType::kBoth);
@@ -2001,7 +1999,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
   bool keep_samples = false;
   {
     ::starboard::ScopedLock lock(mutex_);
-    keep_samples = is_seek_pending_ || pending_rate_ != .0;
+    keep_samples = is_seek_pending_;
     serial = samples_serial_[ (sample_type == kSbMediaTypeVideo ? kVideoIndex : kAudioIndex) ]++;
     if (sample_type == kSbMediaTypeVideo)
       ++total_video_frames_;
@@ -2180,48 +2178,52 @@ void PlayerImpl::Seek(SbTime seek_to_timestamp, int ticket) {
 bool PlayerImpl::SetRate(double rate) {
   GST_DEBUG_OBJECT(pipeline_, "===> rate %lf (rate_ %lf), TID: %d", rate, rate_,
                    SbThreadGetId());
+
   bool success = true;
-  double current_rate = 1.;
   {
     ::starboard::ScopedLock lock(mutex_);
-    current_rate = rate_;
     decoder_state_data_ = 0;
     eos_data_ = 0;
   }
+
   if (rate == .0) {
     ChangePipelineState(GST_STATE_PAUSED);
-  } else if (rate == 1. && (current_rate == 1. || current_rate == .0)) {
-    ChangePipelineState(GST_STATE_PLAYING);
   } else {
     ChangePipelineState(GST_STATE_PLAYING);
+  }
+
+  if (rate != .0 && (rate != 1. || did_instant_rate_change_)) {
     {
       ::starboard::ScopedLock lock(mutex_);
       if (is_seek_pending_) {
-        GST_DEBUG("Rate will be set when doing seek");
+        GST_DEBUG_OBJECT(pipeline_, "Rate will be set when doing seek");
         rate_ = rate;
         return true;
       }
-    }
-    if (GST_STATE(pipeline_) < GST_STATE_PAUSED) {
-      GST_DEBUG_OBJECT(pipeline_, "===> Set rate postponed");
-      ::starboard::ScopedLock lock(mutex_);
-      pending_rate_ = rate;
-      return true;
-    } else {
-      {
-        ::starboard::ScopedLock lock(mutex_);
-        is_rate_being_changed_ = true;
-        pending_rate_ = .0;
+      if (GST_STATE(pipeline_) < GST_STATE_PLAYING) {
+        GST_DEBUG_OBJECT(pipeline_, "===> Set rate postponed");
+        pending_rate_ = rate;
+        return true;
       }
+      pending_rate_ = .0;
+    }
 
-      GST_DEBUG("Calling seek (set rate)");
-      success =
-          gst_element_seek(pipeline_, rate, GST_FORMAT_TIME,
-                           static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH |
-                                                     GST_SEEK_FLAG_ACCURATE),
-                           GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE,
-                           GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
-      GST_DEBUG("Seek called (set rate)");
+    // TODO: instant rate change support
+    GstElement* sink = nullptr;
+    g_object_get(pipeline_, "audio-sink", &sink, nullptr);
+    if (sink && g_str_has_prefix(GST_ELEMENT_NAME(sink), "amlhalasink")) {
+      GstSegment* segment = gst_segment_new();
+      gst_segment_init(segment, GST_FORMAT_TIME);
+      segment->rate = rate;
+      segment->start = GST_CLOCK_TIME_NONE;
+      segment->position = GST_CLOCK_TIME_NONE;
+      GST_DEBUG_OBJECT(pipeline_, "===> Sending new segment %" GST_SEGMENT_FORMAT, segment);
+      success = gst_pad_send_event (GST_BASE_SINK_PAD(sink), gst_event_new_segment(segment));
+      GST_DEBUG_OBJECT(pipeline_, "===> Sent new segment, success = %s", success ? "true" : "false");
+      gst_segment_free(segment);
+      g_object_unref(sink);
+
+      did_instant_rate_change_ |= success;
     }
   }
 
@@ -2409,11 +2411,6 @@ gint64 PlayerImpl::GetPosition() const {
       cached_position_ns_ = seek_pos_ns;
       seek_position_ = kSbTimeMax;
     }
-
-    if (is_rate_being_changed_ && audio_codec_ != kSbMediaAudioCodecNone) {
-      GST_WARNING("Set rate workaround kicking in.");
-      return max_sample_timestamps_[kAudioIndex];
-    }
   }
 
   if (GST_CLOCK_TIME_IS_VALID(cached_position_ns_) &&
@@ -2435,7 +2432,7 @@ void PlayerImpl::WritePendingSamples() {
   int ticket = -1;
   {
     ::starboard::ScopedLock lock(mutex_);
-    keep_samples = is_seek_pending_ || pending_rate_ != 0.;
+    keep_samples = is_seek_pending_;
     ticket = ticket_;
     local_samples.swap(pending_samples_);
   }
