@@ -76,6 +76,10 @@
             "type": "string",
             "description": "Configure GST_DEBUG environment variable, default: 'gstplayer:4,2'"
           },
+          "closurepolicy": {
+            "type": "string",
+            "description": "Configures how to handle window close request. Accepted values: [suspend, quit]. Default: 'quit'."
+          },
           "systemproperties": {
             "$ref": "#/definitions/systemproperties"
           }

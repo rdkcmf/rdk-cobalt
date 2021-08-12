@@ -82,6 +82,7 @@ The table below lists configuration options of the plugin.
 | configuration?.preload | boolean | <sup>*(optional)*</sup> Enable pre-loading of application |
 | configuration?.autosuspenddelay | number | <sup>*(optional)*</sup> Applicable when pre-loading. Number of seconds to wait before suspending the app |
 | configuration?.gstdebug | string | <sup>*(optional)*</sup> Configure GST_DEBUG environment variable, default: 'gstplayer:4,2' |
+| configuration?.closurepolicy | string | <sup>*(optional)*</sup> Configures how to handle window close request. Accepted values: [suspend, quit]. Default: 'quit' |
 | configuration?.systemproperties | object | <sup>*(optional)*</sup> Configure some properties queried with Starboard System API |
 | configuration?.systemproperties?.modelname | string | <sup>*(optional)*</sup> The production model number of the device |
 | configuration?.systemproperties?.brandname | string | <sup>*(optional)*</sup> The name of the brand under which the device is being sold |
