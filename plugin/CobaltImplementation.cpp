@@ -528,7 +528,7 @@ public:
     } else {
       switch (command) {
         case PluginHost::IStateControl::SUSPEND:
-          if (_state != PluginHost::IStateControl::SUSPENDED && _statePending != PluginHost::IStateControl::SUSPENDED) {
+          if (_state == PluginHost::IStateControl::RESUMED || _statePending == PluginHost::IStateControl::RESUMED) {
             _statePending = PluginHost::IStateControl::SUSPENDED;
             _sink.RequestForStateChange(
               StateChangeCommand::SUSPEND);
@@ -536,7 +536,7 @@ public:
           result = Core::ERROR_NONE;
           break;
         case PluginHost::IStateControl::RESUME:
-          if (_state != PluginHost::IStateControl::RESUMED && _statePending != PluginHost::IStateControl::RESUMED) {
+          if (_state == PluginHost::IStateControl::SUSPENDED || _statePending == PluginHost::IStateControl::SUSPENDED) {
             _statePending = PluginHost::IStateControl::RESUMED;
             _sink.RequestForStateChange(
               StateChangeCommand::RESUME);
