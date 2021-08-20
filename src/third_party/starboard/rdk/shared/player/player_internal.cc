@@ -1744,6 +1744,12 @@ void PlayerImpl::SetupElement(GstElement* pipeline,
     if (has_video && g_str_has_prefix(GST_ELEMENT_NAME(element), "amlhalasink") && !disable_wait_video) {
       g_object_set(element, "wait-video", TRUE, nullptr);
     }
+    if (has_video && g_str_has_prefix(GST_ELEMENT_NAME(element), "westerossink")) {
+      if (g_object_class_find_property(G_OBJECT_GET_CLASS(element), "zoom-mode")) {
+        GST_INFO("Setting westerossink zoom-mode to 0");
+        g_object_set(element, "zoom-mode", 0, nullptr);
+      }
+    }
   }
 }
 
