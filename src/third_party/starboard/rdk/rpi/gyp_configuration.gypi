@@ -205,7 +205,7 @@
           '-Wunreachable-code',
           '-Wno-maybe-uninitialized',
           # Turn warnings into errors.
-          '-Werror',
+          #'-Werror',
         ],
       },{
         'cflags': [
