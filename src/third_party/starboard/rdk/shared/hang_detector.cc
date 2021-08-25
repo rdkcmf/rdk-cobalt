@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <sys/syscall.h>
 
 #include "starboard/once.h"
 #include "starboard/thread.h"
@@ -40,13 +41,31 @@ namespace {
 
 const uint32_t kMaxExpirationCount = 6;
 
-void print_action(pid_t pid, const std::string& name) {
-  fprintf(stderr, "\n*** Cobalt hang monitor expired!!! pid=%ld, monitor='%s'. Continue.\n", (long)pid, name.c_str());
+pid_t get_tid() {
+#ifdef SYS_gettid
+  return syscall(SYS_gettid);
+#else
+  return 0;
+#endif
 }
 
-void kill_action(pid_t pid, const std::string& name) {
-  fprintf(stderr, "\n*** Hang detected in Cobalt!!! pid=%ld, monitor='%s'. sending SIGFPE \n", (long)pid, name.c_str());
-  kill(pid, SIGFPE);
+void print_action(pid_t pid, pid_t tid, const std::string& name) {
+  fprintf(stderr, "\n*** Cobalt hang monitor expired!!! pid=%ld, tid=%ld, monitor='%s'. Continue.\n", (long)pid, (long)tid, name.c_str());
+}
+
+void kill_action(pid_t pid, pid_t tid, const std::string& name) {
+  fprintf(stderr, "\n*** Hang detected in Cobalt!!! pid=%ld, tid=%ld, monitor='%s'. sending SIGFPE \n", (long)pid, (long)tid, name.c_str());
+
+  long rc = -1;
+
+#ifdef __NR_tgkill
+  if (tid > 0) {
+    rc = syscall(__NR_tgkill, pid, tid, SIGFPE);
+  }
+#endif
+
+  if (rc < 0)
+    rc = kill(pid, SIGKILL);
 
   SbThreadSleep( kSbTimeMinute );
   fprintf(stderr, "\n*** Hang detected in Cobalt!!! pid=%ld, monitor='%s'. still hanging... sending SIGKILL \n", (long)pid, name.c_str());
@@ -121,15 +140,16 @@ struct HangDetector
           if ( m->GetExpirationTime() > now )
             continue;
 
+          pid_t tid = m->GetTID();
           std::string name = m->Name();
 
           if ( m->IncExpirationCount() < kMaxExpirationCount ) {
-            print_action( pid, name );
+            print_action( pid, tid, name );
             continue;
           }
 
           mutex_.Release();
-          kill_action( pid, name );
+          kill_action( pid, tid, name );
           mutex_.Acquire();
 
           running_ = false;
@@ -177,6 +197,7 @@ HangMonitor::HangMonitor(std::string name)
   : name_(std::move(name))
   , expiration_time_(SbTimeGetMonotonicNow() + GetHangDetector()->GetCheckInterval()) {
   GetHangDetector()->AddMonitor(this);
+  tid_ = get_tid();
 }
 
 HangMonitor::~HangMonitor() {
@@ -195,6 +216,10 @@ SbTime HangMonitor::GetResetInterval() const {
   return GetHangDetector()->GetCheckInterval() / 2;
 }
 
+pid_t HangMonitor::GetTID() const {
+  return tid_;
+}
+
 int HangMonitor::IncExpirationCount() {
   return ++expiration_count_;
 }
@@ -204,6 +229,7 @@ void HangMonitor::Reset() {
   ::starboard::ScopedLock lock(hang_detector.Lock());
   expiration_time_ = SbTimeGetMonotonicNow() + hang_detector.GetCheckInterval();
   expiration_count_ = 0;
+  tid_ = get_tid();
 }
 
 }  // namespace shared

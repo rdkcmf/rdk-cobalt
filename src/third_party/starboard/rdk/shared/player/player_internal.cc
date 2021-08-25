@@ -1360,6 +1360,7 @@ PlayerImpl::~PlayerImpl() {
   if (hang_monitor_source_id_ > -1) {
     GSource* src = g_main_context_find_source_by_id(main_loop_context_, hang_monitor_source_id_);
     g_source_destroy(src);
+    hang_monitor_.Reset();
   }
   ChangePipelineState(GST_STATE_NULL);
   GstBus* bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline_));
@@ -1597,6 +1598,8 @@ void* PlayerImpl::ThreadEntryPoint(void* context) {
   self->state_ = State::kInitial;
 
   g_main_context_push_thread_default(self->main_loop_context_);
+
+  self->hang_monitor_.Reset();
 
   self->DispatchOnWorkerThread(new PlayerStatusTask(
       self->player_status_func_, self->player_, self->ticket_, self->context_,

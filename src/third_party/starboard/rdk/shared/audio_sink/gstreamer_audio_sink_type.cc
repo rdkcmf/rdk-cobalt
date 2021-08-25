@@ -50,6 +50,8 @@
 #include "starboard/thread.h"
 #include "starboard/time.h"
 
+#include "third_party/starboard/rdk/shared/hang_detector.h"
+
 namespace third_party {
 namespace starboard {
 namespace rdk {
@@ -131,6 +133,9 @@ class GStreamerAudioSink : public SbAudioSinkPrivate {
   bool enough_data_{false};
   std::string file_name_;
   int total_frames_{0};
+
+  int hang_monitor_source_id_ { -1 };
+  HangMonitor hang_monitor_ { "AudioSink" };
 };
 
 GStreamerAudioSink::GStreamerAudioSink(
@@ -167,6 +172,15 @@ GStreamerAudioSink::GStreamerAudioSink(
   main_loop_context_ = g_main_context_new();
   mainloop_ = g_main_loop_new(main_loop_context_, FALSE);
   g_main_context_push_thread_default(main_loop_context_);
+
+  GSource* src = g_timeout_source_new(hang_monitor_.GetResetInterval() / kSbTimeMillisecond);
+  g_source_set_callback(src, [] (gpointer data) ->gboolean {
+    auto& sink = *static_cast<GStreamerAudioSink*>(data);
+    sink.hang_monitor_.Reset();
+    return G_SOURCE_CONTINUE;
+  }, this, nullptr);
+  hang_monitor_source_id_ = g_source_attach(src, main_loop_context_);
+  g_source_unref(src);
 
   const char* format =
       audio_sample_type == kSbMediaAudioSampleTypeFloat32 ? "F32LE" : "S16LE";
@@ -221,6 +235,12 @@ GStreamerAudioSink::GStreamerAudioSink(
 GStreamerAudioSink::~GStreamerAudioSink() {
   GST_TRACE_OBJECT(pipeline_, "TID: %d", SbThreadGetId());
 
+  if (hang_monitor_source_id_ > -1) {
+    GSource* src = g_main_context_find_source_by_id(main_loop_context_, hang_monitor_source_id_);
+    g_source_destroy(src);
+    hang_monitor_.Reset();
+  }
+
   GSource* timeout_src = g_timeout_source_new_seconds(1);
   g_source_set_callback(timeout_src, [](gpointer data) -> gboolean {
     g_main_loop_quit((GMainLoop*)data);
@@ -229,12 +249,12 @@ GStreamerAudioSink::~GStreamerAudioSink() {
   g_source_attach(timeout_src, main_loop_context_);
   g_source_unref(timeout_src);
 
-  {
-    ::starboard::ScopedLock lock(mutex_);
-    destroying_ = true;
-    // this will wake up apprsc if it is waiting for data
-    gst_app_src_set_max_bytes(GST_APP_SRC(appsrc_), 1);
-  }
+  mutex_.Acquire();
+  destroying_ = true;
+  mutex_.Release();
+
+  // this will wake up apprsc if it is waiting for data
+  gst_app_src_set_max_bytes(GST_APP_SRC(appsrc_), 1);
 
   bool rc = SbThreadJoin(audio_loop_thread_, nullptr);
   SB_DCHECK(rc);
@@ -259,6 +279,7 @@ void* GStreamerAudioSink::AudioThreadEntryPoint(void* context) {
   GStreamerAudioSink* sink = reinterpret_cast<GStreamerAudioSink*>(context);
   GST_TRACE_OBJECT(sink->pipeline_, "TID: %d", SbThreadGetId());
   g_main_context_push_thread_default(sink->main_loop_context_);
+  sink->hang_monitor_.Reset();
   g_main_loop_run(sink->mainloop_);
 
   return nullptr;

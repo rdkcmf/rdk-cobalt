@@ -19,6 +19,7 @@
 
 #include <string>
 #include "starboard/time.h"
+#include <sys/types.h>
 
 namespace third_party {
 namespace starboard {
@@ -33,6 +34,7 @@ public:
   const std::string& Name() const;
   SbTimeMonotonic GetExpirationTime() const;
   SbTime GetResetInterval() const;
+  pid_t GetTID() const;
 
   void Reset();
   int IncExpirationCount();
@@ -40,6 +42,7 @@ private:
   std::string name_;
   SbTimeMonotonic expiration_time_ { kSbTimeMax };
   int expiration_count_ { 0 };
+  pid_t tid_ { 0 };
 };
 
 }  // namespace shared
