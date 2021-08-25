@@ -46,7 +46,7 @@
       'WPEFrameworkWebSocket',
     ],
     'has_securityagent%' : '<!(pkg-config securityagent && echo 1 || echo 0)',
-    'has_cryptography%'  : '<!(make -C <(DEPTH)/third_party/starboard/rdk/shared/config.tests/cryptography >/dev/null 2>&1 && echo 1 || echo 0)'
+    'has_cryptography%'  : '<!(pkg-config WPEFrameworkCryptography >/dev/null 2>&1 && echo 1 || echo 0)'
   },
   'targets': [
     {
