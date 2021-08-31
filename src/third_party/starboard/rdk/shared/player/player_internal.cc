@@ -1753,6 +1753,9 @@ void PlayerImpl::SetupElement(GstElement* pipeline,
         g_object_set(element, "zoom-mode", 0, nullptr);
       }
     }
+    if (g_str_has_prefix(GST_ELEMENT_NAME(element), "brcmaudiosink")) {
+      g_object_set(G_OBJECT(element), "async", TRUE, nullptr);
+    }
   }
 }
 
