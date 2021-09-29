@@ -175,7 +175,6 @@
       '-std=c11',
     ],
     'cflags_cc': [
-      '-std=gnu++11',
       '-Wno-literal-suffix',
       '-Wno-deprecated-copy',
       '-Wno-invalid-offsetof',

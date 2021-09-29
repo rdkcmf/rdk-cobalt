@@ -76,7 +76,7 @@
       ],
       'dependencies': [
         '<(DEPTH)/starboard/common/common.gyp:common',
-        '<(DEPTH)/third_party/dlmalloc/dlmalloc.gyp:dlmalloc',
+#        '<(DEPTH)/third_party/dlmalloc/dlmalloc.gyp:dlmalloc',
         '<(DEPTH)/third_party/libevent/libevent.gyp:libevent',
         '<@(dependencies)',
         'starboard_base_symbolize',

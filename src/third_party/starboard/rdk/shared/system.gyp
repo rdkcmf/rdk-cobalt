@@ -29,7 +29,7 @@
 # limitations under the License.
 {
   'variables': {
-    'pkg-config': 'pkg-config',
+    'pkg-config%': 'pkg-config',
     'gst-packages': [
       'gstreamer-1.0',
       'gstreamer-app-1.0',
@@ -137,7 +137,8 @@
           'type': 'none',
           'direct_dependent_settings': {
             'cflags': [
-              '<!@(<(pkg-config) --cflags securityagent) -DHAS_SECURITY_AGENT=1',
+              '<!@(<(pkg-config) --cflags securityagent)',
+              '-DHAS_SECURITY_AGENT=1'
             ],
           },
           'link_settings': {
@@ -165,7 +166,8 @@
           'type': 'none',
           'direct_dependent_settings': {
             'cflags': [
-              '<!@(<(pkg-config) --cflags WPEFrameworkCryptography) -DHAS_CRYPTOGRAPHY=1',
+              '<!@(<(pkg-config) --cflags WPEFrameworkCryptography)',
+              '-DHAS_CRYPTOGRAPHY=1'
             ],
           },
           'link_settings': {
