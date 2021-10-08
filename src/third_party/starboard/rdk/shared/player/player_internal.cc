@@ -108,6 +108,17 @@ unsigned getGstPlayFlag(const char* nick) {
   return flag->value;
 }
 
+unsigned GetGstERMFlag(const char* nick) {
+  static GFlagsClass* flags_class = static_cast<GFlagsClass*>(
+      g_type_class_ref(g_type_from_name("EssRMgrVideoUsage")));
+  if (!flags_class)
+    return 0;
+  GFlagsValue* flag = g_flags_get_value_by_nick(flags_class, nick);
+  if (!flag)
+    return 0;
+  return flag->value;
+}
+
 G_BEGIN_DECLS
 
 #define GST_COBALT_TYPE_SRC (gst_cobalt_src_get_type())
@@ -1110,6 +1121,7 @@ class PlayerImpl : public Player {
   void HandleApplicationMessage(GstBus* bus, GstMessage* message);
   void WritePendingSamples();
   void CheckBuffering(gint64 position);
+  void ConfigureLimitedVideo();
 
   SbPlayer player_;
   SbWindow window_;
@@ -1117,7 +1129,7 @@ class PlayerImpl : public Player {
   SbMediaAudioCodec audio_codec_;
   SbDrmSystem drm_system_;
   const SbMediaAudioSampleInfo audio_sample_info_;
-  const char* max_video_capabilities_;
+  std::string max_video_capabilities_;
   SbPlayerDeallocateSampleFunc sample_deallocate_func_;
   SbPlayerDecoderStatusFunc decoder_status_func_;
   SbPlayerStatusFunc player_status_func_;
@@ -1230,12 +1242,15 @@ PlayerImpl::PlayerImpl(SbPlayer player,
       audio_codec_(audio_codec),
       drm_system_(drm_system),
       audio_sample_info_(audio_sample_info),
-      max_video_capabilities_(max_video_capabilities),
       sample_deallocate_func_(sample_deallocate_func),
       decoder_status_func_(decoder_status_func),
       player_status_func_(player_status_func),
       player_error_func_(player_error_func),
       context_(context) {
+
+  GST_DEBUG_CATEGORY_INIT(cobalt_gst_player_debug, "gstplayer", 0,
+                          "Cobalt player");
+
   static bool disable_audio = !!getenv("COBALT_DISABLE_AUDIO");
   if (disable_audio)
     audio_codec_ = kSbMediaAudioCodecNone;
@@ -1274,11 +1289,8 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   hang_monitor_source_id_ = g_source_attach(src, main_loop_context_);
   g_source_unref(src);
 
-  GST_DEBUG_CATEGORY_INIT(cobalt_gst_player_debug, "gstplayer", 0,
-                          "Cobalt player");
-
   GST_INFO("Creating player with max capabilities: %s",
-           max_video_capabilities_);
+           max_video_capabilities);
 
   GstElementFactory* src_factory = gst_element_factory_find("cobaltsrc");
   if (!src_factory) {
@@ -1305,6 +1317,11 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   g_signal_connect(pipeline_, "element-setup",
                    G_CALLBACK(&PlayerImpl::SetupElement), this);
   g_object_set(pipeline_, "uri", "cobalt://", nullptr);
+
+  if (max_video_capabilities && *max_video_capabilities) {
+    max_video_capabilities_ = max_video_capabilities;
+    ConfigureLimitedVideo();
+  }
 
   GstBus* bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline_));
   bus_watch_id_ = gst_bus_add_watch(bus, &PlayerImpl::BusMessageCallback, this);
@@ -1747,12 +1764,14 @@ void PlayerImpl::SetupElement(GstElement* pipeline,
     if (has_video && g_str_has_prefix(GST_ELEMENT_NAME(element), "amlhalasink") && !disable_wait_video) {
       g_object_set(element, "wait-video", TRUE, nullptr);
     }
+    else
     if (has_video && g_str_has_prefix(GST_ELEMENT_NAME(element), "westerossink")) {
       if (g_object_class_find_property(G_OBJECT_GET_CLASS(element), "zoom-mode")) {
         GST_INFO("Setting westerossink zoom-mode to 0");
         g_object_set(element, "zoom-mode", 0, nullptr);
       }
     }
+    else
     if (g_str_has_prefix(GST_ELEMENT_NAME(element), "brcmaudiosink")) {
       g_object_set(G_OBJECT(element), "async", TRUE, nullptr);
     }
@@ -2533,6 +2552,32 @@ void PlayerImpl::HandleApplicationMessage(GstBus* bus, GstMessage* message) {
       source_setup_id_ = -1;
     }
   }
+}
+
+void PlayerImpl::ConfigureLimitedVideo() {
+  GstElementFactory* factory = gst_element_factory_find("westerossink");
+  if (factory) {
+    GstElement* video_sink = gst_element_factory_create(factory, nullptr);
+    if (video_sink) {
+      if (g_object_class_find_property(G_OBJECT_GET_CLASS(video_sink), "res-usage")) {
+        unsigned full_resolution = GetGstERMFlag("fullResolution");
+        unsigned full_quality = GetGstERMFlag("fullQuality");
+        g_object_set(video_sink, "res-usage", full_resolution | full_quality, nullptr);
+      }
+      else {
+        GST_WARNING("'westerossink' has no 'res-usage' property, secondary video may steal decoder");
+      }
+      g_object_set(pipeline_, "video-sink", video_sink, nullptr);
+      gst_object_unref(GST_OBJECT(video_sink));
+    }
+    else {
+      GST_DEBUG("Failed to create 'westerossink'");
+    }
+    gst_object_unref(GST_OBJECT(factory));
+  }
+
+  // enforce no audio
+  audio_codec_ = kSbMediaAudioCodecNone;
 }
 
 }  // namespace
