@@ -108,17 +108,6 @@ unsigned getGstPlayFlag(const char* nick) {
   return flag->value;
 }
 
-unsigned GetGstERMFlag(const char* nick) {
-  static GFlagsClass* flags_class = static_cast<GFlagsClass*>(
-      g_type_class_ref(g_type_from_name("EssRMgrVideoUsage")));
-  if (!flags_class)
-    return 0;
-  GFlagsValue* flag = g_flags_get_value_by_nick(flags_class, nick);
-  if (!flag)
-    return 0;
-  return flag->value;
-}
-
 G_BEGIN_DECLS
 
 #define GST_COBALT_TYPE_SRC (gst_cobalt_src_get_type())
@@ -1254,19 +1243,6 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   static bool disable_audio = !!getenv("COBALT_DISABLE_AUDIO");
   if (disable_audio)
     audio_codec_ = kSbMediaAudioCodecNone;
-  if (audio_codec_ == kSbMediaAudioCodecNone)
-    has_enough_data_ &= ~static_cast<int>(MediaType::kAudio);
-  if (video_codec_ == kSbMediaVideoCodecNone)
-    has_enough_data_ &= ~static_cast<int>(MediaType::kVideo);
-
-  if (audio_codec_ != kSbMediaAudioCodecNone) {
-    auto caps = CodecToGstCaps(audio_codec_, &audio_sample_info_);
-    if (!caps.empty() && caps[0].c_str()) {
-      GstCaps* gst_caps = gst_caps_from_string(caps[0].c_str());
-      gst_caps_replace(&audio_caps_, gst_caps);
-      gst_caps_unref(gst_caps);
-    }
-  }
 
   main_loop_context_ = g_main_context_new ();
   g_main_context_push_thread_default(main_loop_context_);
@@ -1321,6 +1297,23 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   if (max_video_capabilities && *max_video_capabilities) {
     max_video_capabilities_ = max_video_capabilities;
     ConfigureLimitedVideo();
+  }
+
+  if (audio_codec_ == kSbMediaAudioCodecNone) {
+    has_enough_data_ &= ~static_cast<int>(MediaType::kAudio);
+  }
+
+  if (video_codec_ == kSbMediaVideoCodecNone) {
+    has_enough_data_ &= ~static_cast<int>(MediaType::kVideo);
+  }
+
+  if (audio_codec_ != kSbMediaAudioCodecNone) {
+    auto caps = CodecToGstCaps(audio_codec_, &audio_sample_info_);
+    if (!caps.empty() && caps[0].c_str()) {
+      GstCaps* gst_caps = gst_caps_from_string(caps[0].c_str());
+      gst_caps_replace(&audio_caps_, gst_caps);
+      gst_caps_unref(gst_caps);
+    }
   }
 
   GstBus* bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline_));
@@ -2560,15 +2553,12 @@ void PlayerImpl::ConfigureLimitedVideo() {
     GstElement* video_sink = gst_element_factory_create(factory, nullptr);
     if (video_sink) {
       if (g_object_class_find_property(G_OBJECT_GET_CLASS(video_sink), "res-usage")) {
-        unsigned full_resolution = GetGstERMFlag("fullResolution");
-        unsigned full_quality = GetGstERMFlag("fullQuality");
-        g_object_set(video_sink, "res-usage", full_resolution | full_quality, nullptr);
+        g_object_set(video_sink, "res-usage", 0x0u, nullptr);
       }
       else {
         GST_WARNING("'westerossink' has no 'res-usage' property, secondary video may steal decoder");
       }
       g_object_set(pipeline_, "video-sink", video_sink, nullptr);
-      gst_object_unref(GST_OBJECT(video_sink));
     }
     else {
       GST_DEBUG("Failed to create 'westerossink'");
