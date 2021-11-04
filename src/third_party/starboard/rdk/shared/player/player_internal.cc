@@ -51,6 +51,7 @@ namespace shared {
 namespace player {
 
 static constexpr int kMaxNumberOfSamplesPerWrite = 1;
+static const char kCustomInstantRateChange[] = "custom-instant-rate-change";
 
 // static
 int Player::MaxNumberOfSamplesPerWrite() {
@@ -2223,6 +2224,12 @@ bool PlayerImpl::SetRate(double rate) {
       gst_segment_free(segment);
       g_object_unref(sink);
 
+      did_instant_rate_change_ |= success;
+    }
+    else {
+      GstStructure* s = gst_structure_new(kCustomInstantRateChange, "rate", G_TYPE_DOUBLE, rate, NULL);
+      success = gst_element_send_event(
+        pipeline_, gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM_OOB, s));
       did_instant_rate_change_ |= success;
     }
   }
