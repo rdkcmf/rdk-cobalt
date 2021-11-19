@@ -374,6 +374,7 @@ void gst_cobalt_src_setup_and_add_app_src(SbMediaType media_type,
   g_object_set(appsrc,
                "block", FALSE,
                "format", GST_FORMAT_TIME,
+               "min-percent", 50,
                nullptr);
   gst_app_src_set_stream_type(GST_APP_SRC(appsrc), GST_APP_STREAM_TYPE_SEEKABLE);
   gst_app_src_set_emit_signals(GST_APP_SRC(appsrc), FALSE);
@@ -781,8 +782,6 @@ enum class MediaType {
   kVideo = 2,
   kBoth = kAudio | kVideo
 };
-
-constexpr char kClearSamplesKey[] = "fake-key-magic";
 
 struct Task {
   virtual ~Task() {}
