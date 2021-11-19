@@ -542,6 +542,35 @@ static void gst_cobalt_src_class_init(GstCobaltSrcClass* klass) {
   eklass->change_state = GST_DEBUG_FUNCPTR(gst_cobalt_src_change_state);
 }
 
+void ParseMaxVideoCapabilities(const char* caps_str, uint32_t *w, uint32_t *h, uint32_t *f) {
+  auto parse_entry = [&w, &h, &f](std::string& entry) {
+    auto end = std::remove_if(entry.begin(), entry.end(),
+      [](unsigned char c) { return std::isspace(c) || c == '"' || c == '\''; });
+    if (end != entry.end()) {
+      *end = '\0';
+    }
+    auto mid = std::find(entry.begin(), end, '=');
+    if (mid == entry.begin() || (mid + 1) == end) {
+      return;
+    }
+    auto key_len = std::distance(entry.begin(), mid);
+    if ( f && ::strncasecmp("framerate", entry.c_str(), key_len) == 0 ) {
+      *f = strtoul(&(*(mid + 1)), nullptr, 10);
+    }
+    else if ( w && ::strncasecmp("width", entry.c_str(), key_len) == 0 ) {
+      *w = strtoul(&(*(mid + 1)), nullptr, 10);
+    }
+    else if ( h && ::strncasecmp("height", entry.c_str(), key_len) == 0 ) {
+      *h = strtoul(&(*(mid + 1)), nullptr, 10);
+    }
+  };
+  std::istringstream ss(caps_str);
+  std::string txt;
+  while(std::getline(ss, txt, ';')) {
+    parse_entry(txt);
+  }
+}
+
 #if defined(GST_HAS_HDR_SUPPORT) && GST_HAS_HDR_SUPPORT
 static GstVideoColorRange RangeIdToGstVideoColorRange(SbMediaRangeId value) {
   switch (value) {
@@ -696,6 +725,13 @@ static void AddVideoInfoToGstCaps(const SbMediaVideoSampleInfo& info, GstCaps* c
     "width", G_TYPE_INT, info.frame_width,
     "height", G_TYPE_INT, info.frame_height,
     NULL);
+#if SB_HAS(PLAYER_CREATION_AND_OUTPUT_MODE_QUERY_IMPROVEMENT)
+  if (info.max_video_capabilities && *info.max_video_capabilities) {
+    uint32_t framerate = 0;
+    ParseMaxVideoCapabilities(info.max_video_capabilities, nullptr, nullptr, &framerate);
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, framerate, 1, NULL);
+  }
+#endif
 }
 
 static void PrintPositionPerSink(GstElement* element)
