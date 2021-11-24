@@ -51,7 +51,8 @@ namespace shared {
 namespace player {
 
 static constexpr int kMaxNumberOfSamplesPerWrite = 1;
-static const char kCustomInstantRateChange[] = "custom-instant-rate-change";
+static const char kCustomInstantRateChangeEventName[] = "custom-instant-rate-change";
+static const char kDidReceiveFirstSegmentMsgName[] = "did-receive-first-segment";
 
 // static
 int Player::MaxNumberOfSamplesPerWrite() {
@@ -429,6 +430,26 @@ void gst_cobalt_src_setup_and_add_app_src(SbMediaType media_type,
 
   GstPad* target_pad = gst_element_get_static_pad(src_elem, "src");
   GstPad* pad = gst_ghost_pad_new(name, target_pad);
+
+  GstMessage *msg = gst_message_new_application(
+    GST_OBJECT(appsrc), gst_structure_new_empty(kDidReceiveFirstSegmentMsgName));
+  gst_pad_add_probe (
+    pad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
+    [](GstPad * pad, GstPadProbeInfo * info, gpointer data) -> GstPadProbeReturn {
+      GstEvent *event = GST_PAD_PROBE_INFO_EVENT(info);
+      if ( GST_EVENT_TYPE(event) == GST_EVENT_SEGMENT ) {
+        GstPad *peer_pad = gst_pad_get_peer(pad);
+        if (peer_pad) {
+          gst_pad_send_event(peer_pad, gst_event_ref(event));
+          gst_event_replace (
+            (GstEvent **) &info->data,
+            gst_event_new_sink_message(kDidReceiveFirstSegmentMsgName, GST_MESSAGE(data)));
+          gst_object_unref(peer_pad);
+        }
+        return GST_PAD_PROBE_REMOVE;
+      }
+      return GST_PAD_PROBE_OK;
+    }, msg, [](gpointer data) { gst_message_unref(GST_MESSAGE(data)); });
 
   auto proxypad = GST_PAD(gst_proxy_pad_get_internal(GST_PROXY_PAD(pad)));
   gst_flow_combiner_add_pad(src->priv->flow_combiner, proxypad);
@@ -1205,7 +1226,8 @@ class PlayerImpl : public Player {
   GstCaps* audio_caps_ { nullptr };
   GstCaps* video_caps_ { nullptr };
   SbTime buf_target_min_ts_ { kSbTimeMax };
-  bool did_instant_rate_change_ { false };
+  bool need_instant_rate_change_ { false };
+  int need_first_segment_ack_ { static_cast<int>(MediaType::kBoth) };
 };
 
 struct PlayerRegistry
@@ -1342,6 +1364,8 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   if (video_codec_ == kSbMediaVideoCodecNone) {
     has_enough_data_ &= ~static_cast<int>(MediaType::kVideo);
   }
+
+  need_first_segment_ack_ = has_enough_data_;
 
   if (audio_codec_ != kSbMediaAudioCodecNone) {
     auto caps = CodecToGstCaps(audio_codec_, &audio_sample_info_);
@@ -2228,7 +2252,7 @@ bool PlayerImpl::SetRate(double rate) {
     ChangePipelineState(GST_STATE_PLAYING);
   }
 
-  if (rate != .0 && (rate != 1. || did_instant_rate_change_)) {
+  if (rate != .0 && (rate != 1. || need_instant_rate_change_)) {
     {
       ::starboard::ScopedLock lock(mutex_);
       if (is_seek_pending_) {
@@ -2236,7 +2260,7 @@ bool PlayerImpl::SetRate(double rate) {
         rate_ = rate;
         return true;
       }
-      if (GST_STATE(pipeline_) < GST_STATE_PLAYING) {
+      if (GST_STATE(pipeline_) < GST_STATE_PLAYING || need_first_segment_ack_) {
         GST_DEBUG_OBJECT(pipeline_, "===> Set rate postponed");
         pending_rate_ = rate;
         return true;
@@ -2244,7 +2268,7 @@ bool PlayerImpl::SetRate(double rate) {
       pending_rate_ = .0;
     }
 
-    // TODO: instant rate change support
+    // TODO: remove special handling of amlhalasink
     GstElement* sink = nullptr;
     g_object_get(pipeline_, "audio-sink", &sink, nullptr);
     if (sink && g_str_has_prefix(GST_ELEMENT_NAME(sink), "amlhalasink")) {
@@ -2258,15 +2282,15 @@ bool PlayerImpl::SetRate(double rate) {
       GST_DEBUG_OBJECT(pipeline_, "===> Sent new segment, success = %s", success ? "true" : "false");
       gst_segment_free(segment);
       g_object_unref(sink);
-
-      did_instant_rate_change_ |= success;
     }
     else {
-      GstStructure* s = gst_structure_new(kCustomInstantRateChange, "rate", G_TYPE_DOUBLE, rate, NULL);
+      GstStructure* s = gst_structure_new(
+        kCustomInstantRateChangeEventName, "rate", G_TYPE_DOUBLE, rate, NULL);
       success = gst_element_send_event(
         pipeline_, gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM_OOB, s));
-      did_instant_rate_change_ |= success;
     }
+
+    need_instant_rate_change_ = ( rate != 1. );
   }
 
   if (success) {
@@ -2343,6 +2367,19 @@ bool PlayerImpl::ChangePipelineState(GstState state) const {
     GST_INFO_OBJECT(pipeline_, "Ignore state change due to forced stop");
     return false;
   }
+
+  GstState current, pending;
+  current = pending = GST_STATE_VOID_PENDING;
+  gst_element_get_state(pipeline_, &current, &pending, 0);
+  if (current == state || pending == state) {
+    GST_DEBUG_OBJECT(
+      pipeline_, "Rejected state change to %s from %s with %s pending",
+      gst_element_state_get_name(state),
+      gst_element_state_get_name(current),
+      gst_element_state_get_name(pending));
+    return true;
+  }
+
   if (state == GST_STATE_PLAYING) {
     GstClockTime seek_pos_ns = GST_CLOCK_TIME_NONE;
     SbTime min_ts = kSbTimeMax;
@@ -2582,6 +2619,24 @@ void PlayerImpl::HandleApplicationMessage(GstBus* bus, GstMessage* message) {
       GSource* src = g_main_context_find_source_by_id(main_loop_context_, source_setup_id_);
       g_source_destroy(src);
       source_setup_id_ = -1;
+    }
+  }
+  else if (gst_structure_has_name(structure, kDidReceiveFirstSegmentMsgName)) {
+    if (GST_MESSAGE_SRC(message) == GST_OBJECT(audio_appsrc_) || GST_MESSAGE_SRC(message) == GST_OBJECT(video_appsrc_)) {
+      bool should_set_rate = false;
+      double rate = 0.;
+      auto type = GST_MESSAGE_SRC(message) == GST_OBJECT(audio_appsrc_) ? MediaType::kAudio : MediaType::kVideo;
+
+      mutex_.Acquire();
+      need_first_segment_ack_ &= ~ static_cast<int>(type);
+      should_set_rate = (need_first_segment_ack_ == 0 && pending_rate_ != .0 && !is_seek_pending_);
+      rate = pending_rate_;
+      mutex_.Release();
+
+      if (should_set_rate) {
+        GST_INFO("Sending pending SetRate(rate=%lf)", rate);
+        SetRate(rate);
+      }
     }
   }
 }
