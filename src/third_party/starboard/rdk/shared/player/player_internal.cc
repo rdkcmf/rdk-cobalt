@@ -2281,7 +2281,6 @@ bool PlayerImpl::SetRate(double rate) {
       success = gst_pad_send_event (GST_BASE_SINK_PAD(sink), gst_event_new_segment(segment));
       GST_DEBUG_OBJECT(pipeline_, "===> Sent new segment, success = %s", success ? "true" : "false");
       gst_segment_free(segment);
-      g_object_unref(sink);
     }
     else {
       GstStructure* s = gst_structure_new(
@@ -2289,6 +2288,9 @@ bool PlayerImpl::SetRate(double rate) {
       success = gst_element_send_event(
         pipeline_, gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM_OOB, s));
     }
+
+    if (sink)
+      g_object_unref(sink);
 
     need_instant_rate_change_ = ( rate != 1. );
   }
