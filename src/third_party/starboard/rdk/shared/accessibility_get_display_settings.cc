@@ -29,15 +29,15 @@
 
 #include "starboard/accessibility.h"
 
-#include "starboard/memory.h"
+#include "starboard/common/memory.h"
 
 #include "third_party/starboard/rdk/shared/rdkservices.h"
 
 bool SbAccessibilityGetDisplaySettings(
     SbAccessibilityDisplaySettings* out_setting) {
   if (!out_setting ||
-      !SbMemoryIsZero(out_setting,
-                      sizeof(SbAccessibilityDisplaySettings))) {
+      !starboard::common::MemoryIsZero(
+        out_setting, sizeof(SbAccessibilityDisplaySettings))) {
     return false;
   }
 

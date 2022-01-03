@@ -43,12 +43,12 @@ bool GetContentDirectory(char* out_path, int path_size)
       //check if fonts/fonts.xml file exists, if not, evaluate another path.
       std::string tmp = contentPath + testFilePath;
       if(SbFileExists(tmp.c_str())){
-        return (SbStringConcat(out_path, contentPath.c_str(), path_size) < path_size);
+        return (starboard::strlcat<char>(out_path, contentPath.c_str(), path_size) < path_size);
       }
     }
     return false;
   } else { // Default to /usr/share/content/data if COBALT_CONTENT_PATH is not set
-    return (SbStringConcat(out_path, "/usr/share/content/data", path_size) < path_size);
+    return (starboard::strlcat<char>(out_path, "/usr/share/content/data", path_size) < path_size);
   }
 }
 
@@ -87,7 +87,7 @@ bool GetExecutablePath(char* out_path, int path_size) {
     return false;
   }
 
-  SbStringCopy(out_path, path, path_size);
+  starboard::strlcpy<char>(out_path, path, path_size);
   return true;
 }
 
@@ -102,7 +102,7 @@ bool GetExecutableDirectory(char* out_path, int path_size) {
   }
 
   char* last_slash =
-      const_cast<char*>(SbStringFindLastCharacter(out_path, '/'));
+      const_cast<char*>(strrchr(out_path, '/'));
   if (!last_slash) {
     return false;
   }
@@ -118,8 +118,8 @@ bool GetExecutableName(char* out_path, int path_size) {
     return false;
   }
 
-  const char* last_slash = SbStringFindLastCharacter(path, '/');
-  if (SbStringCopy(out_path, last_slash + 1, path_size) >= path_size) {
+  const char* last_slash = strrchr(path, '/');
+  if (starboard::strlcpy<char>(out_path, last_slash + 1, path_size) >= path_size) {
     return false;
   }
   return true;
@@ -168,7 +168,7 @@ bool SbSystemGetPath(SbSystemPathId path_id, char* out_path, int path_size) {
       if (!GetCacheDirectory(path, kSbFileMaxPath)) {
         return false;
       }
-      if (SbStringConcat(path, "/cobalt", kSbFileMaxPath) >= kSbFileMaxPath) {
+      if (starboard::strlcat<char>(path, "/cobalt", kSbFileMaxPath) >= kSbFileMaxPath) {
         return false;
       }
       if (!SbDirectoryCreate(path)) {
@@ -180,7 +180,7 @@ bool SbSystemGetPath(SbSystemPathId path_id, char* out_path, int path_size) {
       if (!SbSystemGetPath(kSbSystemPathTempDirectory, path, kSbFileMaxPath)) {
         return false;
       }
-      if (SbStringConcat(path, "/log", kSbFileMaxPath) >= kSbFileMaxPath) {
+      if (starboard::strlcat<char>(path, "/log", kSbFileMaxPath) >= kSbFileMaxPath) {
         return false;
       }
       SbDirectoryCreate(path);
@@ -209,11 +209,11 @@ bool SbSystemGetPath(SbSystemPathId path_id, char* out_path, int path_size) {
       return false;
   }
 
-  int length = SbStringGetLength(path);
+  int length = strlen(path);
   if (length < 1 || length > path_size) {
     return false;
   }
 
-  SbStringCopy(out_path, path, path_size);
+  starboard::strlcpy<char>(out_path, path, path_size);
   return true;
 }

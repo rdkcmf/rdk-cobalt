@@ -30,7 +30,7 @@
 #include "base/compiler_specific.h"
 
 #include "starboard/accessibility.h"
-#include "starboard/memory.h"
+#include "starboard/common/memory.h"
 
 #include "third_party/starboard/rdk/shared/rdkservices.h"
 
@@ -38,8 +38,8 @@
 bool SbAccessibilityGetCaptionSettings(
     SbAccessibilityCaptionSettings* caption_settings) {
   if (!caption_settings ||
-      !SbMemoryIsZero(caption_settings,
-                      sizeof(SbAccessibilityCaptionSettings))) {
+      !starboard::common::MemoryIsZero(
+          caption_settings, sizeof(SbAccessibilityCaptionSettings))) {
     return false;
   }
 

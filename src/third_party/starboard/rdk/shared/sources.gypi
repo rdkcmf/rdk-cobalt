@@ -313,12 +313,18 @@
         '<(DEPTH)/starboard/shared/starboard/system_request_suspend.cc',
         '<(DEPTH)/starboard/shared/starboard/system_request_unpause.cc',
         '<(DEPTH)/starboard/shared/starboard/system_supports_resume.cc',
+        '<(DEPTH)/starboard/shared/starboard/system_request_blur.cc',
+        '<(DEPTH)/starboard/shared/starboard/system_request_focus.cc',
+        '<(DEPTH)/starboard/shared/starboard/system_request_reveal.cc',
+        '<(DEPTH)/starboard/shared/starboard/system_request_freeze.cc',
+        '<(DEPTH)/starboard/shared/starboard/system_request_conceal.cc',
 
         # STUB
         '<(DEPTH)/starboard/shared/stub/system_get_total_gpu_memory.cc',
         '<(DEPTH)/starboard/shared/stub/system_get_used_gpu_memory.cc',
         '<(DEPTH)/starboard/shared/stub/system_hide_splash_screen.cc',
         '<(DEPTH)/starboard/shared/stub/system_raise_platform_error.cc',
+        '<(DEPTH)/starboard/shared/stub/system_network_is_disconnected.cc',
 
         # GFX
         '<(DEPTH)/starboard/shared/egl/system_egl.cc',
@@ -468,12 +474,6 @@
         '<(DEPTH)/starboard/shared/nouser/user_get_property.cc',
         '<(DEPTH)/starboard/shared/nouser/user_get_signed_in.cc',
         '<(DEPTH)/starboard/shared/nouser/user_internal.cc',
-        '<(DEPTH)/starboard/shared/stub/speech_recognizer_cancel.cc',
-        '<(DEPTH)/starboard/shared/stub/speech_recognizer_create.cc',
-        '<(DEPTH)/starboard/shared/stub/speech_recognizer_destroy.cc',
-        '<(DEPTH)/starboard/shared/stub/speech_recognizer_is_supported.cc',
-        '<(DEPTH)/starboard/shared/stub/speech_recognizer_start.cc',
-        '<(DEPTH)/starboard/shared/stub/speech_recognizer_stop.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/accessibility_data.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/accessibility_set_captions_enabled.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/accessibility_get_caption_settings.cc',
@@ -497,6 +497,16 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/linux_key_mapping.cc',
     ],
     'conditions': [
+      ['sb_api_version == 12', {
+        'sources': [
+          '<(DEPTH)/starboard/shared/stub/speech_recognizer_cancel.cc',
+          '<(DEPTH)/starboard/shared/stub/speech_recognizer_create.cc',
+          '<(DEPTH)/starboard/shared/stub/speech_recognizer_destroy.cc',
+          '<(DEPTH)/starboard/shared/stub/speech_recognizer_is_supported.cc',
+          '<(DEPTH)/starboard/shared/stub/speech_recognizer_start.cc',
+          '<(DEPTH)/starboard/shared/stub/speech_recognizer_stop.cc',
+        ],
+      }],
       ['<(has_ocdm)==1', {
         'common_defines': [
           'HAS_OCDM',

@@ -51,7 +51,7 @@ bool GetHomeDirectory(SbUser user, char* out_path, int path_size) {
 
   const char* home_directory = getenv("HOME");
   if (home_directory) {
-    SbStringCopy(out_path, home_directory, path_size);
+    starboard::strlcpy<char>(out_path, home_directory, path_size);
     return true;
   }
 
@@ -69,7 +69,7 @@ bool GetHomeDirectory(SbUser user, char* out_path, int path_size) {
     return false;
   }
 
-  SbStringCopy(out_path, passwd.pw_dir, path_size);
+  starboard::strlcpy<char>(out_path, passwd.pw_dir, path_size);
   delete[] buffer;
   return true;
 }

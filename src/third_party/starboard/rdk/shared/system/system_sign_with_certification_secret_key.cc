@@ -30,6 +30,7 @@
 
 #include <memory>
 #include <vector>
+#include <cstring>
 
 #include "starboard/system.h"
 #include "starboard/string.h"
@@ -77,7 +78,7 @@ bool SbSystemSignWithCertificationSecretKey(const uint8_t* message,
   } else {
     char *callerId = SbStringDuplicate("Cobalt");
     RFC_ParamData_t param;
-    SbMemorySet(&param, 0, sizeof (param));
+    memset(&param, 0, sizeof (param));
     WDMP_STATUS status = getRFCParameter(callerId, kRFCParamName, &param);
     if ( status == WDMP_SUCCESS && param.type == WDMP_STRING ) {
       key_name = param.value;

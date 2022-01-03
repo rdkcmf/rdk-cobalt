@@ -47,7 +47,7 @@ class RDKPlatformConfig(platform_configuration.PlatformConfiguration):
     super(RDKPlatformConfig, self).__init__(platform)
 
     self.has_ocdm = os.environ.get('COBALT_HAS_OCDM', '0')
-    self.sabi_json_path = 'starboard/sabi/arm/%s/sabi-v12.json' % (os.environ.get('COBALT_ARM_CALLCONVENTION', 'hardfp'))
+    self.sabi_json_path = 'starboard/sabi/arm/%s/sabi-v13.json' % (os.environ.get('COBALT_ARM_CALLCONVENTION', 'hardfp'))
     self.sysroot = os.path.realpath(os.environ.get('PKG_CONFIG_SYSROOT_DIR', '/'))
     self.AppendApplicationConfigurationPath(os.path.dirname(__file__))
     self.AppendApplicationConfigurationPath(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "shared")))
