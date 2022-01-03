@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <cstring>
 
 #include "starboard/once.h"
 #include "starboard/common/mutex.h"
@@ -763,7 +764,7 @@ static void AddColorMetadataToGstCaps(GstCaps*, const SbMediaColorMetadata&) {}
 #endif
 
 static int CompareColorMetadata(const SbMediaColorMetadata& lhs, const SbMediaColorMetadata& rhs) {
-  return SbMemoryCompare(&lhs, &rhs, sizeof(SbMediaColorMetadata));
+  return memcmp(&lhs, &rhs, sizeof(SbMediaColorMetadata));
 }
 
 static void AddVideoInfoToGstCaps(const SbMediaVideoSampleInfo& info, GstCaps* caps) {

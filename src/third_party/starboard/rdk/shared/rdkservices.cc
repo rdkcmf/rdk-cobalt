@@ -18,6 +18,7 @@
 #include "third_party/starboard/rdk/shared/rdkservices.h"
 
 #include <string>
+#include <cstring>
 #include <algorithm>
 
 #include <websocket/JSONRPCLink.h>
@@ -36,7 +37,7 @@
 #include "starboard/common/condition_variable.h"
 #include "starboard/common/mutex.h"
 #include "starboard/accessibility.h"
-#include "starboard/file.h"
+#include "starboard/common/file.h"
 
 #include "third_party/starboard/rdk/shared/accessibility_data.h"
 #include "third_party/starboard/rdk/shared/log_override.h"
@@ -351,8 +352,8 @@ private:
 
 public:
   AccessibilityImpl() {
-    SbMemorySet(&display_settings_, 0, sizeof(display_settings_));
-    SbMemorySet(&caption_settings_, 0, sizeof(caption_settings_));
+    memset(&display_settings_, 0, sizeof(display_settings_));
+    memset(&caption_settings_, 0, sizeof(caption_settings_));
 
     if (ServiceLink::enableEnvOverrides()) {
       std::string envValue;
@@ -383,8 +384,8 @@ public:
 
     ::starboard::ScopedLock lock(mutex_);
 
-    SbMemorySet(&display_settings_, 0, sizeof(display_settings_));
-    SbMemorySet(&caption_settings_, 0, sizeof(caption_settings_));
+    memset(&display_settings_, 0, sizeof(display_settings_));
+    memset(&caption_settings_, 0, sizeof(caption_settings_));
 
     const auto& cc = settings.ClosedCaptions;
 
@@ -474,7 +475,7 @@ public:
   bool GetCaptionSettings(SbAccessibilityCaptionSettings* out) const {
     if (out) {
       ::starboard::ScopedLock lock(mutex_);
-      SbMemoryCopy(out, &caption_settings_,  sizeof(caption_settings_));
+      memcpy(out, &caption_settings_,  sizeof(caption_settings_));
       return true;
     }
     return false;
@@ -483,7 +484,7 @@ public:
   bool GetDisplaySettings(SbAccessibilityDisplaySettings* out) const {
     if (out) {
       ::starboard::ScopedLock lock(mutex_);
-      SbMemoryCopy(out, &display_settings_,  sizeof(display_settings_));
+      memcpy(out, &display_settings_,  sizeof(display_settings_));
       return true;
     }
     return false;

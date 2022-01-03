@@ -30,12 +30,14 @@
 
 #include "starboard/system.h"
 
+#include <cstring>
+
 #include "cobalt/extension/configuration.h"
 #include "starboard/common/string.h"
 #include "third_party/starboard/rdk/shared/configuration.h"
 
 const void* SbSystemGetExtension(const char* name) {
-  if (SbStringCompareAll(name, kCobaltExtensionConfigurationName) == 0) {
+  if (strcmp(name, kCobaltExtensionConfigurationName) == 0) {
     return third_party::starboard::rdk::shared::GetConfigurationApi();
   }
   return NULL;

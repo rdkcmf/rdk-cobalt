@@ -17,6 +17,8 @@
 
 #include "third_party/starboard/rdk/shared/libcobalt.h"
 
+#include <cstring>
+
 #include "starboard/common/condition_variable.h"
 #include "starboard/common/mutex.h"
 #include "starboard/common/semaphore.h"
@@ -63,11 +65,19 @@ struct APIContext
     starboard::ScopedLock lock(mutex_);
     WaitForApp(lock);
     starboard::Semaphore sem;
+#if SB_API_VERSION >= 13
+    Application::Get()->Freeze(
+      &sem,
+      [](void* ctx) {
+        reinterpret_cast<starboard::Semaphore*>(ctx)->Put();
+      });
+#else
     Application::Get()->Suspend(
       &sem,
       [](void* ctx) {
         reinterpret_cast<starboard::Semaphore*>(ctx)->Put();
       });
+#endif
     sem.Take();
   }
 
@@ -75,11 +85,19 @@ struct APIContext
     starboard::ScopedLock lock(mutex_);
     WaitForApp(lock);
     starboard::Semaphore sem;
+#if SB_API_VERSION >= 13
+    Application::Get()->Focus(
+      &sem,
+      [](void* ctx) {
+        reinterpret_cast<starboard::Semaphore*>(ctx)->Put();
+      });
+#else
     Application::Get()->Unpause(
       &sem,
       [](void* ctx) {
         reinterpret_cast<starboard::Semaphore*>(ctx)->Put();
       });
+#endif
     sem.Take();
   }
 
@@ -87,11 +105,19 @@ struct APIContext
     starboard::ScopedLock lock(mutex_);
     WaitForApp(lock);
     starboard::Semaphore sem;
+#if SB_API_VERSION >= 13
+    Application::Get()->Blur(
+      &sem,
+      [](void* ctx) {
+        reinterpret_cast<starboard::Semaphore*>(ctx)->Put();
+      });
+#else
     Application::Get()->Pause(
       &sem,
       [](void* ctx) {
         reinterpret_cast<starboard::Semaphore*>(ctx)->Put();
       });
+#endif
     sem.Take();
   }
 
@@ -99,11 +125,19 @@ struct APIContext
     starboard::ScopedLock lock(mutex_);
     WaitForApp(lock);
     starboard::Semaphore sem;
+#if SB_API_VERSION >= 13
+    Application::Get()->Focus(
+      &sem,
+      [](void* ctx) {
+        reinterpret_cast<starboard::Semaphore*>(ctx)->Put();
+      });
+#else
     Application::Get()->Unpause(
       &sem,
       [](void* ctx) {
         reinterpret_cast<starboard::Semaphore*>(ctx)->Put();
       });
+#endif
     sem.Take();
   }
 
@@ -213,10 +247,10 @@ void SbRdkSetSetting(const char* key, const char* json) {
   if (!key || key[0] == '\0' || !json)
     return;
 
-  if (SbStringCompareAll(key, "accessibility") == 0) {
+  if (strcmp(key, "accessibility") == 0) {
     Accessibility::SetSettings(json);
   }
-  else if (SbStringCompareAll(key, "systemproperties") == 0) {
+  else if (strcmp(key, "systemproperties") == 0) {
     SystemProperties::SetSettings(json);
   }
 }
@@ -228,16 +262,16 @@ int SbRdkGetSetting(const char* key, char** out_json) {
   bool result = false;
   std::string tmp;
 
-  if (SbStringCompareAll(key, "accessibility") == 0) {
+  if (strcmp(key, "accessibility") == 0) {
     result = Accessibility::GetSettings(tmp);
   }
-  else if (SbStringCompareAll(key, "systemproperties") == 0) {
+  else if (strcmp(key, "systemproperties") == 0) {
     result = SystemProperties::GetSettings(tmp);
   }
 
   if (result && !tmp.empty()) {
     char *out = (char*)malloc(tmp.size() + 1);
-    SbMemoryCopy(out, tmp.c_str(), tmp.size());
+    memcpy(out, tmp.c_str(), tmp.size());
     out[tmp.size()] = '\0';
     *out_json = out;
     return 0;

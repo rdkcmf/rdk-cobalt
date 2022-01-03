@@ -34,8 +34,11 @@
 #include <string>
 #include <algorithm>
 
+#include <ctype.h>
+
 #include "starboard/common/log.h"
 #include "starboard/common/string.h"
+#include "starboard/common/file.h"
 #include "starboard/character.h"
 #include "starboard/file.h"
 
@@ -51,9 +54,9 @@ const char kPlatformName[] = "Linux";
 bool CopyStringAndTestIfSuccess(char* out_value,
                                 int value_length,
                                 const char* from_value) {
-  if (SbStringGetLength(from_value) + 1 > value_length)
+  if (strlen(from_value) + 1 > value_length)
     return false;
-  SbStringCopy(out_value, from_value, value_length);
+  starboard::strlcpy<char>(out_value, from_value, value_length);
   return true;
 }
 
@@ -68,17 +71,17 @@ bool TryReadFromPropertiesFile(const char* prefix, size_t prefix_len, char* out_
   size_t size = 0;
 
   while (getline(&buffer, &size, properties) != -1) {
-    if (SbStringCompare(prefix, buffer, prefix_len) == 0) {
+    if (strncmp(prefix, buffer, prefix_len) == 0) {
       char* remainder = buffer + prefix_len;
-      size_t remainder_length = SbStringGetLength(remainder);
+      size_t remainder_length = strlen(remainder);
       if (remainder_length > 1 && remainder_length < value_length) {
         // trim the newline character
         for(int i = remainder_length - 1; i >= 0 && !std::isalnum(remainder[i]); --i)
           remainder[i] = '\0';
         std::transform(
           remainder, remainder + remainder_length - 1, remainder,
-          [](unsigned char c) -> unsigned char { return SbCharacterToUpper(c); } );
-        SbStringCopy(out_value, remainder, remainder_length);
+          [](unsigned char c) -> unsigned char { return toupper(c); } );
+        starboard::strlcpy<char>(out_value, remainder, remainder_length);
         result = true;
         break;
       }
@@ -127,7 +130,7 @@ bool GetModelName(char* out_value, int value_length) {
   const size_t kPrefixStrLength = SB_ARRAY_SIZE(kPrefixStr) - 1;
   if (TryReadFromPropertiesFile(kPrefixStr, kPrefixStrLength, out_value, value_length)) {
     if (AuthService::GetExperience(prop) && prop == "Flex") {
-      SbStringConcat(out_value, prop.c_str(), value_length);
+      starboard::strlcat<char>(out_value, prop.c_str(), value_length);
     }
     return true;
   }
@@ -234,7 +237,7 @@ bool GetCertificationScope(char* out_value, int value_length) {
   buf[sz] = 0;
 
   SB_LOG(INFO) << "Device cert scope: '" << buf.data() << "'";
-  return SbStringCopy(out_value, buf.data(), value_length);
+  return starboard::strlcpy<char>(out_value, buf.data(), value_length);
 }
 
 }  // namespace
@@ -276,9 +279,10 @@ bool SbSystemGetProperty(SbSystemPropertyId property_id,
 
     case kSbSystemPropertyCertificationScope:
       return GetCertificationScope(out_value, value_length);
-
+#if SB_API_VERSION < 13
     case kSbSystemPropertyBase64EncodedCertificationSecret:
       return false;
+#endif
 
     default:
       SB_DLOG(WARNING) << __FUNCTION__

@@ -19,6 +19,7 @@
 
 #include <dlfcn.h>
 #include <mutex>
+#include <cstring>
 #include <gst/gst.h>
 
 #include "starboard/memory.h"
@@ -389,7 +390,7 @@ void Session::OnKeyUpdated(struct OpenCDMSession* /*ocdm_session*/,
 
   SbDrmKeyId drm_key_id;
   drm_key_id.identifier_size = std::min(static_cast<int>(length), SB_ARRAY_SIZE_INT(drm_key_id.identifier));
-  SbMemoryCopy(drm_key_id.identifier, key_id, drm_key_id.identifier_size);
+  memcpy(drm_key_id.identifier, key_id, drm_key_id.identifier_size);
 
   if (id.empty()) {
     ::starboard::ScopedLock lock(session->mutex_);

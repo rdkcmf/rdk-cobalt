@@ -30,15 +30,15 @@
 
 #include "starboard/accessibility.h"
 
-#include "starboard/memory.h"
+#include "starboard/common/memory.h"
 
 #include "third_party/starboard/rdk/shared/rdkservices.h"
 
 bool SbAccessibilityGetTextToSpeechSettings(
     SbAccessibilityTextToSpeechSettings* out_setting) {
   if (!out_setting ||
-      !SbMemoryIsZero(out_setting,
-                      sizeof(SbAccessibilityTextToSpeechSettings))) {
+      !starboard::common::MemoryIsZero(
+        out_setting, sizeof(SbAccessibilityTextToSpeechSettings))) {
     return false;
   }
   out_setting->has_text_to_speech_setting = true;

@@ -41,6 +41,7 @@
 #include "third_party/starboard/rdk/shared/log_override.h"
 
 #include <linux/input.h>
+#include <cstring>
 
 namespace third_party {
 namespace starboard {
@@ -410,8 +411,10 @@ void EssInput::CreateKey(unsigned int key, SbInputEventType type, unsigned int m
   }
 
   SbInputData* data = new SbInputData();
-  SbMemorySet(data, 0, sizeof(*data));
+  memset(data, 0, sizeof(*data));
+#if SB_API_VERSION < 13
   data->timestamp = SbTimeGetMonotonicNow();
+#endif
   data->type = type;
   data->device_type = kSbInputDeviceTypeRemote;
   data->device_id = 1;  // kKeyboardDeviceId;
