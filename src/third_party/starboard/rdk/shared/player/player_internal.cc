@@ -698,7 +698,27 @@ static void AddColorMetadataToGstCaps(GstCaps* caps, const SbMediaColorMetadata&
     GST_DEBUG ("Setting \"colorimetry\" to %s", tmp);
     g_free (tmp);
   }
+#if GST_CHECK_VERSION(1, 18, 0)
+  GstVideoMasteringDisplayInfo mastering_display_info;
+  gst_video_mastering_display_info_init (&mastering_display_info);//  gst_video_mastering_display_metadata_init (&mastering_display_metadata);
 
+  mastering_display_info.display_primaries[0].x = color_metadata.mastering_metadata.primary_r_chromaticity_x;
+  mastering_display_info.display_primaries[0].y = color_metadata.mastering_metadata.primary_r_chromaticity_y;
+  mastering_display_info.display_primaries[1].x = color_metadata.mastering_metadata.primary_g_chromaticity_x;
+  mastering_display_info.display_primaries[1].y = color_metadata.mastering_metadata.primary_g_chromaticity_y;
+  mastering_display_info.display_primaries[2].x = color_metadata.mastering_metadata.primary_b_chromaticity_x;
+  mastering_display_info.display_primaries[2].y = color_metadata.mastering_metadata.primary_b_chromaticity_y;
+  mastering_display_info.white_point.x = color_metadata.mastering_metadata.white_point_chromaticity_x;
+  mastering_display_info.white_point.y = color_metadata.mastering_metadata.white_point_chromaticity_y;
+  mastering_display_info.max_display_mastering_luminance = color_metadata.mastering_metadata.luminance_max;
+  mastering_display_info.min_display_mastering_luminance = color_metadata.mastering_metadata.luminance_min;
+
+     gchar *tmp =
+     gst_video_mastering_display_info_to_string(&mastering_display_info);
+     gst_caps_set_simple (caps, "mastering-display-metadata", G_TYPE_STRING, tmp, NULL);
+     GST_DEBUG ("Setting \"mastering-display-metadata\" to %s", tmp);
+     g_free (tmp);
+#else
   GstVideoMasteringDisplayMetadata mastering_display_metadata;
   gst_video_mastering_display_metadata_init (&mastering_display_metadata);
   mastering_display_metadata.Rx = color_metadata.mastering_metadata.primary_r_chromaticity_x;
@@ -721,12 +741,18 @@ static void AddColorMetadataToGstCaps(GstCaps* caps, const SbMediaColorMetadata&
     GST_DEBUG ("Setting \"mastering-display-metadata\" to %s", tmp);
     g_free (tmp);
   }
-
+#endif
   if (color_metadata.max_cll && color_metadata.max_fall) {
     GstVideoContentLightLevel content_light_level;
+#if GST_CHECK_VERSION(1, 18, 0)
+    content_light_level.max_content_light_level = color_metadata.max_cll;
+    content_light_level.max_frame_average_light_level = color_metadata.max_fall;
+    gchar *tmp = gst_video_content_light_level_to_string(&content_light_level);
+#else
     content_light_level.maxCLL = color_metadata.max_cll;
     content_light_level.maxFALL = color_metadata.max_fall;
     gchar *tmp = gst_video_content_light_level_to_caps_string(&content_light_level);
+#endif
     gst_caps_set_simple (caps, "content-light-level", G_TYPE_STRING, tmp, NULL);
     GST_DEBUG ("setting \"content-light-level\" to %s", tmp);
     g_free (tmp);
