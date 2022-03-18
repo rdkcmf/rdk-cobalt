@@ -20,9 +20,15 @@ project(Cobalt)
 
 find_package(WPEFramework)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+find_library(COBALT_LIBRARY cobalt REQUIRED)
 
 set(PLUGIN_NAME Cobalt)
 set(MODULE_NAME ${NAMESPACE}${PLUGIN_NAME})
+set(PLUGIN_COBALT_IMPLEMENTATION "${MODULE_NAME}Impl" CACHE STRING "Specify a library with a Cobalt implementation." )
+set(PLUGIN_COBALT_AUTOSTART false CACHE STRING "Automatically start Cobalt plugin")
+set(PLUGIN_COBALT_CLOSUREPOLICY "quit" CACHE STRING "Configures how to handle window close request")
+set(PLUGIN_COBALT_AUTOSTART "false" CACHE STRING "Automatically start Cobalt plugin")
+set(PLUGIN_COBALT_MODE "Local" CACHE STRING "Controls if the plugin should run in its own process, in process or remote")
 
 option(PLUGIN_COBALT_ENABLE_FOCUS_IFACE "Enable support for focus change." OFF)
 
@@ -31,6 +37,7 @@ if (PLUGIN_COBALT_ENABLE_FOCUS_IFACE)
 endif()
 
 find_package(${NAMESPACE}Plugins REQUIRED)
+find_package(${NAMESPACE}Definitions REQUIRED)
 
 # find_package(JsonGenerator REQUIRED)
 # JsonGenerator(DOCS
@@ -46,22 +53,37 @@ find_package(${NAMESPACE}Plugins REQUIRED)
 
 add_library(${MODULE_NAME} SHARED
     Cobalt.cpp
-    CobaltImplementation.cpp
     CobaltJsonRpc.cpp
-    Module.cpp)
+    Module.cpp
+    )
 
 target_link_libraries(${MODULE_NAME}
     PRIVATE
         ${NAMESPACE}Plugins::${NAMESPACE}Plugins
-        -lcobalt
-        )
+        ${NAMESPACE}Definitions::${NAMESPACE}Definitions
+    )
+
+add_library(${PLUGIN_COBALT_IMPLEMENTATION} SHARED
+    Module.cpp
+    CobaltImplementation.cpp
+    )
+
+target_link_libraries(${PLUGIN_COBALT_IMPLEMENTATION}
+    PRIVATE
+        ${NAMESPACE}Plugins::${NAMESPACE}Plugins
+        ${NAMESPACE}Definitions::${NAMESPACE}Definitions
+        ${COBALT_LIBRARY}
+    )
 
 # Library installation section
 string(TOLOWER ${NAMESPACE} STORAGENAME)
-install(TARGETS ${MODULE_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/${STORAGENAME}/plugins)
-
-set(PLUGIN_COBALT_AUTOSTART false CACHE STRING "Automatically start Cobalt plugin")
-set(PLUGIN_COBALT_OUTOFPROCESS true CACHE STRING "Controls if the plugin should run in its own process")
-set(PLUGIN_COBALT_CLOSUREPOLICY "quit" CACHE STRING "Configures how to handle window close request")
+install(
+    TARGETS ${MODULE_NAME}
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/${STORAGENAME}/plugins
+    COMPONENT ${PROJECT_NAME})
+install(
+    TARGETS ${PLUGIN_COBALT_IMPLEMENTATION}
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/${STORAGENAME}/plugins
+    COMPONENT ${PROJECT_NAME})
 
 write_config(${PLUGIN_NAME})
