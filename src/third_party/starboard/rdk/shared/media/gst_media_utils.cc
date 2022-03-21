@@ -15,6 +15,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 #include <memory>
+#include <map>
 #include <type_traits>
 
 #include <glib.h>
@@ -56,18 +57,14 @@ UniqueFeatureList GetFactoryForCaps(GList* elements,
 }
 
 template <typename C>
-bool GstRegistryHasElementForCodec(C codec) {
+bool GstRegistryHasElementForCodecImpl(C codec) {
   static_assert(std::is_same<C, SbMediaVideoCodec>::value ||
                 std::is_same<C, SbMediaAudioCodec>::value, "Invalid codec");
   auto type = std::is_same<C, SbMediaVideoCodec>::value
                   ? GST_ELEMENT_FACTORY_TYPE_MEDIA_VIDEO
                   : GST_ELEMENT_FACTORY_TYPE_MEDIA_AUDIO;
-  UniqueFeatureList parser_factories{gst_element_factory_list_get_elements(
-      GST_ELEMENT_FACTORY_TYPE_PARSER | type, GST_RANK_MARGINAL)};
   UniqueFeatureList decoder_factories{gst_element_factory_list_get_elements(
       GST_ELEMENT_FACTORY_TYPE_DECODER | type, GST_RANK_MARGINAL)};
-  // UniqueFeatureList demuxer_factories{gst_element_factory_list_get_elements(
-  //     GST_ELEMENT_FACTORY_TYPE_DEMUXER, GST_RANK_MARGINAL)};
 
   UniqueFeatureList elements;
   std::vector<std::string> caps;
@@ -92,6 +89,9 @@ bool GstRegistryHasElementForCodec(C codec) {
     // Decoder is there.
     return true;
   }
+
+  UniqueFeatureList parser_factories{gst_element_factory_list_get_elements(
+      GST_ELEMENT_FACTORY_TYPE_PARSER | type, GST_RANK_MARGINAL)};
 
   SB_DLOG(INFO) << "No decoder for codec " << codec << ". Falling back to parsers.";
   // No decoder. Check if there's a parser and a decoder accepting its caps.
@@ -127,6 +127,17 @@ bool GstRegistryHasElementForCodec(C codec) {
 
   SB_LOG(WARNING) << "Can not play codec " << codec;
   return false;
+}
+
+template <typename C>
+bool GstRegistryHasElementForCodec(C codec) {
+  static std::map<C, bool> cache;
+  auto it = cache.find(codec);
+  if (it != cache.end())
+    return it->second;
+  bool r = GstRegistryHasElementForCodecImpl(codec);
+  cache[codec] = r;
+  return r;
 }
 
 }  // namespace
