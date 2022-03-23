@@ -173,6 +173,10 @@ public:
       return;
     return link_->Unsubscribe(waitTime, eventName);
   }
+
+  void Teardown() {
+    link_.reset();
+  }
 };
 
 struct DeviceIdImpl {
@@ -339,6 +343,10 @@ public:
 
   bool IsEnabled() const {
     return is_enabled_.load();
+  }
+
+  void Teardown() {
+    tts_link_.Teardown();
   }
 };
 
@@ -677,11 +685,7 @@ private:
 
 SB_ONCE_INITIALIZE_FUNCTION(AuthServiceImpl, GetAuthService);
 
-}  // namespace
-
-struct DisplayInfo::Impl {
-  Impl();
-  ~Impl();
+struct DisplayInfoImpl {
   ResolutionInfo GetResolution() {
     Refresh();
     return resolution_info_;
@@ -694,11 +698,15 @@ struct DisplayInfo::Impl {
     Refresh();
     return diagonal_size_in_inches_;
   }
+  void Teardown() {
+    display_info_.Teardown();
+  }
+
 private:
   void Refresh();
   void OnUpdated(const Core::JSON::String&);
 
-  ServiceLink display_info_;
+  ServiceLink display_info_ { kDisplayInfoCallsign };
   ResolutionInfo resolution_info_ { };
   uint32_t hdr_caps_ { DisplayInfo::kHdrNone };
   float diagonal_size_in_inches_ { 0.f };
@@ -706,16 +714,7 @@ private:
   ::starboard::atomic_bool did_subscribe_ { false };
 };
 
-DisplayInfo::Impl::Impl()
-  : display_info_(kDisplayInfoCallsign) {
-  Refresh();
-}
-
-DisplayInfo::Impl::~Impl() {
-  display_info_.Unsubscribe(kDefaultTimeoutMs, "updated");
-}
-
-void DisplayInfo::Impl::Refresh() {
+void DisplayInfoImpl::Refresh() {
   if (!needs_refresh_.load())
     return;
 
@@ -724,7 +723,7 @@ void DisplayInfo::Impl::Refresh() {
   if (!did_subscribe_.load()) {
     bool old_val = did_subscribe_.exchange(true);
     if (old_val == false) {
-      rc = display_info_.Subscribe<Core::JSON::String>(kDefaultTimeoutMs, "updated", &DisplayInfo::Impl::OnUpdated, this);
+      rc = display_info_.Subscribe<Core::JSON::String>(kDefaultTimeoutMs, "updated", &DisplayInfoImpl::OnUpdated, this);
       if (Core::ERROR_UNAVAILABLE == rc || kPriviligedRequestErrorCode == rc) {
         needs_refresh_.store(false);
         SB_LOG(ERROR) << "Failed to subscribe to '" << kDisplayInfoCallsign
@@ -834,7 +833,7 @@ void DisplayInfo::Impl::Refresh() {
                << ", diagonal size in inches: " << std::dec << diagonal_size_in_inches_;
 }
 
-void DisplayInfo::Impl::OnUpdated(const Core::JSON::String&) {
+void DisplayInfoImpl::OnUpdated(const Core::JSON::String&) {
   if (needs_refresh_.load() == false) {
     needs_refresh_.store(true);
     SbEventSchedule([](void* data) {
@@ -843,22 +842,20 @@ void DisplayInfo::Impl::OnUpdated(const Core::JSON::String&) {
   }
 }
 
-DisplayInfo::DisplayInfo() : impl_(new Impl) {
+SB_ONCE_INITIALIZE_FUNCTION(DisplayInfoImpl, GetDisplayInfo);
+
+}  // namespace
+
+ResolutionInfo DisplayInfo::GetResolution() {
+  return GetDisplayInfo()->GetResolution();
 }
 
-DisplayInfo::~DisplayInfo() {
+float DisplayInfo::GetDiagonalSizeInInches() {
+  return GetDisplayInfo()->GetDiagonalSizeInInches();
 }
 
-ResolutionInfo DisplayInfo::GetResolution() const {
-  return impl_->GetResolution();
-}
-
-float DisplayInfo::GetDiagonalSizeInInches() const {
-  return impl_->GetDiagonalSizeInInches();
-}
-
-uint32_t DisplayInfo::GetHDRCaps() const {
-  return impl_->GetHDRCaps();
+uint32_t DisplayInfo::GetHDRCaps() {
+  return GetDisplayInfo()->GetHDRCaps();
 }
 
 std::string DeviceIdentification::GetChipset() {
@@ -949,14 +946,17 @@ bool SystemProperties::GetDeviceType(std::string &out) {
   return GetSystemProperties()->GetDeviceType(out);
 }
 
-bool AuthService::IsAvailable()
-{
+bool AuthService::IsAvailable() {
   return GetAuthService()->IsAvailable();
 }
 
-bool AuthService::GetExperience(std::string &out)
-{
+bool AuthService::GetExperience(std::string &out) {
   return GetAuthService()->GetExperience(out);
+}
+
+void TeardownJSONRPCLink() {
+  GetDisplayInfo()->Teardown();
+  GetTextToSpeech()->Teardown();
 }
 
 }  // namespace shared

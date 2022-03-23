@@ -50,14 +50,9 @@ public:
     kHdrTechnicolor = (1u << 4),
   };
 
-  DisplayInfo();
-  ~DisplayInfo();
-  ResolutionInfo GetResolution() const;
-  float GetDiagonalSizeInInches() const;
-  uint32_t GetHDRCaps() const;
-private:
-  struct Impl;
-  mutable ::starboard::scoped_ptr<Impl> impl_;
+  static ResolutionInfo GetResolution();
+  static float GetDiagonalSizeInInches();
+  static uint32_t GetHDRCaps();
 };
 
 class DeviceIdentification {
@@ -105,6 +100,9 @@ public:
   static bool IsAvailable();
   static bool GetExperience(std::string &out);
 };
+
+
+void TeardownJSONRPCLink();
 
 }  // namespace shared
 }  // namespace rdk

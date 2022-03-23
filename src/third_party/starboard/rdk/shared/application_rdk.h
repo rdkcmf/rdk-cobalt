@@ -69,9 +69,6 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   NativeWindowType GetNativeWindow() const { return native_window_; }
   int GetWindowWidth() const { return window_width_; }
   int GetWindowHeight() const { return window_height_; }
-  ResolutionInfo GetDisplayResolution() const;
-  uint32_t GetHDRCaps() const;
-  float GetDisplayDiagonalSizeInInches() const;
   void DisplayInfoChanged();
 
   bool IsStartImmediate() override { return !HasPreloadSwitch(); }
@@ -118,7 +115,6 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   int wakeup_fd_ { -1 };
   int monitor_timer_fd_ { -1 };
 
-  std::unique_ptr<DisplayInfo> display_info_ { nullptr };
   std::unique_ptr<HangMonitor> hang_monitor_ { nullptr };
 };
 

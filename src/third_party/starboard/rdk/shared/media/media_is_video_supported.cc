@@ -36,12 +36,10 @@
 #include "starboard/shared/starboard/media/media_support_internal.h"
 #include "starboard/shared/starboard/media/media_util.h"
 #include "third_party/starboard/rdk/shared/media/gst_media_utils.h"
-#include "third_party/starboard/rdk/shared/application_rdk.h"
 #include "third_party/starboard/rdk/shared/rdkservices.h"
 #include "third_party/starboard/rdk/shared/log_override.h"
 
 using starboard::shared::starboard::media::IsSDRVideo;
-using third_party::starboard::rdk::shared::Application;
 using third_party::starboard::rdk::shared::DisplayInfo;
 
 SB_EXPORT bool SbMediaIsVideoSupported(SbMediaVideoCodec video_codec,
@@ -63,7 +61,7 @@ SB_EXPORT bool SbMediaIsVideoSupported(SbMediaVideoCodec video_codec,
     return false;
   }
 
-  auto resolution_info = Application::Get()->GetDisplayResolution();
+  auto resolution_info = DisplayInfo::GetResolution();
   if (frame_height > resolution_info.Height || frame_width > resolution_info.Width ) {
     return false;
   }
@@ -76,7 +74,7 @@ SB_EXPORT bool SbMediaIsVideoSupported(SbMediaVideoCodec video_codec,
   }
 
   if (!IsSDRVideo(bit_depth, primary_id, transfer_id, matrix_id)) {
-    uint32_t hdr_caps = Application::Get()->GetHDRCaps();
+    uint32_t hdr_caps = DisplayInfo::GetHDRCaps();
     if (transfer_id == kSbMediaTransferIdSmpteSt2084 &&
         (hdr_caps & (DisplayInfo::kHdr10 | DisplayInfo::kHdr10Plus)) == 0) {
       return false;

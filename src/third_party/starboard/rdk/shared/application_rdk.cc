@@ -96,7 +96,6 @@ static void setTimerInterval(int fd, SbTime time) {
 
 Application::Application()
   : input_handler_(new EssInput)
-  , display_info_ (new DisplayInfo)
   , hang_monitor_(new HangMonitor("Application")) {
   bool error = false;
   ctx_ = EssContextCreate();
@@ -152,6 +151,7 @@ void Application::Initialize() {
 void Application::Teardown() {
   SbAudioSinkPrivate::TearDown();
   libcobalt_api::Teardown();
+  TeardownJSONRPCLink();
 
   close(ess_timer_fd_);
   close(wakeup_fd_);
@@ -345,18 +345,6 @@ void Application::DestroyNativeWindow() {
   native_window_ = 0;
 
   EssContextStop(ctx_);
-}
-
-ResolutionInfo Application::GetDisplayResolution() const {
-  return display_info_->GetResolution();
-}
-
-uint32_t Application::GetHDRCaps() const {
-  return display_info_->GetHDRCaps();
-}
-
-float Application::GetDisplayDiagonalSizeInInches() const {
-  return display_info_->GetDiagonalSizeInInches();
 }
 
 void Application::DisplayInfoChanged() {
