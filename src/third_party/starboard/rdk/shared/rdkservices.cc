@@ -844,6 +844,163 @@ void DisplayInfoImpl::OnUpdated(const Core::JSON::String&) {
 
 SB_ONCE_INITIALIZE_FUNCTION(DisplayInfoImpl, GetDisplayInfo);
 
+struct NetworkInfoImpl {
+private:
+  ServiceLink network_link_ { kNetworkCallsign };
+  ::starboard::atomic_bool needs_refresh_ { true };
+  ::starboard::atomic_bool did_subscribe_ { false };
+  ::starboard::atomic_bool is_connected_  { false };
+  ::starboard::atomic_bool is_connection_type_wireless_ { false };
+  ::starboard::Mutex mutex_;
+  SbEventId event_id_ { kSbEventIdInvalid };
+
+  struct InterfaceInfo : public Core::JSON::Container {
+    InterfaceInfo()
+      : Core::JSON::Container() {
+      Init();
+    }
+    InterfaceInfo(const InterfaceInfo& other)
+      : Core::JSON::Container()
+      , InterfaceName(other.InterfaceName)
+      , IsConnected(other.IsConnected)  {
+      Init();
+    }
+    InterfaceInfo& operator=(const InterfaceInfo& rhs) {
+      InterfaceName = rhs.InterfaceName;
+      IsConnected = rhs.IsConnected;
+      return *this;
+    }
+    Core::JSON::String  InterfaceName;
+    Core::JSON::Boolean IsConnected;
+  private:
+    void Init() {
+      Add(_T("interface"), &InterfaceName);
+      Add(_T("connected"), &IsConnected);
+    }
+  };
+
+  struct InterfacesInfo : public Core::JSON::Container {
+    InterfacesInfo(const InterfacesInfo&) = delete;
+    InterfacesInfo& operator=(const InterfacesInfo&) = delete;
+    InterfacesInfo()
+      : Core::JSON::Container() {
+      Add(_T("interfaces"), &Interfaces);
+    }
+    Core::JSON::ArrayType<InterfaceInfo> Interfaces;
+  };
+
+  void ScheduleRefresh(SbTime timeout) {
+    ::starboard::ScopedLock lock(mutex_);
+    if (event_id_ == kSbEventIdInvalid) {
+      needs_refresh_.store(true);
+      event_id_ = SbEventSchedule([](void* data) {
+        auto& self = *static_cast<NetworkInfoImpl*>(data);
+        self.mutex_.Acquire();
+        self.event_id_ = kSbEventIdInvalid;
+        self.mutex_.Release();
+        self.Refresh();
+      }, this, timeout);
+    }
+  }
+
+  void Refresh() {
+    if (!needs_refresh_.load())
+      return;
+
+    uint32_t rc;
+    if (!did_subscribe_.load()) {
+      bool old_val = did_subscribe_.exchange(true);
+      if (old_val == false) {
+        rc = network_link_.Subscribe<Core::JSON::String>(
+          kDefaultTimeoutMs, "onConnectionStatusChanged",
+          &NetworkInfoImpl::OnConnectionStatusChanged, this);
+        if (Core::ERROR_NONE != rc && Core::ERROR_DUPLICATE_KEY != rc) {
+          SB_LOG(ERROR) << "Failed to subscribe to '" << kNetworkCallsign
+                        << ".onConnectionStatusChanged' event, rc = " << rc
+                        << " ( " << Core::ErrorToString(rc) << " )";
+          did_subscribe_.store(false);
+        }
+      }
+    }
+
+    InterfacesInfo info;
+    rc = network_link_.Get(kDefaultTimeoutMs, "getInterfaces", info);
+    if (Core::ERROR_UNAVAILABLE == rc || kPriviligedRequestErrorCode == rc) {
+      SB_LOG(ERROR) << "'" << kNetworkCallsign << ".getInterfaces' failed, rc = " << rc
+                    << " ( " << Core::ErrorToString(rc) << " )";
+      needs_refresh_.store(false);
+      return;
+    }
+    else if (Core::ERROR_NONE != rc) {
+      SB_LOG(ERROR) << "'" << kNetworkCallsign << ".getInterfaces' failed, rc = " << rc
+                    << " ( " << Core::ErrorToString(rc) << " ). Trying again in 5 seconds.";
+      ScheduleRefresh(5 * kSbTimeSecond);
+    }
+    else {
+      needs_refresh_.store(false);
+
+      bool has_connected_interface = false;
+      auto index(info.Interfaces.Elements());
+      while (index.Next()) {
+        const auto& it = index.Current();
+        if (it.IsConnected) {
+          SB_LOG(INFO) << "Found connected interface: " << it.InterfaceName.Value();
+          has_connected_interface = true;
+          break;
+        }
+      }
+      if (!has_connected_interface) {
+        SB_LOG(INFO) << "All interfaces are disconnected...";
+      }
+
+      if (is_connected_.load() != has_connected_interface) {
+        is_connected_.store(has_connected_interface);
+#if SB_API_VERSION >= 13
+        if (has_connected_interface)
+          Application::Get()->InjectOsNetworkConnectedEvent();
+        else
+          Application::Get()->InjectOsNetworkDisconnectedEvent();
+#endif
+      }
+    }
+
+    InterfaceInfo default_interface;
+    rc = network_link_.Get(kDefaultTimeoutMs, "getDefaultInterface", default_interface);
+    if (Core::ERROR_NONE == rc) {
+      std::string connection_type = default_interface.InterfaceName.Value();
+      SB_LOG(INFO) << "Default connection type: " << connection_type;
+      is_connection_type_wireless_.store(0 == connection_type.compare("WIFI"));
+    }
+    else {
+      SB_LOG(INFO) << "Failed to get default interface, rc = " << rc
+                   << " ( " << Core::ErrorToString(rc) << " )";
+    }
+  }
+
+  void OnConnectionStatusChanged(const Core::JSON::String&) {
+    ScheduleRefresh(100 * kSbTimeMillisecond);
+  }
+
+public:
+  NetworkInfoImpl() {
+    Refresh();
+  }
+
+  bool IsDisconnected() {
+    return !is_connected_.load();
+  }
+
+  bool IsConnectionTypeWireless() {
+    return is_connection_type_wireless_.load();
+  }
+
+  void Teardown() {
+    network_link_.Teardown();
+  }
+};
+
+SB_ONCE_INITIALIZE_FUNCTION(NetworkInfoImpl, GetNetworkInfo);
+
 }  // namespace
 
 ResolutionInfo DisplayInfo::GetResolution() {
@@ -867,15 +1024,11 @@ std::string DeviceIdentification::GetFirmwareVersion() {
 }
 
 bool NetworkInfo::IsConnectionTypeWireless() {
-  JsonObject data;
-  uint32_t rc = ServiceLink(kNetworkCallsign).Get(kDefaultTimeoutMs, "getDefaultInterface", data);
-  if (Core::ERROR_NONE == rc) {
-    std::string connection_type = data.Get("interface").Value();
-    SB_LOG(INFO) << "ConnectionType: " << connection_type;
-    return (0 == connection_type.compare("WIFI"));
-  }
-  SB_LOG(INFO) << "Failed to get default interface, rc: " << rc;
-  return false;
+  return GetNetworkInfo()->IsConnectionTypeWireless();
+}
+
+bool NetworkInfo::IsDisconnected() {
+  return GetNetworkInfo()->IsDisconnected();
 }
 
 void TextToSpeech::Speak(const std::string& text) {
@@ -957,6 +1110,7 @@ bool AuthService::GetExperience(std::string &out) {
 void TeardownJSONRPCLink() {
   GetDisplayInfo()->Teardown();
   GetTextToSpeech()->Teardown();
+  GetNetworkInfo()->Teardown();
 }
 
 }  // namespace shared

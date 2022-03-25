@@ -64,6 +64,7 @@ public:
 class NetworkInfo {
 public:
   static bool IsConnectionTypeWireless();
+  static bool IsDisconnected();
 };
 
 class TextToSpeech {

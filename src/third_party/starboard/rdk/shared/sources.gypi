@@ -324,7 +324,6 @@
         '<(DEPTH)/starboard/shared/stub/system_get_used_gpu_memory.cc',
         '<(DEPTH)/starboard/shared/stub/system_hide_splash_screen.cc',
         '<(DEPTH)/starboard/shared/stub/system_raise_platform_error.cc',
-        '<(DEPTH)/starboard/shared/stub/system_network_is_disconnected.cc',
 
         # GFX
         '<(DEPTH)/starboard/shared/egl/system_egl.cc',
@@ -333,6 +332,7 @@
         # OTHER
         '<(DEPTH)/third_party/starboard/rdk/shared/egl_workaround.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_get_connection_type.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/system/system_network_is_disconnected.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_get_device_type.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_get_path.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_get_property.cc',
