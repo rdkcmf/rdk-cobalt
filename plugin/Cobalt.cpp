@@ -236,8 +236,11 @@ void Cobalt::URLChanged(const string &URL) {
 }
 
 void Cobalt::Hidden(const bool hidden) {
+  if (_hidden == hidden)
+    return;
+
   TRACE(Trace::Information,
-        (_T("Hidden: %s }"), (hidden ? "true" : "false")));
+        (_T("Hidden: %s"), (hidden ? "true" : "false")));
   string message(
     string("{ \"hidden\": ") + (hidden ? _T("true") : _T("false"))
     + string("}"));

@@ -35,6 +35,8 @@ SB_EXPORT_PLATFORM int  SbRdkGetSetting(const char* key, char** out_json);  // c
 typedef int (*SbRdkCallbackFunc)(void *user_data);
 SB_EXPORT_PLATFORM void SbRdkSetStopRequestHandler(SbRdkCallbackFunc cb, void* user_data);
 SB_EXPORT_PLATFORM void SbRdkRequestStop();
+SB_EXPORT_PLATFORM void SbRdkSetConcealRequestHandler(SbRdkCallbackFunc cb, void* user_data);
+SB_EXPORT_PLATFORM void SbRdkRequestConceal();
 
 #ifdef __cplusplus
 }  // extern "C"
