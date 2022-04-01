@@ -38,6 +38,8 @@ int  SbRdkGetSetting(const char* key, char** out_json);
 typedef int (*SbRdkCallbackFunc)(void *user_data);
 void SbRdkSetStopRequestHandler(SbRdkCallbackFunc cb, void* user_data);
 void SbRdkRequestStop();
+void SbRdkSetConcealRequestHandler(SbRdkCallbackFunc cb, void* user_data);
+void SbRdkRequestConceal();
 
 }  // extern "C"
 
@@ -323,6 +325,12 @@ private:
         return 0;
       }, this);
 
+      SbRdkSetConcealRequestHandler([](void* data)-> int {
+        CobaltWindow* window = reinterpret_cast<CobaltWindow*>(data);
+        window->_parent.OnConcealRequest();
+        return 1; // proceed with default
+      }, this);
+
       Run();
       return result;
     }
@@ -566,6 +574,7 @@ public:
 
           if (_state != PluginHost::IStateControl::RESUMED) {
             StateChange(PluginHost::IStateControl::RESUMED);
+            NotifyVisibilityChange(false);
           }
 
           _adminLock.Unlock();
@@ -575,6 +584,7 @@ public:
           _adminLock.Lock();
 
           if (_state != PluginHost::IStateControl::SUSPENDED) {
+            NotifyVisibilityChange(true);
             StateChange(PluginHost::IStateControl::SUSPENDED);
           }
 
@@ -639,6 +649,14 @@ public:
       }
     }
     return false;
+  }
+
+  void OnConcealRequest() {
+    NotifyVisibilityChange(true);
+    // Device lifecycle tests from YTS expect 'suspend' behavior on 'conceal',
+    // so we reuse 'closure' notification and let app manager to trigger 'suspended' state.
+    // Ideally we would just emit 'visibilitychange'.
+    NotifyClosure();
   }
 
   void OnWindowCloseRequest() {
@@ -730,6 +748,17 @@ private:
     std::list<Exchange::IBrowser::INotification*>::iterator index(_cobaltClients.begin());
     while (index != _cobaltClients.end()) {
       (*index)->Closure();
+      index++;
+    }
+    _adminLock.Unlock();
+  }
+
+  void NotifyVisibilityChange(bool hidden)
+  {
+    _adminLock.Lock();
+    std::list<Exchange::IBrowser::INotification*>::iterator index(_cobaltClients.begin());
+    while (index != _cobaltClients.end()) {
+      (*index)->Hidden(hidden);
       index++;
     }
     _adminLock.Unlock();

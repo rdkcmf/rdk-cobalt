@@ -143,6 +143,37 @@ struct APIContext
     }
   }
 
+  void SetConcealRequestHandler(SbRdkCallbackFunc cb, void* user_data)
+  {
+    starboard::ScopedLock lock(mutex_);
+    conceal_request_cb_ = cb;
+    conceal_request_cb_data_ = user_data;
+  }
+
+  void RequestConceal()
+  {
+    SbRdkCallbackFunc cb;
+    void* user_data;
+    int should_invoke_default = 1;
+
+    mutex_.Acquire();
+    cb = conceal_request_cb_;
+    user_data = conceal_request_cb_data_;
+    mutex_.Release();
+
+    if (cb) {
+      should_invoke_default = cb(user_data);
+    }
+
+    if (should_invoke_default) {
+#if SB_API_VERSION >= 13
+      Application::Get()->Conceal(NULL, NULL);
+#else
+      Application::Get()->Suspend(NULL, NULL);
+#endif
+    }
+  }
+
 private:
   void WaitForApp(starboard::ScopedLock &)
   {
@@ -155,6 +186,8 @@ private:
   starboard::ConditionVariable condition_;
   SbRdkCallbackFunc stop_request_cb_ { nullptr };
   void* stop_request_cb_data_ { nullptr };
+  SbRdkCallbackFunc conceal_request_cb_ { nullptr };
+  void* conceal_request_cb_data_ { nullptr };
 };
 
 SB_ONCE_INITIALIZE_FUNCTION(APIContext, GetContext);
@@ -252,6 +285,14 @@ void SbRdkSetStopRequestHandler(SbRdkCallbackFunc cb, void* user_data) {
 
 void SbRdkRequestStop() {
   GetContext()->RequestStop();
+}
+
+void SbRdkSetConcealRequestHandler(SbRdkCallbackFunc cb, void* user_data) {
+  GetContext()->SetConcealRequestHandler(cb, user_data);
+}
+
+void SbRdkRequestConceal() {
+  GetContext()->RequestConceal();
 }
 
 }  // extern "C"
