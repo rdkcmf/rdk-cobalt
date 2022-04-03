@@ -376,10 +376,15 @@ private:
       std::vector<const char*> argv;
 
       argv.push_back("Cobalt");
+
       if (!_url.empty())
         argv.push_back(cmdURL.c_str());
       if (IsPreloadEnabled())
         argv.push_back("--preload");
+
+#ifdef ENABLE_EVERGREEN_LITE
+      argv.push_back("--evergreen_lite");
+#endif
 
       {
         std::string args_str;

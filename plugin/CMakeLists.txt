@@ -20,7 +20,6 @@ project(Cobalt)
 
 find_package(WPEFramework)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-find_library(COBALT_LIBRARY cobalt REQUIRED)
 
 set(PLUGIN_NAME Cobalt)
 set(MODULE_NAME ${NAMESPACE}${PLUGIN_NAME})
@@ -31,6 +30,7 @@ set(PLUGIN_COBALT_AUTOSTART "false" CACHE STRING "Automatically start Cobalt plu
 set(PLUGIN_COBALT_MODE "Local" CACHE STRING "Controls if the plugin should run in its own process, in process or remote")
 
 option(PLUGIN_COBALT_ENABLE_FOCUS_IFACE "Enable support for focus change." OFF)
+option(PLUGIN_COBALT_EVEGREEN_LITE "Enable Evergreen Lite build configuration." OFF)
 
 if(PLUGIN_COBALT_ENABLE_FOCUS_IFACE)
     add_definitions(-DPLUGIN_COBALT_ENABLE_FOCUS_IFACE=1)
@@ -62,6 +62,13 @@ add_library(${MODULE_NAME} SHARED
     CobaltJsonRpc.cpp
     Module.cpp
     )
+
+if (PLUGIN_COBALT_EVEGREEN_LITE)
+    add_definitions(-DENABLE_EVERGREEN_LITE=1)
+    find_library(COBALT_LIBRARY loader_app REQUIRED)
+else()
+    find_library(COBALT_LIBRARY cobalt REQUIRED)
+endif()
 
 target_link_libraries(${MODULE_NAME}
     PRIVATE

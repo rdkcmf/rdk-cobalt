@@ -61,6 +61,23 @@
         'atomic_public.h',
         'thread_types_public.h',
       ],
+      'conditions': [
+         ['sb_evergreen_compatible == 1', {
+           'dependencies': [
+             '<(DEPTH)/starboard/elf_loader/evergreen_config.gyp:evergreen_config',
+           ],},
+         ],
+         ['sb_evergreen_compatible == 1' and 'sb_evergreen_compatible_lite != 1', {
+           'dependencies': [
+             '<(DEPTH)/starboard/loader_app/pending_restart.gyp:pending_restart',
+           ],},
+         ],
+         ['sb_evergreen_compatible_libunwind == 1', {
+           'dependencies': [
+             '<(DEPTH)/third_party/llvm-project/libunwind/libunwind.gyp:unwind_starboard',
+           ],},
+         ],
+       ],
       'cflags': [
         '-Wno-reorder',
         '-Wno-sign-compare',
