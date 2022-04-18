@@ -32,9 +32,15 @@ set(PLUGIN_COBALT_MODE "Local" CACHE STRING "Controls if the plugin should run i
 
 option(PLUGIN_COBALT_ENABLE_FOCUS_IFACE "Enable support for focus change." OFF)
 
-if (PLUGIN_COBALT_ENABLE_FOCUS_IFACE)
+if(PLUGIN_COBALT_ENABLE_FOCUS_IFACE)
     add_definitions(-DPLUGIN_COBALT_ENABLE_FOCUS_IFACE=1)
 endif()
+
+if(NOT PLUGIN_COBALT_CLOSUREPOLICY)
+    add_definitions(-DPLUGIN_COBALT_ENABLE_CLOSUREPOLICY=0)
+else()
+    add_definitions(-DPLUGIN_COBALT_ENABLE_CLOSUREPOLICY=1)
+endif(NOT PLUGIN_COBALT_CLOSUREPOLICY)
 
 find_package(${NAMESPACE}Plugins REQUIRED)
 find_package(${NAMESPACE}Definitions REQUIRED)

@@ -316,7 +316,11 @@ private:
       SYSLOG(Logging::Notification, (_T("Preload is set to: %s\n"), _preloadEnabled ? "true" : "false"));
 
       if (config.ClosurePolicy.IsSet() == true) {
+#if defined(PLUGIN_COBALT_ENABLE_CLOSUREPOLICY) && PLUGIN_COBALT_ENABLE_CLOSUREPOLICY
         _parent._shouldSuspendOnClose = config.ClosurePolicy.Value().compare("suspend") == 0;
+#else
+        SYSLOG(Logging::Notification, (_T("Ignore 'closurepolicy' configuration, support is disabled\n")));
+#endif
       }
 
       SbRdkSetStopRequestHandler([](void* data)-> int {
