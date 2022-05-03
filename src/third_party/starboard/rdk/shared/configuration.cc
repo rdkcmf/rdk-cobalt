@@ -33,6 +33,8 @@
 #include "cobalt/extension/configuration.h"
 #include "starboard/common/configuration_defaults.h"
 
+#include "third_party/starboard/rdk/shared/libcobalt.h"
+
 namespace third_party {
 namespace starboard {
 namespace rdk {
@@ -44,10 +46,14 @@ bool CobaltEnableQuic() {
   return false;
 }
 
+const char* CobaltUserOnExitStrategy() {
+  return SbRdkGetCobaltExitStrategy();
+}
+
 const CobaltExtensionConfigurationApi kConfigurationApi = {
     kCobaltExtensionConfigurationName,
     2,
-    &::starboard::common::CobaltUserOnExitStrategyDefault,
+    &CobaltUserOnExitStrategy,
     &::starboard::common::CobaltRenderDirtyRegionOnlyDefault,
     &::starboard::common::CobaltEglSwapIntervalDefault,
     &::starboard::common::CobaltFallbackSplashScreenUrlDefault,

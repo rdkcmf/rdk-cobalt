@@ -17,6 +17,8 @@
 
 #include "third_party/starboard/rdk/shared/libcobalt.h"
 
+#include <cstring>
+
 #include "starboard/common/condition_variable.h"
 #include "starboard/common/mutex.h"
 #include "starboard/common/semaphore.h"
@@ -174,6 +176,27 @@ struct APIContext
     }
   }
 
+  void SetCobaltExitStrategy(const char* strategy)
+  {
+    if (running_) {
+      SB_LOG(WARNING) << "Ignore exit strategy change, app is already running.";
+      return;
+    }
+
+    // Supported values(src/cobalt/extension/configuration.h): stop, suspend, noexit.
+    if (strncmp(strategy, "suspend", 7) == 0)
+      exit_strategy_ = "suspend";
+    else if (strncmp(strategy, "noexit", 6) == 0)
+      exit_strategy_ = "noexit";
+    else
+      exit_strategy_ = "stop";
+  }
+
+  const char* GetCobaltExitStrategy()
+  {
+    return exit_strategy_.c_str();
+  }
+
 private:
   void WaitForApp(starboard::ScopedLock &)
   {
@@ -188,6 +211,7 @@ private:
   void* stop_request_cb_data_ { nullptr };
   SbRdkCallbackFunc conceal_request_cb_ { nullptr };
   void* conceal_request_cb_data_ { nullptr };
+  std::string exit_strategy_ { "stop" };
 };
 
 SB_ONCE_INITIALIZE_FUNCTION(APIContext, GetContext);
@@ -293,6 +317,14 @@ void SbRdkSetConcealRequestHandler(SbRdkCallbackFunc cb, void* user_data) {
 
 void SbRdkRequestConceal() {
   GetContext()->RequestConceal();
+}
+
+void SbRdkSetCobaltExitStrategy(const char* strategy) {
+  GetContext()->SetCobaltExitStrategy(strategy);
+}
+
+const char* SbRdkGetCobaltExitStrategy() {
+  return GetContext()->GetCobaltExitStrategy();
 }
 
 }  // extern "C"

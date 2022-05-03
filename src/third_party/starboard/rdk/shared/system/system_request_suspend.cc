@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Copyright 2015 The Cobalt Authors. All Rights Reserved.
+// Copyright 2017 The Cobalt Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,6 +32,9 @@
 
 #include "third_party/starboard/rdk/shared/libcobalt.h"
 
-void SbSystemRequestStop(int error_level) {
-  SbRdkRequestStop();
+#if SB_API_VERSION < 13
+void SbSystemRequestSuspend() {
+  // Route through conceal request. cobalt-plugin will call Suspend.
+  SbRdkRequestConceal();
 }
+#endif  // SB_API_VERSION < 13

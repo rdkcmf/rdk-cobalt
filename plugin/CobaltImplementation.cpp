@@ -36,10 +36,8 @@ void SbRdkSetSetting(const char* key, const char* json);
 int  SbRdkGetSetting(const char* key, char** out_json);
 
 typedef int (*SbRdkCallbackFunc)(void *user_data);
-void SbRdkSetStopRequestHandler(SbRdkCallbackFunc cb, void* user_data);
-void SbRdkRequestStop();
 void SbRdkSetConcealRequestHandler(SbRdkCallbackFunc cb, void* user_data);
-void SbRdkRequestConceal();
+void SbRdkSetCobaltExitStrategy(const char* strategy);
 
 }  // extern "C"
 
@@ -316,19 +314,17 @@ private:
       SYSLOG(Logging::Notification, (_T("Preload is set to: %s\n"), _preloadEnabled ? "true" : "false"));
 
       if (config.ClosurePolicy.IsSet() == true) {
-        _parent._shouldSuspendOnClose = config.ClosurePolicy.Value().compare("suspend") == 0;
+#if defined(PLUGIN_COBALT_ENABLE_CLOSUREPOLICY) && PLUGIN_COBALT_ENABLE_CLOSUREPOLICY
+        SbRdkSetCobaltExitStrategy(config.ClosurePolicy.Value().data());
+#else
+        SYSLOG(Logging::Notification, (_T("Ignore 'closurepolicy' configuration, support is disabled\n")));
+#endif
       }
-
-      SbRdkSetStopRequestHandler([](void* data)-> int {
-        CobaltWindow* window = reinterpret_cast<CobaltWindow*>(data);
-        window->_parent.OnWindowCloseRequest();
-        return 0;
-      }, this);
 
       SbRdkSetConcealRequestHandler([](void* data)-> int {
         CobaltWindow* window = reinterpret_cast<CobaltWindow*>(data);
         window->_parent.OnConcealRequest();
-        return 1; // proceed with default
+        return 0;
       }, this);
 
       Run();
@@ -423,8 +419,7 @@ public:
     _cobaltClients(),
     _stateControlClients(),
     _sink(*this),
-    _delayedSuspend(*this),
-    _shouldSuspendOnClose(false) {
+    _delayedSuspend(*this) {
   }
 
   virtual ~CobaltImplementation() {
@@ -574,7 +569,6 @@ public:
 
           if (_state != PluginHost::IStateControl::RESUMED) {
             StateChange(PluginHost::IStateControl::RESUMED);
-            NotifyVisibilityChange(false);
           }
 
           _adminLock.Unlock();
@@ -584,7 +578,6 @@ public:
           _adminLock.Lock();
 
           if (_state != PluginHost::IStateControl::SUSPENDED) {
-            NotifyVisibilityChange(true);
             StateChange(PluginHost::IStateControl::SUSPENDED);
           }
 
@@ -652,20 +645,9 @@ public:
   }
 
   void OnConcealRequest() {
-    NotifyVisibilityChange(true);
-    // Device lifecycle tests from YTS expect 'suspend' behavior on 'conceal',
-    // so we reuse 'closure' notification and let app manager to trigger 'suspended' state.
-    // Ideally we would just emit 'visibilitychange'.
+    // Device lifecycle tests from YTS expect 'suspend' behavior on 'conceal'
+    Request(PluginHost::IStateControl::SUSPEND);
     NotifyClosure();
-  }
-
-  void OnWindowCloseRequest() {
-    if (_shouldSuspendOnClose) {
-      Request(PluginHost::IStateControl::SUSPEND);
-      NotifyClosure();
-    } else {
-      SbRdkQuit();
-    }
   }
 
   BEGIN_INTERFACE_MAP (CobaltImplementation)
@@ -753,17 +735,6 @@ private:
     _adminLock.Unlock();
   }
 
-  void NotifyVisibilityChange(bool hidden)
-  {
-    _adminLock.Lock();
-    std::list<Exchange::IBrowser::INotification*>::iterator index(_cobaltClients.begin());
-    while (index != _cobaltClients.end()) {
-      (*index)->Hidden(hidden);
-      index++;
-    }
-    _adminLock.Unlock();
-  }
-
 private:
   CobaltWindow _window;
   mutable Core::CriticalSection _adminLock;
@@ -773,7 +744,6 @@ private:
   std::list<PluginHost::IStateControl::INotification*> _stateControlClients;
   NotificationSink _sink;
   DelayedSuspend _delayedSuspend;
-  bool _shouldSuspendOnClose;
 };
 
 SERVICE_REGISTRATION(CobaltImplementation, 1, 0);
