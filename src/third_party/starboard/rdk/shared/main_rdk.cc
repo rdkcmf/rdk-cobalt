@@ -77,13 +77,16 @@ extern "C" SB_EXPORT_PLATFORM int main(int argc, char** argv) {
   gst_init_check(NULL, NULL, &error);
   g_free(error);
 
-//  starboard::shared::signal::InstallCrashSignalHandlers();
   starboard::shared::signal::InstallSuspendSignalHandlers();
   third_party::starboard::rdk::shared::InstallStopSignalHandlers();
-  third_party::starboard::rdk::shared::Application application;
-  int result = application.Run(argc, argv);
+
+  int result = 0;
+  {
+    third_party::starboard::rdk::shared::Application application;
+    result = application.Run(argc, argv);
+  }
+
   third_party::starboard::rdk::shared::UninstallStopSignalHandlers();
-//  starboard::shared::signal::UninstallCrashSignalHandlers();
   starboard::shared::signal::UninstallSuspendSignalHandlers();
 
   gst_deinit();

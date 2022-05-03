@@ -317,6 +317,7 @@
         '<(DEPTH)/starboard/shared/starboard/system_request_focus.cc',
         '<(DEPTH)/starboard/shared/starboard/system_request_reveal.cc',
         '<(DEPTH)/starboard/shared/starboard/system_request_freeze.cc',
+        '<(DEPTH)/starboard/shared/starboard/system_request_stop.cc',
 
         # STUB
         '<(DEPTH)/starboard/shared/stub/system_get_total_gpu_memory.cc',
@@ -338,7 +339,7 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_has_capability.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_get_extensions.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_sign_with_certification_secret_key.cc',
-        '<(DEPTH)/third_party/starboard/rdk/shared/system/system_request_stop.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/system/system_request_suspend.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/system/system_request_conceal.cc',
     ],
 
