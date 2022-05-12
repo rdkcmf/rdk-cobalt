@@ -651,7 +651,11 @@ static GstVideoTransferFunction TransferIdToGstVideoTransferFunction(SbMediaTran
     case kSbMediaTransferId12BitBt2020:
       return GST_VIDEO_TRANSFER_BT2020_12;
     case kSbMediaTransferIdSmpteSt2084:
+#if GST_CHECK_VERSION(1, 18, 0)
+      return GST_VIDEO_TRANSFER_SMPTE2084;
+#else
       return GST_VIDEO_TRANSFER_SMPTE_ST_2084;
+#endif
     case kSbMediaTransferIdAribStdB67:
       return GST_VIDEO_TRANSFER_ARIB_STD_B67;
     case kSbMediaTransferIdUnspecified:
