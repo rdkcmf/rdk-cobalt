@@ -394,6 +394,61 @@ SbKeyModifiers KeyCodeToSbKeyModifiers(uint16_t code) {
   return kSbKeyModifiersNone;
 }
 
+bool IsYouTubeCompliantKey(SbKey key) {
+  // Returns true if `key` is supported by YouTube apps.
+  // See 'Remote keys requirements' from
+  //  https://developers.google.com/youtube/living-room/certification/software-certification-2023#remote-keys-and-events
+  // section:
+  // '8.1.2 Device remote keys not implemented by the YouTube application or reserved for device system functions MUST NOT dispatch any key event or key code.'
+  switch (key) {
+    case kSbKeyLeft:
+    case kSbKeyRight:
+    case kSbKeyUp:
+    case kSbKeyDown:
+    case kSbKeyReturn:
+    case kSbKeyEscape:
+    case kSbKeyPlay:
+    case kSbKeyPause:
+    case kSbKeyMediaPlayPause:
+    case kSbKeyMediaStop:
+    case kSbKeyMediaFastForward:
+    case kSbKeyMediaRewind:
+    case kSbKeySpace:
+    case kSbKeyBackspace:
+    case kSbKeyDelete:
+    case kSbKeyBrowserSearch:
+    case kSbKeyMicrophone:
+    case kSbKeyMediaPrevTrack:
+    case kSbKeyMediaNextTrack:
+    case kSbKeySubtitle:
+    case kSbKeyRed:
+    case kSbKeyGreen:
+    case kSbKeyYellow:
+    case kSbKeyBlue:
+    case kSbKeyLaunchThisApplication:
+    case kSbKey0:
+    case kSbKey1:
+    case kSbKey2:
+    case kSbKey3:
+    case kSbKey4:
+    case kSbKey5:
+    case kSbKey6:
+    case kSbKey7:
+    case kSbKey8:
+    case kSbKey9:
+    case kSbKeyChannelUp:
+    case kSbKeyChannelDown:
+    case kSbKeyLast:
+    case kSbKeyMediaAudioTrack:
+    case kSbKeyInfo:
+    case kSbKeyGuide:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
 }  // namespace
 
 EssInput::EssInput() : key_repeat_interval_(kKeyHoldTime) {
@@ -406,6 +461,11 @@ EssInput::~EssInput() {
 void EssInput::CreateKey(unsigned int key, SbInputEventType type, unsigned int modifiers, bool repeatable) {
   SbKey sb_key = KeyCodeToSbKey(key);
   if (sb_key == kSbKeyUnknown) {
+    DeleteRepeatKey();
+    return;
+  }
+
+  if (!IsYouTubeCompliantKey(sb_key)) {
     DeleteRepeatKey();
     return;
   }
