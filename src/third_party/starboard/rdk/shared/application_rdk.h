@@ -97,6 +97,7 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
  private:
   void MaterializeNativeWindow();
   void DestroyNativeWindow();
+  void BuildEssosContext();
 
   static EssTerminateListener terminateListener;
   static EssKeyListener keyListener;
@@ -109,6 +110,7 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   int window_width_ { 0 };
   int window_height_ { 0 };
   bool resize_pending_ { false };
+  bool essos_context_recycle_ { false };
 
   SbTime ess_loop_last_ts_ { 0 };
   int ess_timer_fd_ { -1 };

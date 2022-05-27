@@ -99,12 +99,14 @@ private:
       , Language()
       , ContentDir()
       , PreloadEnabled()
+      , EssosContextDestroy()
       , AutoSuspendDelay() {
       Add(_T("url"), &Url);
       Add(_T("clientidentifier"), &ClientIdentifier);
       Add(_T("language"), &Language);
       Add(_T("contentdir"), &ContentDir);
       Add(_T("gstdebug"), &GstDebug);
+      Add(_T("essoscontextdestroy"), &EssosContextDestroy);
       Add(_T("preload"), &PreloadEnabled);
       Add(_T("autosuspenddelay"), &AutoSuspendDelay);
       Add(_T("systemproperties"), &SystemProperties);
@@ -119,6 +121,7 @@ private:
     Core::JSON::String Language;
     Core::JSON::String ContentDir;
     Core::JSON::String GstDebug;
+    Core::JSON::String EssosContextDestroy;
     Core::JSON::Boolean PreloadEnabled;
     Core::JSON::DecUInt16 AutoSuspendDelay;
     Core::JSON::VariantContainer SystemProperties;
@@ -297,6 +300,11 @@ private:
         if (config.GstDebug.IsSet() == true)
           gstDebug += "," + config.GstDebug.Value();
         Core::SystemInfo::SetEnvironment(_T("GST_DEBUG"), gstDebug);
+      }
+
+      if (config.EssosContextDestroy.IsSet() == true) {
+        string val = config.EssosContextDestroy.Value();
+        Core::SystemInfo::SetEnvironment(_T("COBALT_ESSOS_CONTEXT_DESTROY"), val);
       }
 
       if (config.PreloadEnabled.IsSet() == true) {

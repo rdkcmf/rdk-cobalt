@@ -97,26 +97,8 @@ static void setTimerInterval(int fd, SbTime time) {
 Application::Application()
   : input_handler_(new EssInput)
   , hang_monitor_(new HangMonitor("Application")) {
-  bool error = false;
-  ctx_ = EssContextCreate();
-
-  if ( !EssContextInit(ctx_) ) {
-    error = true;
-  }
-  else if ( !EssContextSetTerminateListener(ctx_, this, &terminateListener) ) {
-    error = true;
-  }
-  else if ( !EssContextSetKeyListener(ctx_, this, &keyListener) ) {
-    error = true;
-  }
-  else if ( !EssContextSetSettingsListener(ctx_, this, &settingsListener) ) {
-    error = true;
-  }
-
-  if ( error ) {
-    const char *detail = EssContextGetLastErrorDetail(ctx_);
-    SB_LOG(ERROR) << "Essos error: '" <<  detail << '\'';
-  }
+  essos_context_recycle_ = !!getenv("COBALT_ESSOS_CONTEXT_DESTROY");
+  BuildEssosContext();
 }
 
 Application::~Application() {
@@ -279,6 +261,9 @@ void Application::OnSuspend() {
 }
 
 void Application::OnResume() {
+  if ( essos_context_recycle_ )
+    BuildEssosContext();
+
   setTimerInterval(ess_timer_fd_, kEssRunLoopPeriod);
   MaterializeNativeWindow();
 }
@@ -344,7 +329,12 @@ void Application::DestroyNativeWindow() {
 
   native_window_ = 0;
 
-  EssContextStop(ctx_);
+  if ( essos_context_recycle_ ) {
+    EssContextDestroy(ctx_);
+    ctx_ = NULL;
+  }
+  else
+    EssContextStop(ctx_);
 }
 
 void Application::DisplayInfoChanged() {
@@ -357,6 +347,30 @@ void Application::DisplayInfoChanged() {
   data->size = window_size;
   data->window = window_;
   WindowSizeChanged(data, &Application::DeleteDestructor<SbEventWindowSizeChangedData>);
+}
+
+void Application::BuildEssosContext()
+{
+  bool error = false;
+  ctx_ = EssContextCreate();
+
+  if ( !EssContextInit(ctx_) ) {
+    error = true;
+  }
+  else if ( !EssContextSetTerminateListener(ctx_, this, &terminateListener) ) {
+    error = true;
+  }
+  else if ( !EssContextSetKeyListener(ctx_, this, &keyListener) ) {
+    error = true;
+  }
+  else if ( !EssContextSetSettingsListener(ctx_, this, &settingsListener) ) {
+    error = true;
+  }
+
+  if ( error ) {
+    const char *detail = EssContextGetLastErrorDetail(ctx_);
+    SB_LOG(ERROR) << "Essos error: '" <<  detail << '\'';
+  }
 }
 
 }  // namespace shared
