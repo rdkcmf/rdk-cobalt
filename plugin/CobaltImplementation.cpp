@@ -268,9 +268,11 @@ private:
       if (config.ClientIdentifier.IsSet() == true) {
         string value(service->Callsign() + ',' + config.ClientIdentifier.Value());
         Core::SystemInfo::SetEnvironment(_T("CLIENT_IDENTIFIER"), value);
+        Core::SystemInfo::SetEnvironment(_T("ESSRMGR_APPID"), value);
         Core::SystemInfo::SetEnvironment(_T("WAYLAND_DISPLAY"), config.ClientIdentifier.Value());
       } else {
         Core::SystemInfo::SetEnvironment(_T("CLIENT_IDENTIFIER"), service->Callsign());
+        Core::SystemInfo::SetEnvironment(_T("ESSRMGR_APPID"), service->Callsign());
       }
 
       SetThunderAccessPointIfNeeded();
