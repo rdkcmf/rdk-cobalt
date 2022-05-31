@@ -40,6 +40,7 @@
     'sysroot%': '/',
     'gl_type': 'system_gles2',
     'has_ocdm%': '0',
+    'enable_evergreen_lite%': '0',
 
     # This is to create cobalt shared library
     'final_executable_type': 'shared_library',
@@ -145,6 +146,13 @@
       '-fno-exceptions',
     ],
     'conditions': [
+      ['<(enable_evergreen_lite)==1', {
+       'variables': {
+            'sb_evergreen_compatible': 1,
+            'sb_evergreen_compatible_lite': 1,
+            'sb_evergreen_compatible_libunwind': 1,
+       },
+      }],
       ['cobalt_fastbuild==0', {
         'compiler_flags_debug': [
           # '-g',
