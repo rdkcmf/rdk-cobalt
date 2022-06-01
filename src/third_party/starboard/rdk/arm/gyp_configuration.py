@@ -66,7 +66,9 @@ class RDKPlatformConfig(platform_configuration.PlatformConfiguration):
         'clang': 0,
         'sysroot': self.sysroot,
         'has_ocdm': self.has_ocdm,
-        'enable_evergreen_lite': self.enable_evergreen_lite,
+        'sb_evergreen_compatible': self.enable_evergreen_lite,
+        'sb_evergreen_compatible_lite': self.enable_evergreen_lite,
+        'sb_evergreen_compatible_libunwind': self.enable_evergreen_lite,
     })
     variables.update({
         'cobalt_font_package': 'limited',

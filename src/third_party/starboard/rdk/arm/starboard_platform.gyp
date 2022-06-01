@@ -77,7 +77,7 @@
              '<(DEPTH)/third_party/llvm-project/libunwind/libunwind.gyp:unwind_starboard',
            ],},
          ],
-       ],
+      ],
       'cflags': [
         '-Wno-reorder',
         '-Wno-sign-compare',

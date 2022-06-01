@@ -33,10 +33,29 @@
 #include <cstring>
 
 #include "cobalt/extension/configuration.h"
+#include "cobalt/extension/crash_handler.h"
 #include "starboard/common/string.h"
 #include "third_party/starboard/rdk/shared/configuration.h"
+#if SB_IS(EVERGREEN_COMPATIBLE)
+#include "starboard/elf_loader/evergreen_config.h"
+#include "starboard/shared/starboard/crash_handler.h"
+#endif
 
 const void* SbSystemGetExtension(const char* name) {
+#if SB_IS(EVERGREEN_COMPATIBLE)
+  const starboard::elf_loader::EvergreenConfig* evergreen_config =
+      starboard::elf_loader::EvergreenConfig::GetInstance();
+  if (evergreen_config != NULL &&
+      evergreen_config->custom_get_extension_ != NULL) {
+    const void* ext = evergreen_config->custom_get_extension_(name);
+    if (ext != NULL) {
+      return ext;
+    }
+  }
+  if (strcmp(name, kCobaltExtensionCrashHandlerName) == 0) {
+    return starboard::common::GetCrashHandlerApi();
+  }
+#endif
   if (strcmp(name, kCobaltExtensionConfigurationName) == 0) {
     return third_party::starboard::rdk::shared::GetConfigurationApi();
   }

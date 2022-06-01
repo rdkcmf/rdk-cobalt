@@ -29,13 +29,40 @@
 #include "starboard/directory.h"
 #include "starboard/file.h"
 #include "starboard/user.h"
+#if SB_IS(EVERGREEN_COMPATIBLE)
+#include "starboard/elf_loader/evergreen_config.h"
+#endif
 
 namespace {
+
+#if SB_IS(EVERGREEN_COMPATIBLE)
+// May override the content path if there is EvergreenConfig published.
+// The override allows for switching to different content paths based
+// on the Evergreen binary executed.
+// Returns false if it failed.
+bool GetEvergreenContentPathOverride(char* out_path, int path_size) {
+  const starboard::elf_loader::EvergreenConfig* evergreen_config =
+      starboard::elf_loader::EvergreenConfig::GetInstance();
+  if (!evergreen_config) {
+    return true;
+  }
+  if (evergreen_config->content_path_.empty()) {
+    return true;
+  }
+
+  if (starboard::strlcpy(out_path, evergreen_config->content_path_.c_str(),
+                         path_size) >= path_size) {
+    return false;
+  }
+  return true;
+}
+#endif
 
 bool GetContentDirectory(char* out_path, int path_size)
 {
   const char* paths = std::getenv("COBALT_CONTENT_DIR");
-  if(paths){ // Treat the environment variable as PATH-like search variable
+  if (paths) {
+    // Treat the environment variable as PATH-like search variable
     std::stringstream pathsStream(paths);
     const std::string testFilePath = "/fonts/fonts.xml";
     std::string contentPath;
@@ -46,10 +73,14 @@ bool GetContentDirectory(char* out_path, int path_size)
         return (starboard::strlcat<char>(out_path, contentPath.c_str(), path_size) < path_size);
       }
     }
+#if !SB_IS(EVERGREEN_COMPATIBLE)
+    // Don't return false and let EvergreenConfig override the path
     return false;
-  } else { // Default to /usr/share/content/data if COBALT_CONTENT_PATH is not set
-    return (starboard::strlcat<char>(out_path, "/usr/share/content/data", path_size) < path_size);
+#endif
   }
+
+  // Default to /usr/share/content/data if COBALT_CONTENT_PATH is not set
+  return (starboard::strlcat<char>(out_path, "/usr/share/content/data", path_size) < path_size);
 }
 
 // Gets the path to the cache directory, using the user's home directory.
@@ -162,6 +193,11 @@ bool SbSystemGetPath(SbSystemPathId path_id, char* out_path, int path_size) {
       if (!GetContentDirectory(path, kSbFileMaxPath)){
         return false;
       }
+#if SB_IS(EVERGREEN_COMPATIBLE)
+      if (!GetEvergreenContentPathOverride(path, kSbFileMaxPath)) {
+        return false;
+      }
+#endif
       break;
 
     case kSbSystemPathCacheDirectory:
@@ -202,7 +238,17 @@ bool SbSystemGetPath(SbSystemPathId path_id, char* out_path, int path_size) {
 
     case kSbSystemPathFontConfigurationDirectory:
     case kSbSystemPathFontDirectory:
+#if SB_IS(EVERGREEN_COMPATIBLE)
+      if (!GetContentDirectory(path, kSbFileMaxPath)) {
+        return false;
+      }
+      if (starboard::strlcat(path, "/fonts", kSbFileMaxPath) >= kSbFileMaxPath) {
+        return false;
+      }
+      break;
+#else
       return false;
+#endif
 
     default:
       SB_NOTIMPLEMENTED() << "SbSystemGetPath not implemented for " << path_id;

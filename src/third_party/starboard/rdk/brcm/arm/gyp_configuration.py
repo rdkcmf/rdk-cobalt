@@ -48,7 +48,6 @@ class RDKPlatformConfig(platform_configuration.PlatformConfiguration):
 
     self.has_ocdm = os.environ.get('COBALT_HAS_OCDM', '0')
     self.sabi_json_path = 'starboard/sabi/arm/%s/sabi-v13.json' % (os.environ.get('COBALT_ARM_CALLCONVENTION', 'hardfp'))
-    self.enable_evergreen_lite = os.environ.get('COBALT_EVERGREEN_LITE', '0')
     self.sysroot = os.path.realpath(os.environ.get('PKG_CONFIG_SYSROOT_DIR', '/'))
     self.AppendApplicationConfigurationPath(os.path.dirname(__file__))
     self.AppendApplicationConfigurationPath(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "shared")))
@@ -66,7 +65,6 @@ class RDKPlatformConfig(platform_configuration.PlatformConfiguration):
         'clang': 0,
         'sysroot': self.sysroot,
         'has_ocdm': self.has_ocdm,
-        'enable_evergeen_lite': self.enable_evergreen_lite,
     })
     variables.update({
         'cobalt_font_package': 'limited',

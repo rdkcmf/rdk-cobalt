@@ -459,6 +459,8 @@
         '<(DEPTH)/starboard/shared/starboard/application.cc',
         '<(DEPTH)/starboard/shared/starboard/command_line.cc',
         '<(DEPTH)/starboard/shared/starboard/command_line.h',
+        '<(DEPTH)/starboard/shared/starboard/crash_handler.cc',
+        '<(DEPTH)/starboard/shared/starboard/crash_handler.h',
         '<(DEPTH)/starboard/shared/stub/cryptography_create_transformer.cc',
         '<(DEPTH)/starboard/shared/stub/cryptography_destroy_transformer.cc',
         '<(DEPTH)/starboard/shared/stub/cryptography_get_tag.cc',

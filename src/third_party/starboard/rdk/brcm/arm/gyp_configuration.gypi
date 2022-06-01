@@ -40,7 +40,6 @@
     'sysroot%': '/',
     'gl_type': 'system_gles2',
     'has_ocdm%': '0',
-    'enable_evergreen_lite%': '0',
 
     # This is to create cobalt shared library
     'final_executable_type': 'shared_library',

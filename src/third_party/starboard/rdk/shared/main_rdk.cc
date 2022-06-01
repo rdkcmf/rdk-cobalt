@@ -39,6 +39,10 @@
 
 #include "third_party/starboard/rdk/shared/application_rdk.h"
 
+#if SB_IS(EVERGREEN_COMPATIBLE)
+#include "third_party/crashpad/wrapper/wrapper.h"
+#endif
+
 namespace third_party {
 namespace starboard {
 namespace rdk {
@@ -79,6 +83,10 @@ extern "C" SB_EXPORT_PLATFORM int main(int argc, char** argv) {
 
   starboard::shared::signal::InstallSuspendSignalHandlers();
   third_party::starboard::rdk::shared::InstallStopSignalHandlers();
+
+#if SB_IS(EVERGREEN_COMPATIBLE)
+  third_party::crashpad::wrapper::InstallCrashpadHandler();
+#endif
 
   int result = 0;
   {

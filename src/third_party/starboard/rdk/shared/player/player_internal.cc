@@ -111,6 +111,22 @@ unsigned getGstPlayFlag(const char* nick) {
   return flag->value;
 }
 
+bool enableNativeAudio() {
+  static bool enable_native_audio = false;
+  static volatile gsize init = 0;
+
+  if (g_once_init_enter (&init)) {
+    GstElementFactory* factory = gst_element_factory_find("brcmaudiosink");
+    if (factory) {
+      gst_object_unref(GST_OBJECT(factory));
+      enable_native_audio = true;
+    }
+    g_once_init_leave (&init, 1);
+  }
+
+  return enable_native_audio;
+}
+
 G_BEGIN_DECLS
 
 #define GST_COBALT_TYPE_SRC (gst_cobalt_src_get_type())
@@ -1370,10 +1386,8 @@ PlayerImpl::PlayerImpl(SbPlayer player,
   unsigned flagAudio = getGstPlayFlag("audio");
   unsigned flagVideo = getGstPlayFlag("video");
   unsigned flagNativeVideo = getGstPlayFlag("native-video");
-  unsigned flagNativeAudio = 0;
-#if SB_HAS(NATIVE_AUDIO)
-  flagNativeAudio = getGstPlayFlag("native-audio");
-#endif
+  unsigned flagNativeAudio = enableNativeAudio() ? getGstPlayFlag("native-audio") : 0;
+
   g_object_set(pipeline_, "flags",
                flagAudio | flagVideo | flagNativeVideo | flagNativeAudio,
                nullptr);
