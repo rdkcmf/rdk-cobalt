@@ -1,5 +1,5 @@
 {
-  "$schema": "interface.schema.json",
+  "$schema": "https://raw.githubusercontent.com/rdkcentral/rdkservices/main/Tools/json_generator/schemas/interface.schema.json",
   "jsonrpc": "2.0",
   "info": {
     "title": "Accessibility API",
@@ -11,7 +11,7 @@
   },
   "definitions": {
     "color": {
-      "description": "Enum for possible closed captioning colors.",
+      "description": "The closed captioning color.",
       "type": "string",
       "enum": [
         "Blue",
@@ -25,7 +25,7 @@
       ]
     },
     "fontfamily": {
-      "description": "Enum for possible closed captioning font families.",
+      "description": "The closed captioning font family.",
       "type": "string",
       "enum": [
         "Casual",
@@ -38,7 +38,7 @@
       ]
     },
     "edgestyle": {
-      "description": "Enum for possible closed captioning character edge styles.",
+      "description": "The closed captioning character edge style.",
       "type": "string",
       "enum": [
         "None",
@@ -49,7 +49,7 @@
       ]
     },
     "fontsizepercentage": {
-      "description": "Enum for possible closed captioning font size percentages.",
+      "description": "The closed captioning font size percentages.",
       "type": "string",
       "enum": [
         "25",
@@ -67,7 +67,7 @@
       ]
     },
     "opacitypercentage": {
-      "description": "Enum for possible closed captioning opacity percentages.",
+      "description": "The closed captioning opacity percentages.",
       "type": "string",
       "enum": [
         "0",
@@ -78,7 +78,7 @@
       ]
     },
     "CCSettings": {
-      "description": "Platform's settings for closed captions.",
+      "description": "The platform settings for closed captions.",
       "type": "object",
       "properties": {
         "isenabled": {

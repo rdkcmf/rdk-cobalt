@@ -1,5 +1,5 @@
 {
-  "$schema": "interface.schema.json",
+  "$schema": "https://raw.githubusercontent.com/rdkcentral/rdkservices/main/Tools/json_generator/schemas/interface.schema.json",
   "jsonrpc": "2.0",
   "info": {
     "title": "StateControl API",
@@ -31,7 +31,7 @@
         "type": "object",
         "properties": {
           "suspended": {
-            "description": "Determines if the service has entered suspended state (true) or resumed state (false)",
+            "description": "Determines if the service has entered suspended state (`true`) or resumed state (`false`)",
             "type": "boolean",
             "example": false
           }

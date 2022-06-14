@@ -1,5 +1,5 @@
 {
-  "$schema": "interface.schema.json",
+  "$schema": "https://raw.githubusercontent.com/rdkcentral/rdkservices/main/Tools/json_generator/schemas/interface.schema.json",
   "jsonrpc": "2.0",
   "info": {
     "title": "Cobalt API",
@@ -19,7 +19,7 @@
   },
   "methods": {
     "deeplink": {
-      "summary": "Send a deep link to the application",
+      "summary": "Sends a deep link to the application",
       "params": {
         "description": "An application-specific link",
         "type": "string"
@@ -31,7 +31,7 @@
   },
   "events": {
     "closure": {
-      "summary": "Triggered when app requests to close its window"
+      "summary": "Triggered when the application requests to close its window"
     }
   }
 }

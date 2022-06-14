@@ -6,7 +6,7 @@
 
 **Status: :black_circle::black_circle::white_circle:**
 
-Cobalt plugin for Thunder framework.
+A Cobalt plugin for Thunder framework.
 
 ### Table of Contents
 
@@ -61,7 +61,7 @@ The table below provides and overview of terms and abbreviations used in this do
 <a name="head.Description"></a>
 # Description
 
-The Cobalt plugin provides web browsing functionality based on the Cobalt engine.
+The `Cobalt` plugin provides web browsing functionality based on the Cobalt engine.
 
 The plugin is designed to be loaded and executed within the Thunder framework. For more information about the framework refer to [[Thunder](#ref.Thunder)].
 
@@ -89,9 +89,9 @@ The table below lists configuration options of the plugin.
 | configuration?.systemproperties?.modelyear | string | <sup>*(optional)*</sup> The year the device was launched |
 | configuration?.systemproperties?.chipsetmodelnumber | string | <sup>*(optional)*</sup> The full model number of the main platform chipset |
 | configuration?.systemproperties?.firmwareversion | string | <sup>*(optional)*</sup> The production firmware version number which the device is currently running |
-| configuration?.systemproperties?.integratorname | string | <sup>*(optional)*</sup> Original manufcature of the device |
+| configuration?.systemproperties?.integratorname | string | <sup>*(optional)*</sup> The original manufacture of the device |
 | configuration?.systemproperties?.friendlyname | string | <sup>*(optional)*</sup> A friendly name for this actual device |
-| configuration?.systemproperties?.devicetype | string | <sup>*(optional)*</sup> Type of the device. Possible values [SetTopBox, OverTheTopBox, TV] |
+| configuration?.systemproperties?.devicetype | string | <sup>*(optional)*</sup> The type of the device. (must be one of the following: *SetTopBox*, *OverTheTopBox*, *TV*) |
 
 <a name="head.Methods"></a>
 # Methods
@@ -102,13 +102,13 @@ Cobalt interface methods:
 
 | Method | Description |
 | :-------- | :-------- |
-| [deeplink](#method.deeplink) | Send a deep link to the application |
+| [deeplink](#method.deeplink) | Sends a deep link to the application |
 
 
 <a name="method.deeplink"></a>
-## *deeplink <sup>method</sup>*
+## *deeplink [<sup>method</sup>](#head.Methods)*
 
-Send a deep link to the application.
+Sends a deep link to the application.
 
 ### Parameters
 
@@ -129,9 +129,9 @@ Send a deep link to the application.
 ```json
 {
     "jsonrpc": "2.0",
-    "id": 1234567890,
+    "id": 42,
     "method": "Cobalt.1.deeplink",
-    "params": ""
+    "params": "..."
 }
 ```
 
@@ -140,7 +140,7 @@ Send a deep link to the application.
 ```json
 {
     "jsonrpc": "2.0",
-    "id": 1234567890,
+    "id": 42,
     "result": null
 }
 ```
@@ -164,7 +164,7 @@ Accessibility interface properties:
 
 
 <a name="property.state"></a>
-## *state <sup>property</sup>*
+## *state [<sup>property</sup>](#head.Properties)*
 
 Provides access to the running state of the service.
 
@@ -183,7 +183,7 @@ Also see: [statechange](#event.statechange)
 ```json
 {
     "jsonrpc": "2.0",
-    "id": 1234567890,
+    "id": 42,
     "method": "Cobalt.1.state"
 }
 ```
@@ -193,7 +193,7 @@ Also see: [statechange](#event.statechange)
 ```json
 {
     "jsonrpc": "2.0",
-    "id": 1234567890,
+    "id": 42,
     "result": "resumed"
 }
 ```
@@ -203,7 +203,7 @@ Also see: [statechange](#event.statechange)
 ```json
 {
     "jsonrpc": "2.0",
-    "id": 1234567890,
+    "id": 42,
     "method": "Cobalt.1.state",
     "params": "resumed"
 }
@@ -214,13 +214,13 @@ Also see: [statechange](#event.statechange)
 ```json
 {
     "jsonrpc": "2.0",
-    "id": 1234567890,
+    "id": 42,
     "result": "null"
 }
 ```
 
 <a name="property.accessibility"></a>
-## *accessibility <sup>property</sup>*
+## *accessibility [<sup>property</sup>](#head.Properties)*
 
 Provides access to the accessibility settings.
 
@@ -229,17 +229,17 @@ Provides access to the accessibility settings.
 | Name | Type | Description |
 | :-------- | :-------- | :-------- |
 | (property) | object | Accessibility settings |
-| (property)?.closedcaptions | object | <sup>*(optional)*</sup> Platform's settings for closed captions |
+| (property)?.closedcaptions | object | <sup>*(optional)*</sup> The platform settings for closed captions |
 | (property)?.closedcaptions.isenabled | boolean | Determines if the user has chosen to enable closed captions on their system |
-| (property)?.closedcaptions?.backgroundcolor | string | <sup>*(optional)*</sup> Enum for possible closed captioning colors. (must be one of the following: *Blue*, *Black*, *Cyan*, *Green*, *Magenta*, *Red*, *White*, *Yellow*) |
-| (property)?.closedcaptions?.backgroundopacity | string | <sup>*(optional)*</sup> Enum for possible closed captioning opacity percentages. (must be one of the following: *0*, *25*, *50*, *75*, *100*) |
-| (property)?.closedcaptions?.characteredgestyle | string | <sup>*(optional)*</sup> Enum for possible closed captioning character edge styles. (must be one of the following: *None*, *Raised*, *Depressed*, *Uniform*, *DropShadow*) |
-| (property)?.closedcaptions?.fontcolor | string | <sup>*(optional)*</sup> Enum for possible closed captioning colors. (must be one of the following: *Blue*, *Black*, *Cyan*, *Green*, *Magenta*, *Red*, *White*, *Yellow*) |
-| (property)?.closedcaptions?.fontfamily | string | <sup>*(optional)*</sup> Enum for possible closed captioning font families. (must be one of the following: *Casual*, *Cursive*, *MonospaceSansSerif*, *MonospaceSerif*, *ProportionalSansSerif*, *ProportionalSerif*, *SmallCapitals*) |
-| (property)?.closedcaptions?.fontopacity | string | <sup>*(optional)*</sup> Enum for possible closed captioning opacity percentages. (must be one of the following: *0*, *25*, *50*, *75*, *100*) |
-| (property)?.closedcaptions?.fontsize | string | <sup>*(optional)*</sup> Enum for possible closed captioning font size percentages. (must be one of the following: *25*, *50*, *75*, *100*, *125*, *150*, *175*, *200*, *225*, *250*, *275*, *300*) |
-| (property)?.closedcaptions?.windowcolor | string | <sup>*(optional)*</sup> Enum for possible closed captioning colors. (must be one of the following: *Blue*, *Black*, *Cyan*, *Green*, *Magenta*, *Red*, *White*, *Yellow*) |
-| (property)?.closedcaptions?.windowopacity | string | <sup>*(optional)*</sup> Enum for possible closed captioning opacity percentages. (must be one of the following: *0*, *25*, *50*, *75*, *100*) |
+| (property)?.closedcaptions?.backgroundcolor | string | <sup>*(optional)*</sup> The closed captioning color. (must be one of the following: *Blue*, *Black*, *Cyan*, *Green*, *Magenta*, *Red*, *White*, *Yellow*) |
+| (property)?.closedcaptions?.backgroundopacity | string | <sup>*(optional)*</sup> The closed captioning opacity percentages. (must be one of the following: *0*, *25*, *50*, *75*, *100*) |
+| (property)?.closedcaptions?.characteredgestyle | string | <sup>*(optional)*</sup> The closed captioning character edge style. (must be one of the following: *None*, *Raised*, *Depressed*, *Uniform*, *DropShadow*) |
+| (property)?.closedcaptions?.fontcolor | string | <sup>*(optional)*</sup> The closed captioning color. (must be one of the following: *Blue*, *Black*, *Cyan*, *Green*, *Magenta*, *Red*, *White*, *Yellow*) |
+| (property)?.closedcaptions?.fontfamily | string | <sup>*(optional)*</sup> The closed captioning font family. (must be one of the following: *Casual*, *Cursive*, *MonospaceSansSerif*, *MonospaceSerif*, *ProportionalSansSerif*, *ProportionalSerif*, *SmallCapitals*) |
+| (property)?.closedcaptions?.fontopacity | string | <sup>*(optional)*</sup> The closed captioning opacity percentages. (must be one of the following: *0*, *25*, *50*, *75*, *100*) |
+| (property)?.closedcaptions?.fontsize | string | <sup>*(optional)*</sup> The closed captioning font size percentages. (must be one of the following: *25*, *50*, *75*, *100*, *125*, *150*, *175*, *200*, *225*, *250*, *275*, *300*) |
+| (property)?.closedcaptions?.windowcolor | string | <sup>*(optional)*</sup> The closed captioning color. (must be one of the following: *Blue*, *Black*, *Cyan*, *Green*, *Magenta*, *Red*, *White*, *Yellow*) |
+| (property)?.closedcaptions?.windowopacity | string | <sup>*(optional)*</sup> The closed captioning opacity percentages. (must be one of the following: *0*, *25*, *50*, *75*, *100*) |
 | (property)?.textdisplay | object | <sup>*(optional)*</sup> Text display settings |
 | (property)?.textdisplay.ishighcontrasttextenabled | boolean | Whether the high contrast text setting is enabled or not |
 
@@ -250,7 +250,7 @@ Provides access to the accessibility settings.
 ```json
 {
     "jsonrpc": "2.0",
-    "id": 1234567890,
+    "id": 42,
     "method": "Cobalt.1.accessibility"
 }
 ```
@@ -260,7 +260,7 @@ Provides access to the accessibility settings.
 ```json
 {
     "jsonrpc": "2.0",
-    "id": 1234567890,
+    "id": 42,
     "result": {
         "closedcaptions": {
             "isenabled": false,
@@ -286,7 +286,7 @@ Provides access to the accessibility settings.
 ```json
 {
     "jsonrpc": "2.0",
-    "id": 1234567890,
+    "id": 42,
     "method": "Cobalt.1.accessibility",
     "params": {
         "closedcaptions": {
@@ -313,7 +313,7 @@ Provides access to the accessibility settings.
 ```json
 {
     "jsonrpc": "2.0",
-    "id": 1234567890,
+    "id": 42,
     "result": "null"
 }
 ```
@@ -329,7 +329,7 @@ Cobalt interface events:
 
 | Event | Description |
 | :-------- | :-------- |
-| [closure](#event.closure) | Triggered when app requests to close its window |
+| [closure](#event.closure) | Triggered when the application requests to close its window |
 
 StateControl interface events:
 
@@ -339,9 +339,9 @@ StateControl interface events:
 
 
 <a name="event.closure"></a>
-## *closure <sup>event</sup>*
+## *closure [<sup>event</sup>](#head.Notifications)*
 
-Triggered when app requests to close its window.
+Triggered when the application requests to close its window.
 
 ### Parameters
 
@@ -357,7 +357,7 @@ This event carries no parameters.
 ```
 
 <a name="event.statechange"></a>
-## *statechange <sup>event</sup>*
+## *statechange [<sup>event</sup>](#head.Notifications)*
 
 Signals a state change of the service.
 
@@ -366,7 +366,7 @@ Signals a state change of the service.
 | Name | Type | Description |
 | :-------- | :-------- | :-------- |
 | params | object |  |
-| params.suspended | boolean | Determines if the service has entered suspended state (true) or resumed state (false) |
+| params.suspended | boolean | Determines if the service has entered suspended state (`true`) or resumed state (`false`) |
 
 ### Example
 

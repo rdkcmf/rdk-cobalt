@@ -1,11 +1,11 @@
 {
-  "$schema": "plugin.schema.json",
+  "$schema": "https://raw.githubusercontent.com/rdkcentral/rdkservices/main/Tools/json_generator/schemas/plugin.schema.json",
   "info": {
     "title": "Cobalt Plugin",
     "callsign": "Cobalt",
     "locator": "libWPEFrameworkCobalt.so",
     "status": "beta",
-    "description": "The Cobalt plugin provides web browsing functionality based on the Cobalt engine.",
+    "description": "The `Cobalt` plugin provides web browsing functionality based on the Cobalt engine.",
     "version": "1.0"
   },
   "definitions": {
@@ -36,7 +36,7 @@
         },
         "integratorname": {
           "type": "string",
-          "description": "Original manufcature of the device"
+          "description": "The original manufacture of the device"
         },
         "friendlyname": {
           "type": "string",
@@ -44,7 +44,12 @@
         },
         "devicetype": {
           "type": "string",
-          "description": "Type of the device. Possible values [SetTopBox, OverTheTopBox, TV]"
+          "description": "The type of the device.",
+          "enum":[
+            "SetTopBox",
+            "OverTheTopBox",
+            "TV"
+          ]
         }
       }
     }
@@ -93,6 +98,6 @@
     ]
   },
   "interface": {
-    "$ref": "{interfacedir}/Cobalt.json#"
+    "$ref": "interfaces/json/Cobalt.json#"
   }
 }
