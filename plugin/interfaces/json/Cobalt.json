@@ -19,7 +19,7 @@
   },
   "methods": {
     "deeplink": {
-      "summary": "Sends a deep link to the application",
+      "summary": "Sends a deep link to the application.\n\n### Events\n\nNo Events.",
       "params": {
         "description": "An application-specific link",
         "type": "string"

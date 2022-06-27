@@ -12,6 +12,7 @@
   "properties": {
     "state": {
       "summary": "Running state of the service",
+      "description": "Use this property to return the running state of the service.\n\n### Events\n| Event | Description |\n| :----------- | :----------- |\n| `statechange`| Triggered if the state of the service changed.|",
       "params": {
         "type": "string",
         "enum": [

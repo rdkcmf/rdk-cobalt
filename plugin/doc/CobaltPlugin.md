@@ -6,7 +6,7 @@
 
 **Status: :black_circle::black_circle::white_circle:**
 
-A Cobalt plugin for Thunder framework.
+Cobalt plugin for Thunder framework.
 
 ### Table of Contents
 
@@ -110,6 +110,10 @@ Cobalt interface methods:
 
 Sends a deep link to the application.
 
+### Events
+
+No Events.
+
 ### Parameters
 
 | Name | Type | Description |
@@ -167,6 +171,15 @@ Accessibility interface properties:
 ## *state [<sup>property</sup>](#head.Properties)*
 
 Provides access to the running state of the service.
+
+### Description
+
+Use this property to return the running state of the service.
+
+### Events
+| Event | Description |
+| :----------- | :----------- |
+| `statechange`| Triggered if the state of the service changed.|
 
 Also see: [statechange](#event.statechange)
 
