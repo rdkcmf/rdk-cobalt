@@ -18,6 +18,7 @@
 
 #include <inttypes.h>
 #include <stdint.h>
+#include <math.h>
 
 #include <glib.h>
 #include <gst/app/gstappsrc.h>
@@ -723,22 +724,22 @@ static void AddColorMetadataToGstCaps(GstCaps* caps, const SbMediaColorMetadata&
   GstVideoMasteringDisplayInfo mastering_display_info;
   gst_video_mastering_display_info_init (&mastering_display_info);//  gst_video_mastering_display_metadata_init (&mastering_display_metadata);
 
-  mastering_display_info.display_primaries[0].x = color_metadata.mastering_metadata.primary_r_chromaticity_x;
-  mastering_display_info.display_primaries[0].y = color_metadata.mastering_metadata.primary_r_chromaticity_y;
-  mastering_display_info.display_primaries[1].x = color_metadata.mastering_metadata.primary_g_chromaticity_x;
-  mastering_display_info.display_primaries[1].y = color_metadata.mastering_metadata.primary_g_chromaticity_y;
-  mastering_display_info.display_primaries[2].x = color_metadata.mastering_metadata.primary_b_chromaticity_x;
-  mastering_display_info.display_primaries[2].y = color_metadata.mastering_metadata.primary_b_chromaticity_y;
-  mastering_display_info.white_point.x = color_metadata.mastering_metadata.white_point_chromaticity_x;
-  mastering_display_info.white_point.y = color_metadata.mastering_metadata.white_point_chromaticity_y;
-  mastering_display_info.max_display_mastering_luminance = color_metadata.mastering_metadata.luminance_max;
-  mastering_display_info.min_display_mastering_luminance = color_metadata.mastering_metadata.luminance_min;
+  mastering_display_info.display_primaries[0].x = (guint16)(color_metadata.mastering_metadata.primary_r_chromaticity_x * 50000);
+  mastering_display_info.display_primaries[0].y = (guint16)(color_metadata.mastering_metadata.primary_r_chromaticity_y * 50000);
+  mastering_display_info.display_primaries[1].x = (guint16)(color_metadata.mastering_metadata.primary_g_chromaticity_x * 50000);
+  mastering_display_info.display_primaries[1].y = (guint16)(color_metadata.mastering_metadata.primary_g_chromaticity_y * 50000);
+  mastering_display_info.display_primaries[2].x = (guint16)(color_metadata.mastering_metadata.primary_b_chromaticity_x * 50000);
+  mastering_display_info.display_primaries[2].y = (guint16)(color_metadata.mastering_metadata.primary_b_chromaticity_y * 50000);
+  mastering_display_info.white_point.x = (guint16)(color_metadata.mastering_metadata.white_point_chromaticity_x * 50000);
+  mastering_display_info.white_point.y = (guint16)(color_metadata.mastering_metadata.white_point_chromaticity_y * 50000);
+  mastering_display_info.max_display_mastering_luminance = (guint32)ceil(color_metadata.mastering_metadata.luminance_max);
+  mastering_display_info.min_display_mastering_luminance = (guint32)ceil(color_metadata.mastering_metadata.luminance_min);
 
-     gchar *tmp =
-     gst_video_mastering_display_info_to_string(&mastering_display_info);
-     gst_caps_set_simple (caps, "mastering-display-metadata", G_TYPE_STRING, tmp, NULL);
-     GST_DEBUG ("Setting \"mastering-display-metadata\" to %s", tmp);
-     g_free (tmp);
+  gchar *tmp =
+      gst_video_mastering_display_info_to_string(&mastering_display_info);
+  gst_caps_set_simple (caps, "mastering-display-info", G_TYPE_STRING, tmp, NULL);
+  GST_DEBUG ("Setting \"mastering-display-info\" to %s", tmp);
+  g_free (tmp);
 #else
   GstVideoMasteringDisplayMetadata mastering_display_metadata;
   gst_video_mastering_display_metadata_init (&mastering_display_metadata);
