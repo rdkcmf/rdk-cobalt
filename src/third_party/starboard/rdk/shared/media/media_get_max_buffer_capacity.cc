@@ -33,19 +33,11 @@ int SbMediaGetMaxBufferCapacity(SbMediaVideoCodec codec,
   }
 
   if (resolution_width <= 3840 && resolution_height <= 2160) {
-    if (bits_per_pixel <= 8) {
       // The maximum amount of memory that will be used to store media buffers
-      // when video resolution is 4k and bit per pixel is lower than 8. If 0,
-      // then memory can grow without bound. This must be larger than sum of 4k
-      // video budget and non-video budget.
-      return 140 * 1024 * 1024;
-    } else {
-      // The maximum amount of memory that will be used to store media buffers
-      // when video resolution is 4k and bit per pixel is greater than 8. If 0,
+      // when video resolution is 4k. If 0,
       // then memory can grow without bound. This must be larger than sum of 4k
       // video budget and non-video budget.
       return 210 * 1024 * 1024;
-    }
   }
 
   // The maximum amount of memory that will be used to store media buffers when
