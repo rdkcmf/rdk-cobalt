@@ -469,6 +469,45 @@ void gst_cobalt_src_setup_and_add_app_src(SbMediaType media_type,
       return GST_PAD_PROBE_OK;
     }, msg, [](gpointer data) { gst_message_unref(GST_MESSAGE(data)); });
 
+#if GST_CHECK_VERSION(1,18,0)
+  gst_pad_add_probe (
+    pad, GST_PAD_PROBE_TYPE_EVENT_UPSTREAM,
+    [](GstPad * pad, GstPadProbeInfo * info, gpointer data) -> GstPadProbeReturn {
+      GstEvent *event = GST_PAD_PROBE_INFO_EVENT(info);
+      GstSegment *segment = reinterpret_cast<GstSegment*>(data);
+      switch ( GST_EVENT_TYPE(event) ) {
+        case GST_EVENT_SEEK:
+          break;
+        case GST_EVENT_SEGMENT: {
+          const GstSegment *src = nullptr;
+          gst_event_parse_segment(event, &src);
+          gst_segment_copy_into(src, segment);
+          // fallthrough
+        }
+        default:
+          return GST_PAD_PROBE_OK;
+      };
+      gdouble rate = 1.0;
+      GstSeekFlags flags = GST_SEEK_FLAG_NONE;
+      gst_event_parse_seek (event, &rate, NULL, &flags, NULL, NULL, NULL, NULL);
+      if ( !!(flags & GST_SEEK_FLAG_INSTANT_RATE_CHANGE) ) {
+        gdouble rate_multiplier = rate / segment->rate;
+        GstEvent *rate_change_event =
+          gst_event_new_instant_rate_change(rate_multiplier, (GstSegmentFlags)flags);
+        gst_event_set_seqnum (rate_change_event, gst_event_get_seqnum (event));
+        GstPad *peer_pad = gst_pad_get_peer(pad);
+        GST_DEBUG("Sending instant rate change pad: %" GST_PTR_FORMAT ", event: %" GST_PTR_FORMAT ", rate_multiplier: %.2f",
+                  peer_pad, rate_change_event, rate_multiplier);
+        if ( gst_pad_send_event (peer_pad, rate_change_event) != TRUE )
+          GST_PAD_PROBE_INFO_FLOW_RETURN(info) = GST_FLOW_NOT_SUPPORTED;
+        gst_object_unref(peer_pad);
+        gst_event_unref(event);
+        return GST_PAD_PROBE_HANDLED;
+      }
+      return GST_PAD_PROBE_OK;
+    }, gst_segment_new(), reinterpret_cast<GDestroyNotify>(gst_segment_free));
+#endif
+
   auto proxypad = GST_PAD(gst_proxy_pad_get_internal(GST_PROXY_PAD(pad)));
   gst_flow_combiner_add_pad(src->priv->flow_combiner, proxypad);
   gst_pad_set_chain_function(proxypad, static_cast<GstPadChainFunction>(gst_cobalt_src_chain_with_parent));
@@ -2314,29 +2353,34 @@ bool PlayerImpl::SetRate(double rate) {
       pending_rate_ = .0;
     }
 
-    // TODO: remove special handling of amlhalasink
-    GstElement* sink = nullptr;
-    g_object_get(pipeline_, "audio-sink", &sink, nullptr);
-    if (sink && g_str_has_prefix(GST_ELEMENT_NAME(sink), "amlhalasink")) {
-      GstSegment* segment = gst_segment_new();
-      gst_segment_init(segment, GST_FORMAT_TIME);
-      segment->rate = rate;
-      segment->start = GST_CLOCK_TIME_NONE;
-      segment->position = GST_CLOCK_TIME_NONE;
-      GST_DEBUG_OBJECT(pipeline_, "===> Sending new segment %" GST_SEGMENT_FORMAT, segment);
-      success = gst_pad_send_event (GST_BASE_SINK_PAD(sink), gst_event_new_segment(segment));
-      GST_DEBUG_OBJECT(pipeline_, "===> Sent new segment, success = %s", success ? "true" : "false");
-      gst_segment_free(segment);
+#if GST_CHECK_VERSION(1,18,0)
+    static const bool kEnableInstantRateChangeSeek = ([]()->bool {
+      if( !!getenv("COBALT_DISABLE_INSTANT_RATE_CHANGE_SEEK") )
+        return false;
+      if( !!getenv("COBALT_ENABLE_INSTANT_RATE_CHANGE_SEEK") )
+        return true;
+      auto *amlhalasink_factory = gst_element_factory_find("amlhalasink");
+      if ( amlhalasink_factory ) {
+        gst_object_unref(amlhalasink_factory);
+        return true;
+      }
+      return false;
+    })();
+    if (kEnableInstantRateChangeSeek) {
+      success = gst_element_seek(
+        pipeline_, rate, GST_FORMAT_TIME,
+        static_cast<GstSeekFlags>(GST_SEEK_FLAG_INSTANT_RATE_CHANGE),
+        GST_SEEK_TYPE_NONE, 0,
+        GST_SEEK_TYPE_NONE, 0);
     }
-    else {
+    else
+#endif
+    {
       GstStructure* s = gst_structure_new(
         kCustomInstantRateChangeEventName, "rate", G_TYPE_DOUBLE, rate, NULL);
       success = gst_element_send_event(
         pipeline_, gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM_OOB, s));
     }
-
-    if (sink)
-      g_object_unref(sink);
 
     need_instant_rate_change_ = ( rate != 1. );
   }
