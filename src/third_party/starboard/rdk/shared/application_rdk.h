@@ -98,6 +98,7 @@ class Application : public ::starboard::shared::starboard::QueueApplication {
   void MaterializeNativeWindow();
   void DestroyNativeWindow();
   void BuildEssosContext();
+  void FatalError();
 
   static EssTerminateListener terminateListener;
   static EssKeyListener keyListener;

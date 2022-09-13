@@ -315,6 +315,7 @@ void Application::MaterializeNativeWindow() {
   if ( error ) {
     const char *detail = EssContextGetLastErrorDetail(ctx_);
     SB_LOG(ERROR) << "Essos error: '" <<  detail << '\'';
+    FatalError();
   }
 }
 
@@ -349,8 +350,7 @@ void Application::DisplayInfoChanged() {
   WindowSizeChanged(data, &Application::DeleteDestructor<SbEventWindowSizeChangedData>);
 }
 
-void Application::BuildEssosContext()
-{
+void Application::BuildEssosContext() {
   bool error = false;
   ctx_ = EssContextCreate();
 
@@ -370,7 +370,16 @@ void Application::BuildEssosContext()
   if ( error ) {
     const char *detail = EssContextGetLastErrorDetail(ctx_);
     SB_LOG(ERROR) << "Essos error: '" <<  detail << '\'';
+    FatalError();
   }
+}
+
+void Application::FatalError() {
+  SB_LOG(ERROR) << "Exiting due to fatal error.";
+  ess_loop_last_ts_ = kSbTimeMax;  // Stop Essos run loop
+  SbEventSchedule([](void* data) {
+    Application::Get()->Stop(0);
+  }, nullptr, 0);
 }
 
 }  // namespace shared
