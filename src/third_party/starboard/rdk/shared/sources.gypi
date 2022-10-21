@@ -73,6 +73,7 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/drm/drm_create_system.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/drm/drm_system_ocdm.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/drm/gst_decryptor_ocdm.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/drm/opencdm_shim.cc',
     ],
 
     'file_sources': [

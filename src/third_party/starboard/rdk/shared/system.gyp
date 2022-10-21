@@ -119,11 +119,7 @@
             ],
           },
           'link_settings': {
-            'ldflags': [
-              '<!@(<(pkg-config) --libs-only-L --libs-only-other ocdm)',
-            ],
             'libraries': [
-              '<!@(<(pkg-config) --libs-only-l ocdm)',
               '-ldl',
             ],
           },

@@ -26,9 +26,8 @@
 #include "starboard/common/mutex.h"
 #include "starboard/shared/starboard/thread_checker.h"
 
-#include <opencdm/open_cdm.h>
-#include <opencdm/open_cdm_adapter.h>
 
+#include "third_party/starboard/rdk/shared/drm/opencdm_shim.h"
 #include "third_party/starboard/rdk/shared/log_override.h"
 
 namespace third_party {
@@ -51,11 +50,6 @@ struct OcdmSessionDeleter {
 };
 
 using ScopedOcdmSession = std::unique_ptr<OpenCDMSession, OcdmSessionDeleter>;
-
-using OcdmGstSessionDecryptExFn =
-  OpenCDMError(*)(struct OpenCDMSession*, GstBuffer*, GstBuffer*, const uint32_t, GstBuffer*, GstBuffer*, uint32_t, GstCaps*);
-
-static OcdmGstSessionDecryptExFn g_ocdmGstSessionDecryptEx { nullptr };
 
 }  // namespace
 
@@ -304,15 +298,10 @@ int Session::Decrypt(
   if (!session)
     return ERROR_INVALID_SESSION;
 
-  if (g_ocdmGstSessionDecryptEx != nullptr) {
-    return g_ocdmGstSessionDecryptEx(session, buffer,
-                                     sub_sample, sub_sample_count, iv,
-                                     key, 0, caps);
-  }
-
-  return opencdm_gstreamer_session_decrypt(session, buffer,
-                                           sub_sample, sub_sample_count, iv,
-                                           key, 0);
+  return opencdm_gstreamer_session_decrypt_ex(
+      session, buffer,
+      sub_sample, sub_sample_count, iv,
+      key, 0, caps);
 }
 
 // static
@@ -514,16 +503,6 @@ DrmSystemOcdm::DrmSystemOcdm(
       session_closed_callback_(session_closed_callback) {
   SB_LOG(INFO) << "Create DRM system ";
   ocdm_system_ = opencdm_create_system(key_system_.c_str());
-
-  static std::once_flag flag;
-  std::call_once(flag, [](){
-    g_ocdmGstSessionDecryptEx = (OcdmGstSessionDecryptExFn)dlsym(RTLD_DEFAULT, "opencdm_gstreamer_session_decrypt_ex");
-    if (g_ocdmGstSessionDecryptEx) {
-      SB_LOG(INFO) << "Has opencdm_gstreamer_session_decrypt_ex";
-    } else {
-      SB_LOG(INFO) << "No opencdm_gstreamer_session_decrypt_ex. Fallback to opencdm_gstreamer_session_decrypt.";
-    }
-  });
 }
 
 DrmSystemOcdm::~DrmSystemOcdm() {
