@@ -18,6 +18,7 @@
 
 #if defined(HAS_OCDM)
 #include "third_party/starboard/rdk/shared/drm/drm_system_ocdm.h"
+#include "third_party/starboard/rdk/shared/drm/opencdm_shim.h"
 
 #include "starboard/common/mutex.h"
 #include "starboard/common/condition_variable.h"
@@ -25,7 +26,6 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
 
-#include <opencdm/open_cdm.h>
 
 namespace third_party {
 namespace starboard {

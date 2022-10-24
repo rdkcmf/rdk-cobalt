@@ -1398,6 +1398,25 @@ PlayerImpl::PlayerImpl(SbPlayer player,
                    G_CALLBACK(&PlayerImpl::SetupElement), this);
   g_object_set(pipeline_, "uri", "cobalt://", nullptr);
 
+  if (getenv("RIALTO_SOCKET_PATH")) {
+    if (video_codec_ != kSbMediaVideoCodecNone) {
+      GstElementFactory* factory = gst_element_factory_find("rialtomsevideosink");
+      if (factory) {
+        GstElement* sink = gst_element_factory_create(factory, nullptr);
+        g_object_set(pipeline_, "video-sink", sink, nullptr);
+        gst_object_unref(GST_OBJECT(factory));
+      }
+    }
+    if (audio_codec_ != kSbMediaAudioCodecNone) {
+      GstElementFactory* factory = gst_element_factory_find("rialtomseaudiosink");
+      if (factory) {
+        GstElement* sink = gst_element_factory_create(factory, nullptr);
+        g_object_set(pipeline_, "audio-sink", sink, nullptr);
+        gst_object_unref(GST_OBJECT(factory));
+      }
+    }
+  }
+
   if (max_video_capabilities && *max_video_capabilities) {
     max_video_capabilities_ = max_video_capabilities;
     ConfigureLimitedVideo();
