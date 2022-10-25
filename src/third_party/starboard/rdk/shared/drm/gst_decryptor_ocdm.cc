@@ -556,6 +556,12 @@ static gboolean cobalt_ocdm_decryptor_start(GstBaseTransform *base) {
 }  // namespace
 
 GstElement *CreateDecryptorElement(const gchar* name) {
+  static bool isRialtoOCDM = ([](){
+    const char* ocdmLibName = getenv("OCDM_LIBRARY");
+    return ocdmLibName && strstr(ocdmLibName, "libocdmRialto.so");
+  })();
+  if (isRialtoOCDM)
+    return nullptr;
   return GST_ELEMENT ( g_object_new (COBALT_OCDM_DECRYPTOR_TYPE, name) );
 }
 
