@@ -111,6 +111,7 @@ private:
       Add(_T("autosuspenddelay"), &AutoSuspendDelay);
       Add(_T("systemproperties"), &SystemProperties);
       Add(_T("closurepolicy"), &ClosurePolicy);
+      Add(_T("fireboltendpoint"), &FireboltEndpoint);
     }
     ~Config() {
     }
@@ -126,6 +127,7 @@ private:
     Core::JSON::DecUInt16 AutoSuspendDelay;
     Core::JSON::VariantContainer SystemProperties;
     Core::JSON::String ClosurePolicy;
+    Core::JSON::String FireboltEndpoint;
   };
 
   class NotificationSink: public Core::Thread {
@@ -317,6 +319,9 @@ private:
         if (config.SystemProperties.ToString(properties))
           SbRdkSetSetting("systemproperties", properties.c_str());
       }
+
+      if (config.FireboltEndpoint.IsSet() == true)
+        Core::SystemInfo::SetEnvironment(_T("FIREBOLT_ENDPOINT"), config.FireboltEndpoint.Value());
 
       SYSLOG(Logging::Notification, (_T("Preload is set to: %s\n"), _preloadEnabled ? "true" : "false"));
 

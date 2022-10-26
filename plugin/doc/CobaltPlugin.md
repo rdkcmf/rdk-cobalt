@@ -92,6 +92,7 @@ The table below lists configuration options of the plugin.
 | configuration?.systemproperties?.integratorname | string | <sup>*(optional)*</sup> The original manufacture of the device |
 | configuration?.systemproperties?.friendlyname | string | <sup>*(optional)*</sup> A friendly name for this actual device |
 | configuration?.systemproperties?.devicetype | string | <sup>*(optional)*</sup> The type of the device. (must be one of the following: *SetTopBox*, *OverTheTopBox*, *TV*) |
+| configuration?.fireboltendpoint | string | <sup>*(optional)*</sup> A URL that specifies access point to Firebolt Riple. Should include session id in the query |
 
 <a name="head.Methods"></a>
 # Methods

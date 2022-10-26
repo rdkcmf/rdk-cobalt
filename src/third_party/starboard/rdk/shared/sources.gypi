@@ -498,6 +498,10 @@
         '<(DEPTH)/third_party/starboard/rdk/shared/hang_detector.cc',
         '<(DEPTH)/third_party/starboard/rdk/shared/linux_key_mapping.h',
         '<(DEPTH)/third_party/starboard/rdk/shared/linux_key_mapping.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/content_entitlement_platform_service.h',
+        '<(DEPTH)/third_party/starboard/rdk/shared/content_entitlement_platform_service.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/firebolt/firebolt.cc',
+        '<(DEPTH)/third_party/starboard/rdk/shared/firebolt/firebolt.h',
     ],
     'conditions': [
       ['sb_api_version == 12', {

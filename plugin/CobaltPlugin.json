@@ -87,6 +87,10 @@
           },
           "systemproperties": {
             "$ref": "#/definitions/systemproperties"
+          },
+          "fireboltendpoint": {
+            "type": "string",
+            "description": "A URL that specifies access point to Firebolt Riple. Should include session id in the query."
           }
         }
       }

@@ -32,10 +32,13 @@
 
 #include <cstring>
 
+#include "cobalt/extension/platform_service.h"
 #include "cobalt/extension/configuration.h"
 #include "cobalt/extension/crash_handler.h"
 #include "starboard/common/string.h"
+#include "starboard/common/log.h"
 #include "third_party/starboard/rdk/shared/configuration.h"
+#include "third_party/starboard/rdk/shared/content_entitlement_platform_service.h"
 #if SB_IS(EVERGREEN_COMPATIBLE)
 #include "starboard/elf_loader/evergreen_config.h"
 #include "starboard/shared/starboard/crash_handler.h"
@@ -58,6 +61,9 @@ const void* SbSystemGetExtension(const char* name) {
 #endif
   if (strcmp(name, kCobaltExtensionConfigurationName) == 0) {
     return third_party::starboard::rdk::shared::GetConfigurationApi();
+  }
+  else if (strcmp(name, kCobaltExtensionPlatformServiceName) == 0) {
+    return third_party::starboard::rdk::shared::GetPlatformServiceApi();
   }
   return NULL;
 }
