@@ -15,6 +15,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#ifndef MODULE_NAME
+#define MODULE_NAME CobaltRDKServices
+#endif
+
 #include "third_party/starboard/rdk/shared/rdkservices.h"
 
 #include <string>
@@ -42,6 +46,8 @@
 #include "third_party/starboard/rdk/shared/accessibility_data.h"
 #include "third_party/starboard/rdk/shared/log_override.h"
 #include "third_party/starboard/rdk/shared/application_rdk.h"
+
+MODULE_NAME_DECLARATION(BUILD_REFERENCE);
 
 using namespace  WPEFramework;
 
