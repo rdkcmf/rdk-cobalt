@@ -28,7 +28,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "third_party/starboard/rdk/shared/content_entitlement_platform_service.h"
+#include "third_party/starboard/rdk/shared/platform_service.h"
 
 #include <memory>
 #include <string>

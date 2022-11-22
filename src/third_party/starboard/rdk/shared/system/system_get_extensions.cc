@@ -38,7 +38,7 @@
 #include "starboard/common/string.h"
 #include "starboard/common/log.h"
 #include "third_party/starboard/rdk/shared/configuration.h"
-#include "third_party/starboard/rdk/shared/content_entitlement_platform_service.h"
+#include "third_party/starboard/rdk/shared/platform_service.h"
 #if SB_IS(EVERGREEN_COMPATIBLE)
 #include "starboard/elf_loader/evergreen_config.h"
 #include "starboard/shared/starboard/crash_handler.h"
