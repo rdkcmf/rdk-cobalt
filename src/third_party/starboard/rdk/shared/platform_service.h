@@ -28,8 +28,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_STARBOARD_RDK_SHARED_CONTENT_ENTITLEMENT_H_
-#define THIRD_PARTY_STARBOARD_RDK_SHARED_CONTENT_ENTITLEMENT_H_
+#ifndef THIRD_PARTY_STARBOARD_RDK_SHARED_PLATFORM_SERVICE_H_
+#define THIRD_PARTY_STARBOARD_RDK_SHARED_PLATFORM_SERVICE_H_
 
 namespace third_party {
 namespace starboard {
@@ -43,4 +43,4 @@ const void* GetPlatformServiceApi();
 }  // namespace starboard
 }  // namespace third_party
 
-#endif  // THIRD_PARTY_STARBOARD_RDK_SHARED_CONTENT_ENTITLEMENT_H_
+#endif  // THIRD_PARTY_STARBOARD_RDK_SHARED_PLATFORM_SERVICE_H_

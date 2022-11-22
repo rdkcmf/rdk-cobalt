@@ -1,4 +1,4 @@
-# Copyright 2020 Comcast Cable Communications Management, LLC
+# Copyright 2022 Comcast Cable Communications Management, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# Copyright 2018 The Cobalt Authors. All Rights Reserved.
+# Copyright 2021 The Cobalt Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,15 +27,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-{
-  'variables': {
-    'common_libs': [
-      '-lEGL',
-      '-lGLESv2',
-      '-lpthread',
-    ],
-    'common_linker_flags': [
-      '-Wl,--wrap=eglGetDisplay',
-    ],
-  },
-}
+
+import("//starboard/build/config/base_configuration.gni")
+
+cobalt_font_package = "limited"
+final_executable_type = "shared_library"
+
+sb_api_version = 13
+sb_filter_based_player = false
+gl_type = "system_gles2"
+
+install_target_path =
+  "//starboard/build/install/install_target.gni"
+
+no_pedantic_warnings_config_path =
+  "//third_party/starboard/rdk/shared/platform_configuration:no_pedantic_warnings"
+
+speed_config_path =
+  "//third_party/starboard/rdk/shared/platform_configuration:speed"
+
+size_config_path =
+  "//third_party/starboard/rdk/shared/platform_configuration:size"

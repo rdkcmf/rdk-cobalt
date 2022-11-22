@@ -187,7 +187,7 @@ bool GetManufacturerName(char* out_value, int value_length) {
 #if defined(SB_PLATFORM_MANUFACTURER_NAME)
     return CopyStringAndTestIfSuccess(out_value, value_length,
                                       SB_PLATFORM_MANUFACTURER_NAME);
-    #else
+#else
     return false;
 #endif  // defined(SB_PLATFORM_MANUFACTURER_NAME)
 }

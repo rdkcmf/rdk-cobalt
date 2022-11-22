@@ -41,9 +41,10 @@
 
 using starboard::shared::starboard::media::IsSDRVideo;
 using third_party::starboard::rdk::shared::DisplayInfo;
+using ::starboard::shared::starboard::media::MimeType;
 
 SB_EXPORT bool SbMediaIsVideoSupported(SbMediaVideoCodec video_codec,
-                                       const char* content_type,
+                                       const MimeType* content_type,
                                        int /*profile*/,
                                        int /*level*/,
                                        int bit_depth,
