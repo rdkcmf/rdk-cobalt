@@ -32,6 +32,7 @@ import("//third_party/starboard/rdk/shared/build/rdk_toolchain.gni")
 
 rdk_gcc_toolchain("host") {
   envprefix = "BUILD_"
+  extra_ldflags = ""
   toolchain_args = {
     current_os = "linux"
     current_cpu = "x86"
