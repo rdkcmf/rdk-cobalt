@@ -303,7 +303,6 @@ static void gst_cobalt_src_uri_handler_init(gpointer gIface, gpointer) {
 static gboolean gst_cobalt_src_query_with_parent(GstPad* pad,
                                                  GstObject* parent,
                                                  GstQuery* query) {
-  GstCobaltSrc* src = GST_COBALT_SRC(GST_ELEMENT(parent));
   gboolean result = FALSE;
 
   switch (GST_QUERY_TYPE(query)) {
@@ -833,13 +832,12 @@ static void AddVideoInfoToGstCaps(const SbMediaVideoSampleInfo& info, GstCaps* c
     "width", G_TYPE_INT, info.frame_width,
     "height", G_TYPE_INT, info.frame_height,
     NULL);
-#if SB_HAS(PLAYER_CREATION_AND_OUTPUT_MODE_QUERY_IMPROVEMENT)
+
   if (info.max_video_capabilities && *info.max_video_capabilities) {
     uint32_t framerate = 0;
     ParseMaxVideoCapabilities(info.max_video_capabilities, nullptr, nullptr, &framerate);
     gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, framerate, 1, NULL);
   }
-#endif
 }
 
 static void PrintPositionPerSink(GstElement* element)
@@ -1299,7 +1297,7 @@ class PlayerImpl : public Player {
   int frame_height_{0};
   State state_{State::kNull};
   PendingSamples pending_samples_;
-  mutable gint64 cached_position_ns_{GST_CLOCK_TIME_NONE};
+  mutable gint64 cached_position_ns_{-1};
   PendingBounds pending_bounds_;
   SbMediaColorMetadata color_metadata_{};
   bool force_stop_ { false };
@@ -2104,7 +2102,7 @@ void PlayerImpl::WriteSample(SbMediaType sample_type,
         static_cast<guint8*>(g_malloc(subsamples_raw_size));
       GstByteWriter writer;
       gst_byte_writer_init_with_data(&writer, subsamples_raw, subsamples_raw_size, FALSE);
-      for (int32_t i = 0; i < subsamples_count; ++i) {
+      for (uint32_t i = 0; i < subsamples_count; ++i) {
         if (!gst_byte_writer_put_uint16_be(
               &writer,
               sample_infos[0].drm_info->subsample_mapping[i].clear_byte_count))
@@ -2614,7 +2612,7 @@ void PlayerImpl::WritePendingSamples() {
       [](const PendingSample& lhs, const PendingSample& rhs) -> bool {
         return lhs.SerialID() < rhs.SerialID();
       });
-    GstClockTime prev_timestamps[kMediaNumber] = {-1, -1};
+    GstClockTime prev_timestamps[kMediaNumber] = {GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE};
     for (auto& sample : local_samples) {
       auto &prev_ts = prev_timestamps[sample.Type() == kSbMediaTypeVideo ? kVideoIndex : kAudioIndex];
 

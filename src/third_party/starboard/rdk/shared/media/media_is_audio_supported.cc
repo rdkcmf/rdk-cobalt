@@ -35,8 +35,10 @@
 #include "starboard/shared/starboard/media/media_support_internal.h"
 #include "third_party/starboard/rdk/shared/media/gst_media_utils.h"
 
+using ::starboard::shared::starboard::media::MimeType;
+
 bool SbMediaIsAudioSupported(SbMediaAudioCodec audio_codec,
-                             const char* content_type,
+                             const MimeType* content_type,
                              int64_t bitrate) {
     return bitrate < kSbMediaMaxAudioBitrateInBitsPerSecond &&
          third_party::starboard::rdk::shared::media::

@@ -33,11 +33,7 @@
 
 #include "starboard/configuration.h"
 
-#if SB_HAS(PLAYER_CREATION_AND_OUTPUT_MODE_QUERY_IMPROVEMENT)
-
 SbPlayerOutputMode SbPlayerGetPreferredOutputMode(
     const SbPlayerCreationParam* creation_param) {
   return kSbPlayerOutputModePunchOut;
 }
-
-#endif  // SB_HAS(PLAYER_CREATION_AND_OUTPUT_MODE_QUERY_IMPROVEMENT)
