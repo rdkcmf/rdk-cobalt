@@ -25,27 +25,47 @@
 
 #include <json/json.h>
 
-#include "cobalt_rpc_event_callback.h"
 #include "logging.h"
+#include "libcobalt.h"
 
 #include <rpcserver/IAbstractRpcServer.h>
-#include <rpcserver/IRpcExternalEventListener.h>
 #include <rpcserver/WsRpcServerBuilder.h>
 
 #define RPC_METHOD_BASE "com.libertyglobal.rdk.cobalt.1."
 
 using namespace rpcserver;
 
+typedef enum {
+  STARTED = 0,
+  STOPPED = 1,
+  SUSPENDED = 2,
+  UNKNOWN = 99,
+} cobalt_state_t;
+
+constexpr const char* stateStr(cobalt_state_t state) {
+  switch(state) {
+    case STARTED: return "started";
+    case STOPPED: return "stopped";
+    case SUSPENDED: return "suspended";
+    case UNKNOWN: return "unknown";
+  }
+  return "unknown";
+}
+
 /***************************************************************
  *
  * *************************************************************/
 class cobalt_rpc_wsServer
 {
+private:
+  std::string url_;
+  cobalt_state_t state_;
+
 public:
   /***************************************************************
    *
    * *************************************************************/
-  explicit cobalt_rpc_wsServer(uint16_t port)
+  explicit cobalt_rpc_wsServer(uint16_t port) : url_(""), state_(UNKNOWN)
   {
     std::string registerMethodName(RPC_METHOD_REGISTER);
     std::string unregisterMethodName(RPC_METHOD_UNREGISTER);
@@ -60,19 +80,67 @@ public:
           .build()
       );
 
-    // Register event callback
-    pCallback = std::unique_ptr<cobalt_rpc_event_callback>(new cobalt_rpc_event_callback());
-    pCallback->setEventListener(std::dynamic_pointer_cast<IRpcExternalEventListener>(wsRpcServer));
-    //Cobalt_RegisterEventHandler(pCallback.get());
+    wsRpcServer->bindMethod(RPC_METHOD_RESUME,
+                            [this](const Json::Value& request, Json::Value& response) {
+                              DBG(RPC_METHOD_RESUME << " " << request);
+                              SbRdkResume();
+                              emitCobaltStateEvent(STARTED, 0);
+                              response = Json::Value();
+                            });
 
-    wsRpcServer->bindMethod(RPC_METHOD_TEST,
+    wsRpcServer->bindMethod(RPC_METHOD_SUSPEND,
+                            [this](const Json::Value& request, Json::Value& response) {
+                              DBG(RPC_METHOD_SUSPEND << " " << request);
+                              SbRdkSuspend();
+                              emitCobaltStateEvent(SUSPENDED, 0);
+                              response = Json::Value();
+                            });
+
+    wsRpcServer->bindMethod(RPC_METHOD_STOP,
                             [](const Json::Value& request, Json::Value& response) {
-      DBG(RPC_METHOD_TEST << " " << request);
-      response = Json::Value();
-      response["testreply"] = 101;
-      response["testobj"] = Json::Value();
-      response["testobj"]["extratest"] = "dummy";
-    });
+                              DBG(RPC_METHOD_STOP << " " << request);
+                              SbRdkQuit();
+                              response = Json::Value();
+                            });
+
+    wsRpcServer->bindMethod(RPC_METHOD_GETSTATE,
+                            [this](const Json::Value& request, Json::Value& response) {
+                              DBG(RPC_METHOD_GETSTATE << " " << request);
+                              response = Json::Value();
+                              response["pid"] = ::getpid();
+                              response["state"] = state_;
+                            });
+
+    wsRpcServer->bindMethod(RPC_METHOD_GETURL,
+                            [this](const Json::Value& request, Json::Value& response) {
+                              DBG(RPC_METHOD_GETURL << " " << request);
+                              response = Json::Value();
+                              response["url"] = url_;
+                            });
+
+    wsRpcServer->bindMethod(RPC_METHOD_DEEPLINK,
+                            [](const Json::Value& request, Json::Value& response) {
+                              DBG(RPC_METHOD_DEEPLINK << " " << request);
+                              auto link = request["data"].asString();
+                              if (!link.empty()) {
+                                SbRdkHandleDeepLink(link.c_str());
+                              }
+                              response = Json::Value();
+                            });
+
+  }
+
+  void setUrl(const std::string& url) {
+    url_ = url;
+  }
+
+  void emitCobaltStateEvent(cobalt_state_t state, int exitcode)  {
+    Json::Value eventJson;
+    state_ = state;
+    eventJson["pid"] = ::getpid();
+    eventJson["state"] = state_;
+    eventJson["code"] = exitcode;
+    wsRpcServer->onEvent("StateEvent", eventJson);
   }
 
   /***************************************************************
@@ -91,8 +159,6 @@ public:
   virtual ~cobalt_rpc_wsServer()
   {
     stop();
-    // Unregister event callback
-    //Cobalt_UnregisterEventHandler(pCallback.get());
   }
 
   /***************************************************************
@@ -110,10 +176,14 @@ protected:
   static constexpr auto RPC_METHOD_REGISTER = RPC_METHOD_BASE "register";
   static constexpr auto RPC_METHOD_UNREGISTER = RPC_METHOD_BASE "unregister";
   static constexpr auto RPC_METHOD_GET_LISTENERS = RPC_METHOD_BASE "getListeners";
-  static constexpr auto RPC_METHOD_TEST = RPC_METHOD_BASE "test";
+  static constexpr auto RPC_METHOD_RESUME = RPC_METHOD_BASE "resume";
+  static constexpr auto RPC_METHOD_SUSPEND = RPC_METHOD_BASE "suspend";
+  static constexpr auto RPC_METHOD_STOP = RPC_METHOD_BASE "stop";
+  static constexpr auto RPC_METHOD_GETSTATE = RPC_METHOD_BASE "getState";
+  static constexpr auto RPC_METHOD_GETURL = RPC_METHOD_BASE "getUrl";
+  static constexpr auto RPC_METHOD_DEEPLINK = RPC_METHOD_BASE "deepLink";
 
   std::shared_ptr<IAbstractRpcServer> wsRpcServer;
-  std::unique_ptr<cobalt_rpc_event_callback> pCallback;
 };
 
 #endif

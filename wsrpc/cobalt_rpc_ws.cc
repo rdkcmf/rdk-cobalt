@@ -82,18 +82,21 @@ int init_ws_interface(void)
 }
 
 int init_ws_rpc(int argc, char** argv) {
-  std::vector<const char *> args;
-
-  args.push_back("cobalt");
-#ifdef ENABLE_EVERGREEN_LITE
-  args.push_back("--evergreen_lite");
-#endif
-  for (int i=1;i<argc;i++) {
-    args.push_back(argv[i]);
-  }
 
   if (init_ws_interface()) {
     return -1;
+  }
+
+  std::vector<const char*> args;
+  args.push_back("cobalt-wsrpc");
+#ifdef ENABLE_EVERGREEN_LITE
+  args.push_back("--evergreen_lite");
+#endif
+  for (int i=1;i<argc && argv != nullptr;i++) {
+    args.push_back(argv[i]);
+    if (strncmp(argv[i], "--url=", 6) == 0) {
+      server->setUrl(std::string(argv[i]+6));
+    }
   }
 
   std::string args_str;
@@ -102,7 +105,11 @@ int init_ws_rpc(int argc, char** argv) {
     args_str += " ";
   }
   DBG("StarboardMain args: " << args_str);
-  StarboardMain(args.size(), const_cast<char **>(args.data()));
+
+  server->emitCobaltStateEvent(STARTED, 0);
+  auto exitcode = StarboardMain(args.size(), const_cast<char **>(args.data()));
+  server->emitCobaltStateEvent(STOPPED, exitcode);
+  server = nullptr;
   DBG("Quitting...");
 
   return 0;
