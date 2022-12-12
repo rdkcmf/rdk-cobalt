@@ -1,0 +1,348 @@
+{
+  "$schema": "interface.schema.json",
+  "jsonrpc": "2.0",
+  "info": {
+    "title": "cobalt-wsrpc API",
+    "class": "com.libertyglobal.rdk.cobalt",
+    "description": "cobalt-wsrpc JSON RPC 2.0 interface",
+    "version": "0.0.1"
+  },
+  "common": {
+    "errors": {
+      "invalid_params": {
+        "code": -32602,
+        "message": "INVALID_PARAMS: Invalid method parameters (invalid name and/or type) recognised: Wrong parameters"
+      },
+      "registration_not_found": {
+        "code": -1,
+        "message": "Registration info not found"
+      }
+    },
+    "results": {
+      "void": {
+        "type": "null",
+        "default": null,
+        "description": "Always null.",
+        "properties": {}
+      },
+      "default": {
+        "type": "integer",
+        "default": 0,
+        "description": "Value 0 on success.",
+        "properties": {}
+      }
+    }
+  },
+  "definitions": {
+    "pid": {
+      "description": "Pid of cobalt",
+      "type": "integer",
+      "example": 1001
+    },
+    "state": {
+      "description": "State of cobalt. 0 - started, 1- stopped, 2 - suspended (background), 99 - unknown",
+      "type": "integer",
+      "example": 0
+    },
+    "exitcode": {
+      "description": "Exit code of cobalt",
+      "type": "integer",
+      "example": 0
+    },
+    "url": {
+      "description": "Url passed to cobalt. Can be empty string when default is used.",
+      "type": "string",
+      "example": "https://www.youtube.com/tv"
+    },
+    "deeplink": {
+      "description": "Deeplink to pass to cobalt",
+      "type": "string"
+    },
+    "eventType": {
+      "description": "Event type",
+      "type": "string",
+      "enum": [
+        "StateEvent"
+      ],
+      "example": "StateEvent"
+    },
+    "eventId": {
+      "description": "Id of the listener",
+      "type": "string",
+      "example": "events.1"
+    },
+    "listener": {
+      "description": "Listener Info",
+      "type": "object",
+      "properties": {
+        "event": {
+          "$ref": "#/definitions/eventType"
+        },
+        "id": {
+          "$ref": "#/definitions/eventId"
+        }
+      },
+      "required": [
+        "eventType",
+        "eventId"
+      ]
+    },
+    "stopRequest": {
+        "type": "null",
+        "default": null,
+        "description": "Always null.",
+        "properties": {}
+    },
+    "suspendRequest": {
+        "type": "null",
+        "default": null,
+        "description": "Always null.",
+        "properties": {}
+    },
+    "resumeRequest": {
+        "type": "null",
+        "default": null,
+        "description": "Always null.",
+        "properties": {}
+    },
+    "getStateRequest": {
+        "type": "null",
+        "default": null,
+        "description": "Always null.",
+        "properties": {}
+    },
+    "getStateResult": {
+      "description": "State Info",
+      "type": "object",
+      "properties": {
+        "pid": {
+          "$ref": "#/definitions/pid"
+        },
+        "state": {
+          "$ref": "#/definitions/state"
+        }
+      },
+      "required": [
+        "pid",
+        "state"
+      ]
+    },
+    "getUrlRequest": {
+        "type": "null",
+        "default": null,
+        "description": "Always null.",
+        "properties": {}
+    },
+    "getUrlResult": {
+      "description": "Url Info",
+      "type": "object",
+      "properties": {
+        "url": {
+          "$ref": "#/definitions/url"
+        }
+      },
+      "required": [
+        "url"
+      ]
+    },
+    "deepLinkRequest": {
+      "description": "Deeplink to set",
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/definitions/deeplink"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "registerRequest": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "$ref": "#/definitions/eventType"
+        },
+        "id": {
+          "$ref": "#/definitions/eventId"
+        }
+      },
+      "required": [
+        "event",
+        "id"
+      ]
+    },
+    "unregisterRequest": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "$ref": "#/definitions/eventType"
+        },
+        "id": {
+          "$ref": "#/definitions/eventId"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "getListenersResult": {
+      "type": "object",
+      "properties": {
+        "listeners": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/listener"
+          }
+        }
+      },
+      "required": [
+        "listeners"
+      ]
+    }
+  },
+  "methods": {
+    "stop": {
+      "summary": "Stops cobalt",
+      "events": [
+        "StateEvent"
+      ],
+      "params": {
+        "$ref": "#/definitions/stopRequest"
+      },
+      "result": {
+        "$ref": "#/common/results/void"
+      },
+      "errors": [
+      ]
+    },
+    "suspend": {
+      "summary": "Suspends cobalt",
+      "events": [
+        "StateEvent"      
+      ],
+      "params": {
+        "$ref": "#/definitions/suspendRequest"
+      },
+      "result": {
+        "$ref": "#/common/results/void"
+      },
+      "errors": [
+      ]
+    },
+    "resume": {
+      "summary": "Resumes cobalt",
+      "events": [
+        "StateEvent"      
+      ],
+      "params": {
+        "$ref": "#/definitions/resumeRequest"
+      },
+      "result": {
+        "$ref": "#/common/results/void"
+      },
+      "errors": [
+      ]
+    },
+    "getState": {
+      "summary": "Gets cobalt state",
+      "events": [
+        "StateEvent"
+      ],
+      "params": {
+        "$ref": "#/definitions/getStateRequest"
+      },
+      "result": {
+        "$ref": "#/definitions/getStateResult"
+      },
+      "errors": [
+      ]
+    },
+    "getUrl": {
+      "summary": "Gets cobalt url",
+      "params": {
+        "$ref": "#/definitions/getUrlRequest"
+      },
+      "result": {
+        "$ref": "#/definitions/getUrlResult"
+      },
+      "errors": [
+      ]
+    },
+    "deepLink": {
+      "summary": "Sets cobalt deeplink",
+      "params": {
+        "$ref": "#/definitions/deepLinkRequest"
+      },
+      "result": {
+        "$ref": "#/common/results/void"
+      },
+      "errors": [
+      ]
+    },
+    "register": {
+      "summary": "Registers event listener",
+      "params": {
+        "$ref": "#/definitions/registerRequest"
+      },
+      "result": {
+        "$ref": "#/common/results/default"
+      },
+      "errors": [
+        {
+          "$ref": "#/common/errors/invalid_params"
+        }
+      ]
+    },
+    "unregister": {
+      "summary": "Registers event listener",
+      "params": {
+        "$ref": "#/definitions/unregisterRequest"
+      },
+      "result": {
+        "$ref": "#/common/results/default"
+      },
+      "errors": [
+        {
+          "$ref": "#/common/errors/invalid_params"
+        },
+        {
+          "$ref": "#/common/errors/registration_not_found"
+        }
+      ]
+    },
+    "getListeners": {
+      "summary": "Returns information about registered listeners",
+      "result": {
+        "$ref": "#/definitions/getListenersResult"
+      },
+      "errors": [
+      ]
+    }
+  },
+  "events": {
+    "StateEvent": {
+      "summary": "Cobalt state changed event",
+      "description": "Notification of changed state of cobalt",
+      "params": {
+        "type": "object",
+        "properties": {
+          "pid": {
+            "$ref": "#/definitions/pid"
+          },
+          "state": {
+            "$ref": "#/definitions/state"
+          },
+          "code": {
+            "$ref": "#/definitions/exitcode"
+          }
+        },
+        "required": [
+          "pid",
+          "state",
+          "code"
+        ]
+      }
+    }
+  }
+}
