@@ -31,7 +31,7 @@
 #include <rpcserver/IAbstractRpcServer.h>
 #include <rpcserver/WsRpcServerBuilder.h>
 
-#define RPC_METHOD_BASE "com.libertyglobal.rdk.cobalt.1."
+#define RPC_METHOD_BASE "org.rdk.cobalt.1."
 
 using namespace rpcserver;
 

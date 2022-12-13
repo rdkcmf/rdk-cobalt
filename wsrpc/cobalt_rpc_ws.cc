@@ -19,6 +19,7 @@
 #include <exception>
 #include <memory>
 #include "unistd.h"
+#include <cstring>
 
 #include "logging.h"
 #include "libcobalt.h"

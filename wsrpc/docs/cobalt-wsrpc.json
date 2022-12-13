@@ -3,7 +3,7 @@
   "jsonrpc": "2.0",
   "info": {
     "title": "cobalt-wsrpc API",
-    "class": "com.libertyglobal.rdk.cobalt",
+    "class": "org.rdk.cobalt",
     "description": "cobalt-wsrpc JSON RPC 2.0 interface",
     "version": "0.0.1"
   },

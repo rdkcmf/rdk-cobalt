@@ -18,7 +18,7 @@ cobalt-wsrpc JSON RPC 2.0 interface.
 <a name="head.Methods"></a>
 # Methods
 
-The following methods are provided by the com.libertyglobal.rdk.cobalt interface:
+The following methods are provided by the org.rdk.cobalt interface:
 
 | Method | Description |
 | :-------- | :-------- |
@@ -65,7 +65,7 @@ Also see: [StateEvent](#event.StateEvent)
 {
     "jsonrpc": "2.0",
     "id": 1234567890,
-    "method": "com.libertyglobal.rdk.cobalt.1.stop",
+    "method": "org.rdk.cobalt.1.stop",
     "params": null
 }
 ```
@@ -112,7 +112,7 @@ Also see: [StateEvent](#event.StateEvent)
 {
     "jsonrpc": "2.0",
     "id": 1234567890,
-    "method": "com.libertyglobal.rdk.cobalt.1.suspend",
+    "method": "org.rdk.cobalt.1.suspend",
     "params": null
 }
 ```
@@ -159,7 +159,7 @@ Also see: [StateEvent](#event.StateEvent)
 {
     "jsonrpc": "2.0",
     "id": 1234567890,
-    "method": "com.libertyglobal.rdk.cobalt.1.resume",
+    "method": "org.rdk.cobalt.1.resume",
     "params": null
 }
 ```
@@ -208,7 +208,7 @@ Also see: [StateEvent](#event.StateEvent)
 {
     "jsonrpc": "2.0",
     "id": 1234567890,
-    "method": "com.libertyglobal.rdk.cobalt.1.getState",
+    "method": "org.rdk.cobalt.1.getState",
     "params": null
 }
 ```
@@ -257,7 +257,7 @@ Gets cobalt url.
 {
     "jsonrpc": "2.0",
     "id": 1234567890,
-    "method": "com.libertyglobal.rdk.cobalt.1.getUrl",
+    "method": "org.rdk.cobalt.1.getUrl",
     "params": null
 }
 ```
@@ -305,7 +305,7 @@ Sets cobalt deeplink.
 {
     "jsonrpc": "2.0",
     "id": 1234567890,
-    "method": "com.libertyglobal.rdk.cobalt.1.deepLink",
+    "method": "org.rdk.cobalt.1.deepLink",
     "params": {
         "data": ""
     }
@@ -355,7 +355,7 @@ Registers event listener.
 {
     "jsonrpc": "2.0",
     "id": 1234567890,
-    "method": "com.libertyglobal.rdk.cobalt.1.register",
+    "method": "org.rdk.cobalt.1.register",
     "params": {
         "event": "StateEvent",
         "id": "events.1"
@@ -407,7 +407,7 @@ Registers event listener.
 {
     "jsonrpc": "2.0",
     "id": 1234567890,
-    "method": "com.libertyglobal.rdk.cobalt.1.unregister",
+    "method": "org.rdk.cobalt.1.unregister",
     "params": {
         "event": "StateEvent",
         "id": "events.1"
@@ -457,7 +457,7 @@ This method takes no parameters.
 {
     "jsonrpc": "2.0",
     "id": 1234567890,
-    "method": "com.libertyglobal.rdk.cobalt.1.getListeners"
+    "method": "org.rdk.cobalt.1.getListeners"
 }
 ```
 
@@ -483,7 +483,7 @@ This method takes no parameters.
 
 Notifications are autonomous events, triggered by the internals of the implementation, and broadcasted via JSON-RPC to all registered observers. 
 
-The following events are provided by the com.libertyglobal.rdk.cobalt interface:
+The following events are provided by the org.rdk.cobalt interface:
 
 | Event | Description |
 | :-------- | :-------- |

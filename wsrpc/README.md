@@ -12,12 +12,12 @@ By default the websocket server will listen on TCP port **10111**. Set environme
 ## JSON websocket interface
 JSON interface schema and docs: see ./docs/ subdir. 
 ### example: Register and receive events
-> wscat -c ws://127.0.0.1:10111/jsonrpc  -x '{"jsonrpc":"2.0","id":1,"method":"com.libertyglobal.rdk.cobalt.1.register", "params": { "event": "StateEvent", "id": "events.1"  } }' -w 1000
+> wscat -c ws://127.0.0.1:10111/jsonrpc  -x '{"jsonrpc":"2.0","id":1,"method":"org.rdk.cobalt.1.register", "params": { "event": "StateEvent", "id": "events.1"  } }' -w 1000
 
 ### example: Suspend/Resume/Stop cobalt
-> wscat -c ws://127.0.0.1:10111/jsonrpc  -x '{"jsonrpc":"2.0","id":1,"method":"com.libertyglobal.rdk.cobalt.1.suspend" }
+> wscat -c ws://127.0.0.1:10111/jsonrpc  -x '{"jsonrpc":"2.0","id":1,"method":"org.rdk.cobalt.1.suspend" }
 > 
-> wscat -c ws://127.0.0.1:10111/jsonrpc  -x '{"jsonrpc":"2.0","id":1,"method":"com.libertyglobal.rdk.cobalt.1.resume" }
+> wscat -c ws://127.0.0.1:10111/jsonrpc  -x '{"jsonrpc":"2.0","id":1,"method":"org.rdk.cobalt.1.resume" }
 > 
-> wscat -c ws://127.0.0.1:10111/jsonrpc  -x '{"jsonrpc":"2.0","id":1,"method":"com.libertyglobal.rdk.cobalt.1.stop" }
+> wscat -c ws://127.0.0.1:10111/jsonrpc  -x '{"jsonrpc":"2.0","id":1,"method":"org.rdk.cobalt.1.stop" }
 > 
