@@ -98,6 +98,31 @@ bool GetCacheDirectory(char* out_path, int path_size) {
   return SbDirectoryCreate(out_path);
 }
 
+// Gets path to the storage directory, using the user's home directory.
+bool GetStorageDirectory(char* out_path, int path_size) {
+
+  const char* storage_path = std::getenv("COBALT_STORAGE_DIR");
+  if(storage_path) {
+    if (starboard::strlcat<char>(out_path, storage_path, path_size) < path_size)
+      return SbDirectoryCreate(out_path);
+    else
+      SB_LOG(ERROR) << "GetStorageDirectory: out_path exceeds max file path size";
+  }
+
+  std::vector<char> home_path(kSbFileMaxPath + 1);
+  if (!SbUserGetProperty(SbUserGetCurrent(), kSbUserPropertyHomeDirectory, home_path.data(), kSbFileMaxPath)) {
+    return false;
+  }
+
+  int result = SbStringFormatF(out_path, path_size, "%s/.cobalt_storage", home_path.data());
+  if (result < 0 || result >= path_size) {
+    out_path[0] = '\0';
+    return false;
+  }
+  SB_LOG(INFO) << "SbSysGetPath: StorageDirectoy = " << std::string(out_path);
+  return SbDirectoryCreate(out_path);
+}
+
 // Places up to |path_size| - 1 characters of the path to the current
 // executable in |out_path|, ensuring it is NULL-terminated. Returns success
 // status. The result being greater than |path_size| - 1 characters is a
@@ -229,9 +254,11 @@ bool SbSystemGetPath(SbSystemPathId path_id, char* out_path, int path_size) {
       SbDirectoryCreate(path);
       break;
 
+#if SB_API_VERSION < 14
     case kSbSystemPathTestOutputDirectory:
       return SbSystemGetPath(kSbSystemPathDebugOutputDirectory, out_path,
                              path_size);
+#endif  // #if SB_API_VERSION < 14
 
     case kSbSystemPathExecutableFile:
       return GetExecutablePath(out_path, path_size);
@@ -248,6 +275,14 @@ bool SbSystemGetPath(SbSystemPathId path_id, char* out_path, int path_size) {
       break;
 #else
       return false;
+#endif
+
+#if SB_API_VERSION >= 12
+    case kSbSystemPathStorageDirectory:
+      if (!GetStorageDirectory(path, kSbFileMaxPath)) {
+          return false;
+      }
+      break;
 #endif
 
     default:

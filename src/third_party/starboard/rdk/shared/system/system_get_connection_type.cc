@@ -32,6 +32,7 @@
 
 #include "third_party/starboard/rdk/shared/rdkservices.h"
 
+#if SB_API_VERSION < 14
 SbSystemConnectionType SbSystemGetConnectionType() {
   if (third_party::starboard::rdk::shared::NetworkInfo::IsConnectionTypeWireless()) {
     return kSbSystemConnectionTypeWireless;
@@ -39,3 +40,4 @@ SbSystemConnectionType SbSystemGetConnectionType() {
     return kSbSystemConnectionTypeWired;
   }
 }
+#endif  // #if SB_API_VERSION < 14

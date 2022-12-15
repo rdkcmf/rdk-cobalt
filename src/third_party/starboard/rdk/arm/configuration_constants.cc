@@ -157,3 +157,9 @@ const int kSbPreferredRgbaByteOrder = SB_PREFERRED_RGBA_BYTE_ORDER_RGBA;
 
 // The maximum number of users that can be signed in at the same time.
 const uint32_t kSbUserMaxSignedIn = 1;
+
+#if SB_API_VERSION >= 14
+// Defines maximum space in bytes the cache directory kSbSystemPathCacheDirectory can
+// use. The default value is 24MiB.
+const uint32_t kSbMaxSystemPathCacheDirectorySize = 24 << 20;  // 24MiB
+#endif //SB_API_VERSION >= 14

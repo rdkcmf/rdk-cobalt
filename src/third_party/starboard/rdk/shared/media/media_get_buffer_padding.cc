@@ -16,9 +16,11 @@
 
 #include "starboard/common/log.h"
 
-#if SB_API_VERSION >= 10
-int SbMediaGetBufferPadding(SbMediaType type) {
-  SB_UNREFERENCED_PARAMETER(type);
-  return 0;
+#if SB_API_VERSION >= 14
+  int SbMediaGetBufferPadding() {
+#else   // SB_API_VERSION >= 14
+  int SbMediaGetBufferPadding(SbMediaType type) {
+    SB_UNREFERENCED_PARAMETER(type);
+#endif  // SB_API_VERSION >= 14
+    return 0;
 }
-#endif  // SB_API_VERSION >= 10
