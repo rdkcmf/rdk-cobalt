@@ -240,6 +240,20 @@ bool GetCertificationScope(char* out_value, int value_length) {
   return starboard::strlcpy<char>(out_value, buf.data(), value_length);
 }
 
+bool GetLimitAdTracking(char* out_value, int value_length) {
+    std::string prop;
+    if (AdvertisingId::GetLmtAdTracking(prop)) {
+      return CopyStringAndTestIfSuccess(out_value, value_length, prop.c_str());
+    }
+}
+
+bool GetAdvertisingId(char* out_value, int value_length) {
+    std::string prop;
+    if (AdvertisingId::GetIfa(prop)) {
+      return CopyStringAndTestIfSuccess(out_value, value_length, prop.c_str());
+    }
+}
+
 }  // namespace
 
 bool SbSystemGetProperty(SbSystemPropertyId property_id,
@@ -282,6 +296,13 @@ bool SbSystemGetProperty(SbSystemPropertyId property_id,
 #if SB_API_VERSION < 13
     case kSbSystemPropertyBase64EncodedCertificationSecret:
       return false;
+#endif
+
+#if SB_API_VERSION >= 14
+    case kSbSystemPropertyAdvertisingId:
+      return GetAdvertisingId(out_value, value_length);
+    case kSbSystemPropertyLimitAdTracking:
+      return GetLimitAdTracking(out_value, value_length);
 #endif
 
     default:

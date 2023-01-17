@@ -96,6 +96,15 @@ public:
   static bool GetDeviceType(std::string &out);
 };
 
+class AdvertisingId {
+public:
+  static void SetSettings(const std::string& json);
+  static bool GetSettings(std::string& out_json);
+  static bool GetIfa(std::string &out);
+  static bool GetIfaType(std::string &out);
+  static bool GetLmtAdTracking(std::string &out);
+};
+
 class AuthService {
 public:
   static bool IsAvailable();

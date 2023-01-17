@@ -28,6 +28,7 @@ set(PLUGIN_COBALT_AUTOSTART false CACHE STRING "Automatically start Cobalt plugi
 set(PLUGIN_COBALT_CLOSUREPOLICY "quit" CACHE STRING "Configures how to handle window close request")
 set(PLUGIN_COBALT_AUTOSTART "false" CACHE STRING "Automatically start Cobalt plugin")
 set(PLUGIN_COBALT_MODE "Local" CACHE STRING "Controls if the plugin should run in its own process, in process or remote")
+set(COBALT_LIMIT_AD_TRACKING false CACHE STRING "Disable Ad Tracking and measurement.")
 
 option(PLUGIN_COBALT_ENABLE_FOCUS_IFACE "Enable support for focus change." OFF)
 option(PLUGIN_COBALT_EVEGREEN_LITE "Enable Evergreen Lite build configuration." OFF)

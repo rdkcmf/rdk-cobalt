@@ -629,6 +629,72 @@ private:
 
 SB_ONCE_INITIALIZE_FUNCTION(SystemPropertiesImpl, GetSystemProperties);
 
+struct AdvertisingIdImpl {
+  struct AdvertisingData : public Core::JSON::Container {
+    AdvertisingData()
+      : Core::JSON::Container() {
+      Add(_T("ifa"), &Ifa);
+      Add(_T("ifa_type"), &IfaType);
+      Add(_T("lmt"), &Lmt);
+    }
+    AdvertisingData(const AdvertisingData&) = delete;
+    AdvertisingData& operator=(const AdvertisingData&) = delete;
+
+    Core::JSON::String Ifa;
+    Core::JSON::String IfaType;
+    Core::JSON::String Lmt;
+  };
+
+  void SetSettings(const std::string& json) {
+    ::starboard::ScopedLock lock(mutex_);
+    Core::OptionalType<Core::JSON::Error> error;
+    if ( !props_.FromString(json, error) ) {
+      props_.Clear();
+      SB_LOG(ERROR) << "Failed to parse advertisingid settings, error: "
+                    << (error.IsSet() ? Core::JSON::ErrorDisplayMessage(error.Value()): "Unknown");
+      return;
+    }
+  }
+
+  bool GetSettings(std::string& out_json) const {
+    ::starboard::ScopedLock lock(mutex_);
+    return props_.ToString(out_json);
+  }
+
+  bool GetIfa(std::string &out) const {
+    ::starboard::ScopedLock lock(mutex_);
+    if (props_.Ifa.IsSet() && !props_.Ifa.Value().empty()) {
+      out = props_.Ifa.Value();
+      return true;
+    }
+    return false;
+  }
+
+    bool GetIfaType(std::string &out) const {
+    ::starboard::ScopedLock lock(mutex_);
+    if (props_.IfaType.IsSet() && !props_.IfaType.Value().empty()) {
+      out = props_.IfaType.Value();
+      return true;
+    }
+    return false;
+  }
+
+  bool GetLmtAdTracking(std::string &out) const {
+    ::starboard::ScopedLock lock(mutex_);
+    if (props_.Lmt.IsSet() && !props_.Lmt.Value().empty()) {
+      out = props_.Lmt.Value();
+      return true;
+    }
+    return false;
+  }
+
+private:
+  ::starboard::Mutex mutex_;
+  AdvertisingData props_;
+};
+
+SB_ONCE_INITIALIZE_FUNCTION(AdvertisingIdImpl, GetAdvertisingProperties);
+
 struct AuthServiceImpl {
   AuthServiceImpl() {
     const std::string method = std::string("status@") + kAuthServiceCallsign;
@@ -1063,6 +1129,26 @@ void Accessibility::SetSettings(const std::string& json) {
 
 bool Accessibility::GetSettings(std::string& out_json) {
   return GetAccessibility()->GetSettings(out_json);
+}
+
+void AdvertisingId::SetSettings(const std::string& json) {
+  GetAdvertisingProperties()->SetSettings(json);
+}
+
+bool AdvertisingId::GetSettings(std::string& out_json) {
+  return GetAdvertisingProperties()->GetSettings(out_json);
+}
+
+bool AdvertisingId::GetIfa(std::string& out_json) {
+  return GetAdvertisingProperties()->GetIfa(out_json);
+}
+
+bool AdvertisingId::GetIfaType(std::string& out_json) {
+  return GetAdvertisingProperties()->GetIfaType(out_json);
+}
+
+bool AdvertisingId::GetLmtAdTracking(std::string& out_json) {
+  return GetAdvertisingProperties()->GetLmtAdTracking(out_json);
 }
 
 void SystemProperties::SetSettings(const std::string& json) {

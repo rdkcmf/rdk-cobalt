@@ -308,6 +308,9 @@ void SbRdkSetSetting(const char* key, const char* json) {
   else if (strcmp(key, "systemproperties") == 0) {
     SystemProperties::SetSettings(json);
   }
+  else if (strcmp(key, "advertisingid") == 0) {
+    AdvertisingId::SetSettings(json);
+  }
 }
 
 int SbRdkGetSetting(const char* key, char** out_json) {
@@ -322,6 +325,9 @@ int SbRdkGetSetting(const char* key, char** out_json) {
   }
   else if (strcmp(key, "systemproperties") == 0) {
     result = SystemProperties::GetSettings(tmp);
+  }
+  else if (strcmp(key, "advertisingid") == 0) {
+    result = AdvertisingId::GetSettings(tmp);
   }
 
   if (result && !tmp.empty()) {

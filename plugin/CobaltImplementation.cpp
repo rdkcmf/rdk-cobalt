@@ -110,6 +110,7 @@ private:
       Add(_T("preload"), &PreloadEnabled);
       Add(_T("autosuspenddelay"), &AutoSuspendDelay);
       Add(_T("systemproperties"), &SystemProperties);
+      Add(_T("advertisingid"), &AdvertisingId);
       Add(_T("closurepolicy"), &ClosurePolicy);
       Add(_T("fireboltendpoint"), &FireboltEndpoint);
     }
@@ -126,6 +127,7 @@ private:
     Core::JSON::Boolean PreloadEnabled;
     Core::JSON::DecUInt16 AutoSuspendDelay;
     Core::JSON::VariantContainer SystemProperties;
+    Core::JSON::VariantContainer AdvertisingId;
     Core::JSON::String ClosurePolicy;
     Core::JSON::String FireboltEndpoint;
   };
@@ -318,6 +320,12 @@ private:
         std::string properties;
         if (config.SystemProperties.ToString(properties))
           SbRdkSetSetting("systemproperties", properties.c_str());
+      }
+
+      if (config.AdvertisingId.IsSet() == true) {
+        std::string parameters;
+        if (config.AdvertisingId.ToString(parameters))
+          SbRdkSetSetting("advertisingid", parameters.c_str());
       }
 
       if (config.FireboltEndpoint.IsSet() == true)
