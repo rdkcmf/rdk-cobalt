@@ -245,6 +245,7 @@ bool GetLimitAdTracking(char* out_value, int value_length) {
     if (AdvertisingId::GetLmtAdTracking(prop)) {
       return CopyStringAndTestIfSuccess(out_value, value_length, prop.c_str());
     }
+    return false;
 }
 
 bool GetAdvertisingId(char* out_value, int value_length) {
@@ -252,6 +253,7 @@ bool GetAdvertisingId(char* out_value, int value_length) {
     if (AdvertisingId::GetIfa(prop)) {
       return CopyStringAndTestIfSuccess(out_value, value_length, prop.c_str());
     }
+    return false;
 }
 
 }  // namespace
